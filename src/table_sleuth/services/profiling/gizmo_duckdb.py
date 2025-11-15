@@ -65,6 +65,14 @@ class GizmoDuckDbProfiler(ProfilingBackend):
                 "Iceberg snapshot IDs must be non-negative"
             )
 
+        # Handle empty snapshots (schema-only or delete-only operations)
+        if not snapshot.data_files:
+            raise ValueError(
+                f"Snapshot {snapshot.snapshot_id} has no data files. "
+                "Cannot create view for empty snapshot. "
+                "This may be a schema-only change or delete-only snapshot."
+            )
+
         # Create view name with validated snapshot ID
         view_name = f"snap_{snapshot.snapshot_id}"
         # Sanitize view name to prevent SQL injection
