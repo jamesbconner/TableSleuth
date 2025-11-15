@@ -31,8 +31,19 @@ class MergeOnReadPerformance:
 
     @property
     def overhead_percentage(self) -> float:
-        """Percentage overhead caused by merge-on-read."""
+        """
+        Percentage overhead caused by merge-on-read.
+
+        Returns:
+            Percentage overhead (0-100+). Returns float('inf') if base query
+            time is zero but overhead exists (representing infinite percentage
+            overhead). Returns 0.0 if both times are zero.
+        """
         if self.without_deletes.execution_time_ms == 0:
+            # If base time is 0 but there's overhead, return infinity
+            if self.overhead_ms > 0:
+                return float("inf")
+            # If both are 0, return 0
             return 0.0
         return (self.overhead_ms / self.without_deletes.execution_time_ms) * 100
 

@@ -115,8 +115,8 @@ class TestMergeOnReadPerformance:
         assert performance.overhead_percentage == 400.0
         assert performance.rows_deleted == 2500
 
-    def test_zero_base_time_edge_case(self):
-        """Test edge case where base query time is zero."""
+    def test_zero_base_time_with_overhead(self):
+        """Test edge case where base query time is zero but overhead exists."""
         without_deletes = QueryPerformanceProfile(
             query="SELECT COUNT(*) FROM empty_table",
             execution_time_ms=0.0,
@@ -141,7 +141,36 @@ class TestMergeOnReadPerformance:
         )
 
         assert performance.overhead_ms == 10.0
-        assert performance.overhead_percentage == 0.0  # Avoids division by zero
+        assert performance.overhead_percentage == float("inf")  # Infinite overhead
+        assert performance.rows_deleted == 0
+
+    def test_both_times_zero(self):
+        """Test edge case where both query times are zero."""
+        without_deletes = QueryPerformanceProfile(
+            query="SELECT COUNT(*) FROM empty_table",
+            execution_time_ms=0.0,
+            rows_scanned=0,
+            rows_returned=0,
+            delete_files_applied=0,
+            data_files_scanned=0,
+        )
+
+        with_deletes = QueryPerformanceProfile(
+            query="SELECT COUNT(*) FROM empty_table",
+            execution_time_ms=0.0,
+            rows_scanned=0,
+            rows_returned=0,
+            delete_files_applied=0,
+            data_files_scanned=0,
+        )
+
+        performance = MergeOnReadPerformance(
+            with_deletes=with_deletes,
+            without_deletes=without_deletes,
+        )
+
+        assert performance.overhead_ms == 0.0
+        assert performance.overhead_percentage == 0.0  # No overhead
         assert performance.rows_deleted == 0
 
     def test_negative_rows_deleted_edge_case(self):
