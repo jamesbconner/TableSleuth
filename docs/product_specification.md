@@ -26,21 +26,21 @@ MVP v1 targets Apache Iceberg tables accessed through a local catalog and direct
 
 ## 4. Target users and personas
 
-- **Data Platform Engineer**  
+- **Data Platform Engineer**
   Responsible for Iceberg table health, storage layout, and performance. Needs to understand how snapshots, delete files, and Parquet file structures impact query behavior.
 
-- **Analytics Engineer / Senior Data Engineer**  
+- **Analytics Engineer / Senior Data Engineer**
   Investigates data anomalies and quality issues. Needs to quickly profile columns and see how data has changed across snapshots.
 
-- **Site Reliability Engineer for Data Platform**  
+- **Site Reliability Engineer for Data Platform**
   Helps debug incidents related to data availability and query performance. Needs to understand whether a table is heavily fragmented or overrun by delete files.
 
 ## 5. User stories and acceptance criteria
 
 ### Story 1 - Inspect a local Iceberg table
 
-**As** a data platform engineer  
-**I want** to point Table Sleuth at a local Iceberg table managed by a local catalog  
+**As** a data platform engineer
+**I want** to point Table Sleuth at a local Iceberg table managed by a local catalog
 **So that** I can see its schema, snapshots, and file level metadata
 
 **Acceptance criteria**
@@ -64,8 +64,8 @@ MVP v1 targets Apache Iceberg tables accessed through a local catalog and direct
 
 ### Story 2 - Inspect an Iceberg table directly from S3 metadata
 
-**As** a data platform engineer  
-**I want** to open an Iceberg table by pointing at an S3 location or metadata file  
+**As** a data platform engineer
+**I want** to open an Iceberg table by pointing at an S3 location or metadata file
 **So that** I can perform forensics without needing a full Glue or REST catalog
 
 **Acceptance criteria**
@@ -76,8 +76,8 @@ MVP v1 targets Apache Iceberg tables accessed through a local catalog and direct
 
 ### Story 3 - View file level Parquet structure
 
-**As** a data platform engineer  
-**I want** to inspect the Parquet structure of a single data file in a snapshot  
+**As** a data platform engineer
+**I want** to inspect the Parquet structure of a single data file in a snapshot
 **So that** I can understand row group layout and column level statistics
 
 **Acceptance criteria**
@@ -97,8 +97,8 @@ MVP v1 targets Apache Iceberg tables accessed through a local catalog and direct
 
 ### Story 4 - Basic merge on read impact summary
 
-**As** a data platform engineer  
-**I want** a quick summary of how delete files affect a snapshot  
+**As** a data platform engineer
+**I want** a quick summary of how delete files affect a snapshot
 **So that** I can determine whether merge on read is likely to hurt query performance
 
 **Acceptance criteria**
@@ -115,8 +115,8 @@ MVP v1 targets Apache Iceberg tables accessed through a local catalog and direct
 
 ### Story 5 - Run column level profiling through GizmoSQL
 
-**As** an analytics engineer  
-**I want** to profile a column in a snapshot using a DuckDB backed profiling engine  
+**As** an analytics engineer
+**I want** to profile a column in a snapshot using a DuckDB backed profiling engine
 **So that** I can quickly understand distributions, null rates, and distinct counts
 
 **Acceptance criteria**
@@ -134,8 +134,8 @@ MVP v1 targets Apache Iceberg tables accessed through a local catalog and direct
 
 ### Story 6 - Profiling backend abstraction
 
-**As** a data platform architect  
-**I want** the profiling engine to be abstracted behind an interface  
+**As** a data platform architect
+**I want** the profiling engine to be abstracted behind an interface
 **So that** I can add a PySpark based implementation in a future MVP without rewriting the UI
 
 **Acceptance criteria**

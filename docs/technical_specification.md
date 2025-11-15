@@ -14,25 +14,25 @@ The design is intentionally modular so that later MVPs can:
 
 Logical components:
 
-1. **Format metadata layer**  
-   - Responsible for connecting to a table, reading schemas, partitions, snapshots, manifests, data files, and delete files.  
+1. **Format metadata layer**
+   - Responsible for connecting to a table, reading schemas, partitions, snapshots, manifests, data files, and delete files.
    - MVP v1 implements an Iceberg specific adapter using PyIceberg.
 
-2. **File structure inspector**  
-   - Reads Parquet file metadata using PyArrow.  
+2. **File structure inspector**
+   - Reads Parquet file metadata using PyArrow.
    - Produces structured summaries for the TUI to render.
 
-3. **Merge on read analyzer**  
+3. **Merge on read analyzer**
    - Consumes snapshot and file metadata and produces:
      - Data file and delete file relationships.
-     - Per file and per snapshot merge on read impact metrics.  
+     - Per file and per snapshot merge on read impact metrics.
    - MVP v1 focuses on summary level metrics, not full logical reconstruction of the dataset.
 
-4. **Profiling engine**  
-   - Abstract interface with a concrete implementation that uses GizmoSQL and DuckDB via Arrow Flight SQL ADBC.  
+4. **Profiling engine**
+   - Abstract interface with a concrete implementation that uses GizmoSQL and DuckDB via Arrow Flight SQL ADBC.
    - Operates on snapshot level views of table data.
 
-5. **Presentation layer (Textual TUI)**  
+5. **Presentation layer (Textual TUI)**
    - Provides a multi panel interface for:
      - Table metadata
      - Snapshot list
@@ -41,7 +41,7 @@ Logical components:
      - Merge on read summary
      - Profiling results
 
-6. **Command line entry points**  
+6. **Command line entry points**
    - Thin CLI wrappers around the TUI and profiling tools.
 
 ## 3. Package layout
