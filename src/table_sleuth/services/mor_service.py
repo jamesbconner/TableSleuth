@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List
 
-from table_sleuth.models import SnapshotInfo, FileRef
+from table_sleuth.models import FileRef, SnapshotInfo
 
 
 @dataclass
@@ -24,11 +24,11 @@ class SnapshotMorSummary:
     total_effective_rows_estimate: int
     num_base_files: int
     num_delete_files: int
-    file_impacts: List[FileMorImpact]
+    file_impacts: list[FileMorImpact]
 
 
 def estimate_mor(snapshot: SnapshotInfo) -> SnapshotMorSummary:
-    delete_by_partition: Dict[str, List[FileRef]] = {}
+    delete_by_partition: dict[str, list[FileRef]] = {}
 
     for df in snapshot.delete_files:
         key = _partition_key(df.partition)

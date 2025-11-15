@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -11,6 +12,6 @@ class SnapshotInfo:
     parent_id: Optional[int]
     timestamp_ms: int
     operation: str
-    summary: Dict[str, str]
-    data_files: List[FileRef] = field(default_factory=list)
-    delete_files: List[FileRef] = field(default_factory=list)
+    summary: dict[str, str]
+    data_files: list[FileRef] = field(default_factory=list)
+    delete_files: list[FileRef] = field(default_factory=list)
