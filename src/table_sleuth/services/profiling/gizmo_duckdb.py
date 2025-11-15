@@ -58,6 +58,14 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         )
 
     def register_snapshot_view(self, snapshot: SnapshotInfo) -> str:
+        # Validate snapshot ID is positive (Iceberg constraint)
+        if snapshot.snapshot_id < 0:
+            raise ValueError(
+                f"Invalid snapshot ID {snapshot.snapshot_id}: "
+                "Iceberg snapshot IDs must be non-negative"
+            )
+
+        # Create view name with validated snapshot ID
         view_name = f"snap_{snapshot.snapshot_id}"
         # Sanitize view name to prevent SQL injection
         safe_view_name = _sanitize_identifier(view_name)
