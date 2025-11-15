@@ -77,6 +77,12 @@ select = [
 ignore = [
   "E203",  # whitespace before :
   "E501",  # line length (handled by formatter / your judgment)
+  "F401",  # unused imports (common in stubs/WIP)
+  "F841",  # unused variables (common in stubs/WIP)
+  "F811",  # redefinition of unused name
+  "B008",  # function calls in argument defaults
+  "UP007", # use X | Y for type annotations (prefer Optional for clarity)
+  "UP035", # typing.Dict/List -> dict/list (allow both styles)
 ]
 
 [tool.ruff.format]
