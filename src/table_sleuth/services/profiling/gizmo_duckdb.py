@@ -53,7 +53,22 @@ def _validate_filter_expression(filters: str) -> None:
     # Convert to lowercase for case-insensitive checking
     filters_lower = filters.lower()
 
-    # List of dangerous SQL keywords that should not appear in filters
+    # Check for SQL comments and statement terminators first (no word boundaries needed)
+    dangerous_patterns = [
+        ("--", "SQL comment"),
+        ("/*", "SQL comment"),
+        ("*/", "SQL comment"),
+        (";", "statement terminator"),
+    ]
+
+    for pattern, description in dangerous_patterns:
+        if pattern in filters_lower:
+            raise ValueError(
+                f"Filter expression contains {description} '{pattern}'. "
+                "Filters must only contain safe comparison operators and values."
+            )
+
+    # List of dangerous SQL keywords that should not appear as standalone words
     dangerous_keywords = [
         "drop",
         "delete",
@@ -67,25 +82,24 @@ def _validate_filter_expression(filters: str) -> None:
         "union",
         "select",
         "into",
-        "--",
-        "/*",
-        "*/",
-        ";",
         "xp_",
         "sp_",
     ]
 
     for keyword in dangerous_keywords:
-        if keyword in filters_lower:
+        # Use word boundary matching to avoid false positives with column names
+        # like 'deleted_at', 'into_status', 'truncated_value', 'selecting'
+        pattern = rf"\b{re.escape(keyword)}\b"
+        if re.search(pattern, filters_lower):
             raise ValueError(
                 f"Filter expression contains dangerous keyword '{keyword}'. "
                 "Filters must only contain safe comparison operators and values."
             )
 
-    # Check for suspicious patterns
-    if re.search(r"['\";]", filters):
+    # Check for quotes (no word boundaries needed)
+    if re.search(r"['\"]", filters):
         raise ValueError(
-            "Filter expression contains quotes or semicolons which are not allowed. "
+            "Filter expression contains quotes which are not allowed. "
             "Use simple comparison expressions only (e.g., 'column > 100')."
         )
 
