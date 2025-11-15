@@ -54,8 +54,7 @@ Homepage = "https://github.com/jamesbconner/table-sleuth"
 Repository = "https://github.com/jamesbconner/table-sleuth"
 
 # Hatchling configuration for src layout
-[tool.hatch.build.targets.wheel]
-packages = ["table_sleuth"]
+# Removed to let hatchling auto determine the package in src
 
 # -----------------------
 # Ruff configuration
