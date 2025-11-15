@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pyarrow.parquet import ParquetFile
 
-from table_sleuth.models import ParquetFileInfo, ColumnStats
+from table_sleuth.models import ColumnStats, ParquetFileInfo
 
 
 def inspect_parquet_file(path: str) -> ParquetFileInfo:
@@ -35,9 +35,7 @@ def inspect_parquet_file(path: str) -> ParquetFileInfo:
         ]
 
         compression = row_group_cols[0].compression
-        encodings = list(
-            {enc.name for c in row_group_cols for enc in (c.encodings or [])}
-        )
+        encodings = list({enc.name for c in row_group_cols for enc in (c.encodings or [])})
 
         columns.append(
             ColumnStats(
@@ -48,9 +46,7 @@ def inspect_parquet_file(path: str) -> ParquetFileInfo:
                 min_value=min(mins) if mins else None,
                 max_value=max(maxs) if maxs else None,
                 encodings=encodings,
-                compression=compression.name if hasattr(compression, "name") else str(
-                    compression
-                ),
+                compression=compression.name if hasattr(compression, "name") else str(compression),
             )
         )
 

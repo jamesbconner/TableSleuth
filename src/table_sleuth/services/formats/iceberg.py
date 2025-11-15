@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from typing import Iterable, Optional
+from collections.abc import Iterable
+from typing import Optional
 
 from pyiceberg.catalog import load_catalog
-from pyiceberg.table import StaticTable, Table, Snapshot
+from pyiceberg.table import Snapshot, StaticTable, Table
 
-from table_sleuth.models import TableHandle, SnapshotInfo, FileRef
+from table_sleuth.models import FileRef, SnapshotInfo, TableHandle
+
 from .base import TableFormatAdapter
 
 

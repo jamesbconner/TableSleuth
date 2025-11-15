@@ -1,8 +1,8 @@
-from .table import TableHandle
-from .snapshot import SnapshotInfo
 from .file_ref import FileRef
-from .parquet import ParquetFileInfo, ColumnStats
+from .parquet import ColumnStats, ParquetFileInfo
 from .profiling import ColumnProfile
+from .snapshot import SnapshotInfo
+from .table import TableHandle
 
 __all__ = [
     "TableHandle",
