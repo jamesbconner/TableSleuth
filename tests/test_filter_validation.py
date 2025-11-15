@@ -18,6 +18,13 @@ class TestFilterValidation:
             "name LIKE pattern",
             "value IS NOT NULL",
             "count >= 5 OR count <= 100",
+            # Column names containing SQL keywords as substrings should be allowed
+            "deleted_at IS NOT NULL",
+            "into_status = 1",
+            "truncated_value > 0",
+            "selecting = true",
+            "updated_count > 5",
+            "inserted_by = 123",
         ]
 
         for filter_expr in valid_filters:
@@ -45,7 +52,7 @@ class TestFilterValidation:
         ]
 
         for filter_expr in dangerous_filters:
-            with pytest.raises(ValueError, match="dangerous|quotes|semicolons"):
+            with pytest.raises(ValueError, match="dangerous|quotes|comment|terminator"):
                 _validate_filter_expression(filter_expr)
 
     def test_dangerous_keywords_blocked(self):
