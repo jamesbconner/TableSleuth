@@ -14,7 +14,9 @@ MVP v1 targets Apache Iceberg tables accessed through a local catalog and direct
    - Snapshot history
    - File level details (data files and delete files)
    - Basic merge on read impact metrics
-3. Integrate with a GizmoSQL DuckDB server running in Docker for column level profiling of snapshot data.
+3. Integrate with a GizmoSQL DuckDB server running in Docker for:
+   - Column level profiling of snapshot data
+   - Performance profiling to measure merge-on-read query overhead
 4. Abstract the profiling engine so that a different backend such as PySpark can be substituted in a future MVP without changing the TUI.
 
 ## 3. Non goals for MVP v1
@@ -132,7 +134,31 @@ MVP v1 targets Apache Iceberg tables accessed through a local catalog and direct
 4. If the profiling backend is unavailable, the UI displays a clear error and does not block other parts of the application.
 5. Profiling logic is routed through an abstraction so that the implementation details of GizmoSQL are not tied directly into the TUI widget code.
 
-### Story 6 - Profiling backend abstraction
+### Story 6 - Performance profiling for merge-on-read queries
+
+**As** a data platform engineer
+**I want** to measure the performance impact of merge-on-read operations on query execution
+**So that** I can understand whether delete files are causing query slowdowns and decide when to compact
+
+**Acceptance criteria**
+
+1. For a selected snapshot, I can trigger a performance profile that executes a representative query (e.g., `SELECT COUNT(*) WHERE <filter>`) with and without delete file application.
+2. The performance profile view shows:
+   - Query execution time with merge-on-read (full delete application)
+   - Query execution time without delete application (base data only)
+   - Performance overhead percentage
+   - Number of delete files applied
+   - Total rows scanned vs. rows returned after deletes
+3. The profiling can be run with different filter predicates to test various query patterns.
+4. Results include timing breakdown:
+   - Data file scan time
+   - Delete file scan time
+   - Merge operation time
+   - Total query time
+5. The UI clearly indicates that performance measurements are approximate and may vary based on cache state and system load.
+6. Performance profiling is optional and can be disabled if the profiling backend doesn't support it.
+
+### Story 7 - Profiling backend abstraction
 
 **As** a data platform architect
 **I want** the profiling engine to be abstracted behind an interface
@@ -143,6 +169,7 @@ MVP v1 targets Apache Iceberg tables accessed through a local catalog and direct
 1. The profiling component is expressed as an interface or abstract class with methods such as:
    - `profile_snapshot_columns(snapshot_handle, columns, filters)`
    - `profile_single_column(snapshot_handle, column, filters)`
+   - `profile_query_performance(snapshot_handle, query, with_deletes, without_deletes)`
 2. A concrete `GizmoDuckDbProfiler` is implemented and registered as the default implementation for MVP v1.
 3. No Textual widget imports the GizmoSQL or Flight SQL client directly. Widgets talk only to the profiling abstraction.
 4. Unit tests exist that verify the behaviors of the profiling interface using a fake or stub implementation.
@@ -153,5 +180,7 @@ MVP v1 targets Apache Iceberg tables accessed through a local catalog and direct
   - A small local dev table
   - A medium table with delete files
   - An S3 backed table with multiple snapshots
-- Profiling can be executed against at least one test dataset through GizmoSQL with profiles returning in a few seconds.
-- Early users report that merge on read summaries and file level views help them reason about performance or data anomalies that were previously opaque.
+- Column profiling can be executed against at least one test dataset through GizmoSQL with profiles returning in a few seconds.
+- Performance profiling successfully measures merge-on-read overhead on tables with delete files, showing measurable timing differences between queries with and without delete application.
+- Early users report that merge on read summaries, performance profiling, and file level views help them reason about performance or data anomalies that were previously opaque.
+- Performance profiling helps engineers make data-driven decisions about when to trigger table compaction.
