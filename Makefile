@@ -1,4 +1,4 @@
-.PHONY: help install install-dev sync clean test test-cov lint format type-check security pre-commit build run
+.PHONY: help install install-dev sync clean test test-cov lint format type-check security pre-commit check build run
 
 # Default target
 help:
