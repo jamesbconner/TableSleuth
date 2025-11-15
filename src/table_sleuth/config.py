@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import os
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
-import os
-import tomllib
 
 DEFAULT_CONFIG_PATHS = [
     Path.cwd() / "table_sleuth.toml",
@@ -42,9 +42,9 @@ def _load_toml_config() -> dict:
 def load_config() -> AppConfig:
     raw = _load_toml_config()
 
-    catalog_default = os.getenv("TABLE_SLEUTH_CATALOG_NAME") or raw.get(
-        "catalog", {}
-    ).get("default")
+    catalog_default = os.getenv("TABLE_SLEUTH_CATALOG_NAME") or raw.get("catalog", {}).get(
+        "default"
+    )
 
     gizmo_section = raw.get("gizmosql", {})
     gizmo = GizmoConfig(
@@ -55,9 +55,7 @@ def load_config() -> AppConfig:
         password=os.getenv(
             "TABLE_SLEUTH_GIZMO_PASSWORD", gizmo_section.get("password", GizmoConfig.password)
         ),
-        tls_skip_verify=bool(
-            gizmo_section.get("tls_skip_verify", GizmoConfig.tls_skip_verify)
-        ),
+        tls_skip_verify=bool(gizmo_section.get("tls_skip_verify", GizmoConfig.tls_skip_verify)),
     )
 
     return AppConfig(catalog=CatalogConfig(default=catalog_default), gizmosql=gizmo)

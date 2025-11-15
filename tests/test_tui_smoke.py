@@ -1,7 +1,7 @@
-from table_sleuth.tui.app import TableSleuthApp
+from table_sleuth.config import AppConfig, CatalogConfig, GizmoConfig
 from table_sleuth.models import TableHandle
 from table_sleuth.services.formats.iceberg import IcebergAdapter
-from table_sleuth.config import AppConfig, CatalogConfig, GizmoConfig
+from table_sleuth.tui.app import TableSleuthApp
 
 
 def test_tui_smoke() -> None:
