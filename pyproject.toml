@@ -125,6 +125,13 @@ markers = [
   "slow: marks tests as slow",
 ]
 
+# Filter out third-party deprecation warnings from dependencies
+# This error is being emitted from the pyiceberg 0.10.0 library
+# TODO: Review this filter in the future when pyiceberg is upated
+filterwarnings = [
+  "ignore::pydantic.warnings.PydanticDeprecatedSince212",
+]
+
 # -----------------------
 # bandit configuration
 # -----------------------
