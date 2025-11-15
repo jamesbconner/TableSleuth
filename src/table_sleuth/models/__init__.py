@@ -1,5 +1,6 @@
 from .file_ref import FileRef
 from .parquet import ColumnStats, ParquetFileInfo
+from .performance import MergeOnReadPerformance, QueryPerformanceProfile
 from .profiling import ColumnProfile
 from .snapshot import SnapshotInfo
 from .table import TableHandle
@@ -11,4 +12,6 @@ __all__ = [
     "ParquetFileInfo",
     "ColumnStats",
     "ColumnProfile",
+    "QueryPerformanceProfile",
+    "MergeOnReadPerformance",
 ]
