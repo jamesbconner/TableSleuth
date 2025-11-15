@@ -1,0 +1,83 @@
+# Environment variables
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+coverage.xml
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Ruff
+.ruff_cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+#resources/config.json
+input/
+.kiro/
+.chroma/
+.ruff_cache/
+.mypy_cache/
+*.zip
+data/mcp_cache/
+docs/archive/
+resources/debug/
+
+# Gradio
+gradio_cached_examples/
+flagged/
+
+# Docker
+docker-compose.override.yml
+*.tar.gz
+backups/
+ssl/
