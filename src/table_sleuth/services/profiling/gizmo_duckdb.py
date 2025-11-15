@@ -34,6 +34,62 @@ def _sanitize_identifier(identifier: str) -> str:
     return identifier
 
 
+def _validate_filter_expression(filters: str) -> None:
+    """
+    Validate filter expressions to prevent SQL injection.
+
+    This is a basic validation that checks for dangerous SQL keywords and patterns.
+    For production use, implement a proper filter DSL or use parameterized queries.
+
+    Args:
+        filters: The filter expression to validate
+
+    Raises:
+        ValueError: If the filter contains potentially dangerous SQL patterns
+    """
+    if not filters:
+        return
+
+    # Convert to lowercase for case-insensitive checking
+    filters_lower = filters.lower()
+
+    # List of dangerous SQL keywords that should not appear in filters
+    dangerous_keywords = [
+        "drop",
+        "delete",
+        "insert",
+        "update",
+        "create",
+        "alter",
+        "truncate",
+        "exec",
+        "execute",
+        "union",
+        "select",
+        "into",
+        "--",
+        "/*",
+        "*/",
+        ";",
+        "xp_",
+        "sp_",
+    ]
+
+    for keyword in dangerous_keywords:
+        if keyword in filters_lower:
+            raise ValueError(
+                f"Filter expression contains dangerous keyword '{keyword}'. "
+                "Filters must only contain safe comparison operators and values."
+            )
+
+    # Check for suspicious patterns
+    if re.search(r"['\";]", filters):
+        raise ValueError(
+            "Filter expression contains quotes or semicolons which are not allowed. "
+            "Use simple comparison expressions only (e.g., 'column > 100')."
+        )
+
+
 class GizmoDuckDbProfiler(ProfilingBackend):
     def __init__(
         self,
@@ -100,14 +156,17 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         safe_view_name = _sanitize_identifier(view_name)
         safe_column = _sanitize_identifier(column)
 
-        # WARNING: filters parameter is intentionally NOT sanitized as it may contain
-        # complex SQL expressions. Callers MUST ensure filters come from trusted sources
-        # or implement proper filter validation/parameterization at a higher level.
-        # TODO: Implement a proper filter DSL or parameterized filter system
-        where_clause = f"WHERE {filters}" if filters else ""
+        # Validate filter expression to prevent SQL injection
+        # This provides basic protection but is not foolproof
+        # TODO: Implement a proper filter DSL with full parameterization
+        if filters:
+            _validate_filter_expression(filters)
+            where_clause = f"WHERE {filters}"
+        else:
+            where_clause = ""
 
         # safe_view_name and safe_column are sanitized via _sanitize_identifier()
-        # Note: where_clause is NOT sanitized - see warning above
+        # filters is validated via _validate_filter_expression()
         sql = f"""
         SELECT
             COUNT(*) AS row_count,
