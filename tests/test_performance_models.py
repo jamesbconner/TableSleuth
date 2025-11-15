@@ -143,3 +143,40 @@ class TestMergeOnReadPerformance:
         assert performance.overhead_ms == 10.0
         assert performance.overhead_percentage == 0.0  # Avoids division by zero
         assert performance.rows_deleted == 0
+
+    def test_negative_rows_deleted_edge_case(self):
+        """Test edge case where with_deletes returns more rows than without_deletes.
+
+        This shouldn't happen in normal scenarios but could occur due to:
+        - Timing differences (data changed between measurements)
+        - Backend inconsistencies
+        - Measurement errors
+
+        The property should return 0 instead of a negative value.
+        """
+        without_deletes = QueryPerformanceProfile(
+            query="SELECT COUNT(*) FROM table",
+            execution_time_ms=100.0,
+            rows_scanned=1000,
+            rows_returned=900,  # Fewer rows
+            delete_files_applied=0,
+            data_files_scanned=10,
+        )
+
+        with_deletes = QueryPerformanceProfile(
+            query="SELECT COUNT(*) FROM table",
+            execution_time_ms=150.0,
+            rows_scanned=1000,
+            rows_returned=950,  # More rows (shouldn't happen but could)
+            delete_files_applied=3,
+            data_files_scanned=10,
+        )
+
+        performance = MergeOnReadPerformance(
+            with_deletes=with_deletes,
+            without_deletes=without_deletes,
+        )
+
+        # Should return 0 instead of -50
+        assert performance.rows_deleted == 0
+        assert performance.rows_deleted >= 0  # Always non-negative

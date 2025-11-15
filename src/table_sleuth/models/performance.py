@@ -38,5 +38,13 @@ class MergeOnReadPerformance:
 
     @property
     def rows_deleted(self) -> int:
-        """Number of rows filtered out by delete files."""
-        return self.without_deletes.rows_returned - self.with_deletes.rows_returned
+        """
+        Number of rows filtered out by delete files.
+
+        Returns:
+            Non-negative count of deleted rows. Returns 0 if the calculation
+            would be negative (which can occur due to timing differences,
+            data changes between measurements, or backend inconsistencies).
+        """
+        deleted = self.without_deletes.rows_returned - self.with_deletes.rows_returned
+        return max(0, deleted)
