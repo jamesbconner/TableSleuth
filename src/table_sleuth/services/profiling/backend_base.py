@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from typing import Dict, Protocol, Sequence, Optional
+from collections.abc import Sequence
+from typing import Dict, Optional, Protocol
 
-from table_sleuth.models import SnapshotInfo, ColumnProfile
+from table_sleuth.models import ColumnProfile, SnapshotInfo
 
 
 class ProfilingBackend(Protocol):
@@ -14,13 +15,11 @@ class ProfilingBackend(Protocol):
         view_name: str,
         column: str,
         filters: Optional[str] = None,
-    ) -> ColumnProfile:
-        ...
+    ) -> ColumnProfile: ...
 
     def profile_columns(
         self,
         view_name: str,
         columns: Sequence[str],
         filters: Optional[str] = None,
-    ) -> Dict[str, ColumnProfile]:
-        ...
+    ) -> dict[str, ColumnProfile]: ...

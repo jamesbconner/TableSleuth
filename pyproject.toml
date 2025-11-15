@@ -131,4 +131,4 @@ markers = [
 [tool.bandit]
 targets = ["src"]
 exclude_dirs = ["tests", ".venv", "venv"]
-skips = ["B101", "B608"]  # Skip assert_used and hardcoded_sql_expressions (DuckDB uses parameterized queries)
+skips = ["B101"]  # Skip assert_used check (common in tests)

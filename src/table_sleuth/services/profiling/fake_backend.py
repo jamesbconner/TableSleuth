@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from typing import Dict, Sequence, Optional
+from collections.abc import Sequence
+from typing import Dict, Optional
 
-from table_sleuth.models import SnapshotInfo, ColumnProfile
+from table_sleuth.models import ColumnProfile, SnapshotInfo
+
 from .backend_base import ProfilingBackend
 
 
@@ -33,8 +35,5 @@ class FakeProfiler(ProfilingBackend):
         view_name: str,
         columns: Sequence[str],
         filters: Optional[str] = None,
-    ) -> Dict[str, ColumnProfile]:
-        return {
-            col: self.profile_single_column(view_name, col, filters)
-            for col in columns
-        }
+    ) -> dict[str, ColumnProfile]:
+        return {col: self.profile_single_column(view_name, col, filters) for col in columns}
