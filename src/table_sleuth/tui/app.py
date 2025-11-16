@@ -555,6 +555,11 @@ class TableSleuthApp(App):
             # Clear all caches
             self._file_metadata_cache.clear()
             self._profile_cache.clear()
+
+            # Clear profiler's view mappings
+            if self._profiler is not None:
+                self._profiler.clear_views()
+
             logger.debug("Cleared all caches")
         else:
             # Clear caches for specific file

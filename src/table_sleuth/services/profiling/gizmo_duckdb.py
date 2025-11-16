@@ -270,3 +270,12 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         filters: Optional[str] = None,
     ) -> dict[str, ColumnProfile]:
         return {col: self.profile_single_column(view_name, col, filters) for col in columns}
+
+    def clear_views(self) -> None:
+        """Clear all registered view-to-file mappings.
+
+        This removes all stored file path mappings, forcing views to be
+        re-registered on next use. Useful when refreshing or invalidating caches.
+        """
+        if hasattr(self, "_view_paths"):
+            self._view_paths.clear()

@@ -85,3 +85,12 @@ class ProfilingBackend(ABC):
             f"{self.__class__.__name__} does not support performance profiling. "
             "Override profile_query_performance() to add support."
         )
+
+    def clear_views(self) -> None:
+        """
+        Clear all registered views and their associated state.
+
+        This is an optional method. The default implementation does nothing.
+        Backends that maintain internal state should override this method.
+        """
+        return  # Default implementation - backends override if they maintain state
