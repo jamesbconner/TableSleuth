@@ -253,6 +253,9 @@ class TableSleuthApp(App):
             # Store current file info
             self._current_file_info = file_info
 
+            # Clear view name to force re-registration for profiling
+            self._current_view_name = None
+
             # Update all views
             self._update_views(file_info)
 
