@@ -1,6 +1,6 @@
 """TUI view components for Table Sleuth."""
 
-from .column_stats_view import ColumnStatsView
+from .data_sample_view import DataSampleView
 from .file_detail_view import FileDetailView
 from .file_list_view import FileListView
 from .profile_view import ProfileView
@@ -13,7 +13,7 @@ __all__ = [
     "FileDetailView",
     "SchemaView",
     "RowGroupsView",
-    "ColumnStatsView",
+    "DataSampleView",
     "ProfileView",
     "StructureView",
 ]

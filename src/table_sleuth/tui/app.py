@@ -16,7 +16,7 @@ from table_sleuth.services.parquet_service import ParquetInspector
 from table_sleuth.services.profiling.backend_base import ProfilingBackend
 from table_sleuth.services.profiling.gizmo_duckdb import GizmoDuckDbProfiler
 from table_sleuth.tui.views import (
-    ColumnStatsView,
+    DataSampleView,
     FileDetailView,
     FileListView,
     ProfileView,
@@ -160,8 +160,8 @@ class TableSleuthApp(App):
                         yield RowGroupsView(id="row-groups")
                     with TabPane("Structure"):
                         yield StructureView(id="structure")
-                    with TabPane("Column Stats"):
-                        yield ColumnStatsView(id="column-stats")
+                    with TabPane("Data Sample"):
+                        yield DataSampleView(id="data-sample")
                     with TabPane("Profile"):
                         yield ProfileView(id="profile")
 
@@ -321,11 +321,11 @@ class TableSleuthApp(App):
             logger.debug(f"Structure view not available: {e}")
 
         try:
-            column_stats = self.query_one("#column-stats", ColumnStatsView)
-            column_stats.clear()
-            logger.debug("Cleared column stats view")
+            data_sample = self.query_one("#data-sample", DataSampleView)
+            data_sample.update_file_info(file_info)
+            logger.debug("Updated data sample view")
         except Exception as e:
-            logger.debug(f"Column stats view not available: {e}")
+            logger.debug(f"Data sample view not available: {e}")
 
         try:
             profile = self.query_one("#profile", ProfileView)
@@ -393,8 +393,8 @@ class TableSleuthApp(App):
             structure = self.query_one("#structure", StructureView)
             structure.clear()
 
-            column_stats = self.query_one("#column-stats", ColumnStatsView)
-            column_stats.clear()
+            data_sample = self.query_one("#data-sample", DataSampleView)
+            data_sample.clear()
 
             profile = self.query_one("#profile", ProfileView)
             profile.clear()
@@ -421,10 +421,8 @@ class TableSleuthApp(App):
                 column_stats = col
                 break
 
-        if column_stats:
-            # Update column stats view
-            col_stats_view = self.query_one("#column-stats", ColumnStatsView)
-            col_stats_view.update_column_stats(column_stats)
+        # Column stats are now shown in the Schema view detail panel
+        # No need to update a separate view
 
     def action_profile_column(self) -> None:
         """Profile the currently selected column."""
