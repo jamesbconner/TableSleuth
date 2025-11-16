@@ -25,6 +25,19 @@ class ProfilingBackend(ABC):
         ...
 
     @abstractmethod
+    def register_file_view(self, file_paths: list[str], view_name: str | None = None) -> str:
+        """Create a backend-specific view for Parquet files.
+
+        Args:
+            file_paths: List of Parquet file paths
+            view_name: Optional view name (auto-generated if None)
+
+        Returns:
+            View name that can be used in subsequent queries
+        """
+        ...
+
+    @abstractmethod
     def profile_single_column(
         self,
         view_name: str,

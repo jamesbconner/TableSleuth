@@ -1,30 +1,611 @@
 from __future__ import annotations
 
+import logging
+from pathlib import Path
+
 from textual.app import App, ComposeResult
-from textual.widgets import Footer, Header, Static
+from textual.containers import Container, Horizontal, Vertical
+from textual.widgets import DataTable, Footer, Header, Static, TabbedContent, TabPane
 
 from table_sleuth.config import AppConfig
 from table_sleuth.models import TableHandle
+from table_sleuth.models.file_ref import FileRef
+from table_sleuth.models.parquet import ParquetFileInfo
 from table_sleuth.services.formats.base import TableFormatAdapter
+from table_sleuth.services.parquet_service import ParquetInspector
+from table_sleuth.services.profiling.backend_base import ProfilingBackend
+from table_sleuth.services.profiling.gizmo_duckdb import GizmoDuckDbProfiler
+from table_sleuth.tui.views import (
+    ColumnStatsView,
+    FileDetailView,
+    FileListView,
+    ProfileView,
+    RowGroupsView,
+    SchemaView,
+    StructureView,
+)
+from table_sleuth.tui.widgets import LoadingIndicator, Notification
+
+logger = logging.getLogger(__name__)
 
 
 class TableSleuthApp(App):
-    """Very basic Textual app stub for Table Sleuth."""
+    """Table Sleuth TUI application for Parquet file inspection.
 
-    CSS_PATH = None
+    Provides a multi-panel interface for exploring Parquet files with:
+    - File list view (left panel)
+    - Tabbed detail views (right panel):
+      - File details
+      - Schema
+      - Row groups
+      - Column statistics
+      - Profile results
+    """
+
+    TITLE = "Table Sleuth - Parquet File Inspector"
+    SUB_TITLE = "MVP 0: File-Based Inspection"
+
+    CSS = """
+    Screen {
+        layout: horizontal;
+    }
+
+    #left-panel {
+        width: 40%;
+        height: 100%;
+    }
+
+    #right-panel {
+        width: 60%;
+        height: 100%;
+    }
+
+    TabbedContent {
+        height: 100%;
+    }
+
+    TabbedContent ContentSwitcher {
+        height: 100%;
+    }
+
+    TabPane {
+        height: 100%;
+        overflow-y: auto;
+    }
+
+    #loading-indicator {
+        background: $accent;
+        color: $text;
+        padding: 0 1;
+        text-style: italic;
+    }
+    """
+
+    BINDINGS = [
+        ("q", "quit", "Quit"),
+        ("r", "refresh", "Refresh"),
+        ("p", "profile_column", "Profile"),
+        ("f", "focus_filter", "Filter"),
+        ("tab", "focus_next", "Next Tab"),
+        ("shift+tab", "focus_previous", "Prev Tab"),
+        ("escape", "dismiss_notification", "Dismiss"),
+    ]
 
     def __init__(
         self,
         table_handle: TableHandle,
         adapter: TableFormatAdapter,
         config: AppConfig,
+        files: list[FileRef] | None = None,
+        profiler: ProfilingBackend | None = None,
     ) -> None:
+        """Initialize the Table Sleuth app.
+
+        Args:
+            table_handle: Table handle (for future use)
+            adapter: Table format adapter (for future use)
+            config: Application configuration
+            files: Optional list of files to display
+            profiler: Optional profiling backend (GizmoSQL by default)
+        """
         super().__init__()
         self.table_handle = table_handle
         self.adapter = adapter
         self.config = config
+        self._files = files or []
+        self._inspector = ParquetInspector()
+        self._current_file_info: ParquetFileInfo | None = None
+        self._current_view_name: str | None = None
+
+        # Initialize caching
+        self._file_metadata_cache: dict[str, ParquetFileInfo] = {}
+        self._profile_cache: dict[
+            tuple[str, str], object
+        ] = {}  # (file_path, column) -> ColumnProfile
+
+        # Initialize profiling backend
+        if profiler is None:
+            try:
+                self._profiler: ProfilingBackend | None = GizmoDuckDbProfiler(
+                    uri=config.gizmosql.uri,
+                    username=config.gizmosql.username,
+                    password=config.gizmosql.password,
+                    tls_skip_verify=config.gizmosql.tls_skip_verify,
+                )
+            except Exception as e:
+                logger.warning(f"Failed to initialize profiling backend: {e}")
+                self._profiler = None
+        else:
+            self._profiler = profiler
 
     def compose(self) -> ComposeResult:
+        """Compose the application layout."""
         yield Header()
-        yield Static(f"Table format: {self.table_handle.format_name}", id="table-info")
+        yield Notification(id="notification")
+        yield LoadingIndicator(id="loading")
+
+        with Horizontal():
+            # Left panel: File list
+            with Vertical(id="left-panel"):
+                yield FileListView(files=self._files, id="file-list")
+
+            # Right panel: Tabbed detail views
+            with Vertical(id="right-panel"):
+                with TabbedContent():
+                    with TabPane("File Detail"):
+                        yield FileDetailView(id="file-detail")
+                    with TabPane("Schema"):
+                        yield SchemaView(id="schema")
+                    with TabPane("Row Groups"):
+                        yield RowGroupsView(id="row-groups")
+                    with TabPane("Structure"):
+                        yield StructureView(id="structure")
+                    with TabPane("Column Stats"):
+                        yield ColumnStatsView(id="column-stats")
+                    with TabPane("Profile"):
+                        yield ProfileView(id="profile")
+
         yield Footer()
+
+    def on_mount(self) -> None:
+        """Set up the app when mounted."""
+        # Show aggregate stats if files are loaded
+        if self._files:
+            file_list = self.query_one("#file-list", FileListView)
+            file_list.show_aggregate_stats()
+
+            # Auto-select first file for immediate inspection
+            # Use set_timer to ensure tabs are mounted first
+            if len(self._files) > 0:
+                self.set_timer(0.1, lambda: self._inspect_file(self._files[0]))
+
+    def on_tabbed_content_tab_activated(self, event: TabbedContent.TabActivated) -> None:
+        """Handle tab activation - update view when tab becomes visible.
+
+        Args:
+            event: Tab activated event
+        """
+        if self._current_file_info is None:
+            return
+
+        # Update the view in the newly activated tab
+        tab_id = event.tab.id
+        logger.debug(f"Tab activated: {tab_id}")
+
+        try:
+            if "file-detail" in str(tab_id):
+                file_detail = self.query_one("#file-detail", FileDetailView)
+                file_detail.update_file_info(self._current_file_info)
+            elif "schema" in str(tab_id):
+                schema = self.query_one("#schema", SchemaView)
+                schema.update_schema(self._current_file_info)
+            elif "row-groups" in str(tab_id):
+                row_groups = self.query_one("#row-groups", RowGroupsView)
+                row_groups.update_row_groups(self._current_file_info)
+            elif "structure" in str(tab_id):
+                structure = self.query_one("#structure", StructureView)
+                structure.update_structure(self._current_file_info)
+        except Exception as e:
+            logger.debug(f"Could not update view for tab {tab_id}: {e}")
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Handle row selection in data tables.
+
+        Args:
+            event: Row selected event from DataTable
+        """
+        # Handle file list selection
+        if event.data_table.id == "file-list-table":
+            file_list = self.query_one("#file-list", FileListView)
+            selected_file = file_list.get_selected_file()
+
+            if selected_file:
+                self._inspect_file(selected_file)
+
+        # Handle schema table selection (column selection)
+        elif event.data_table.id == "schema-table":
+            self._on_column_selected()
+
+    def _inspect_file(self, file_ref: FileRef) -> None:
+        """Inspect a Parquet file and update all views.
+
+        Uses caching to avoid re-inspecting the same file.
+
+        Args:
+            file_ref: FileRef to inspect
+        """
+        try:
+            # Show loading indicator
+            self._show_loading(f"Inspecting {Path(file_ref.path).name}...")
+
+            # Check cache first
+            if file_ref.path in self._file_metadata_cache:
+                logger.debug(f"Using cached metadata for {file_ref.path}")
+                file_info = self._file_metadata_cache[file_ref.path]
+            else:
+                # Inspect file
+                file_info = self._inspector.inspect_file(file_ref.path)
+
+                # Cache the result
+                self._file_metadata_cache[file_ref.path] = file_info
+                logger.debug(f"Cached metadata for {file_ref.path}")
+
+            # Store current file info
+            self._current_file_info = file_info
+
+            # Update all views
+            self._update_views(file_info)
+
+            # Clear loading indicator
+            self._clear_loading()
+
+            # Show success notification
+            try:
+                notification = self.query_one("#notification", Notification)
+                notification.success(f"Loaded {Path(file_ref.path).name}", duration=3.0)
+            except Exception as e:
+                logger.debug(f"Could not show notification: {e}")
+
+        except FileNotFoundError as e:
+            logger.error(f"File not found: {e}")
+            self._show_error(f"File not found: {file_ref.path}")
+        except ValueError as e:
+            logger.error(f"Invalid Parquet file: {e}")
+            self._show_error(f"Invalid Parquet file: {e}")
+        except Exception as e:
+            logger.exception("Error inspecting file")
+            self._show_error(f"Error inspecting file: {e}")
+
+    def _update_views(self, file_info: ParquetFileInfo) -> None:
+        """Update all detail views with file information.
+
+        Args:
+            file_info: ParquetFileInfo to display
+        """
+        logger.debug(
+            f"Updating views with file info: {file_info.path}, {file_info.num_rows} rows, {file_info.num_columns} columns"
+        )
+
+        # Try to update each view, but don't fail if they're not mounted yet
+        # (TabbedContent only mounts active tab content)
+
+        try:
+            file_detail = self.query_one("#file-detail", FileDetailView)
+            file_detail.update_file_info(file_info)
+            logger.debug("Updated file detail view")
+        except Exception as e:
+            logger.debug(f"File detail view not available: {e}")
+
+        try:
+            schema = self.query_one("#schema", SchemaView)
+            schema.update_schema(file_info)
+            logger.debug("Updated schema view")
+        except Exception as e:
+            logger.debug(f"Schema view not available: {e}")
+
+        try:
+            row_groups = self.query_one("#row-groups", RowGroupsView)
+            row_groups.update_row_groups(file_info)
+            logger.debug("Updated row groups view")
+        except Exception as e:
+            logger.debug(f"Row groups view not available: {e}")
+
+        try:
+            structure = self.query_one("#structure", StructureView)
+            structure.update_structure(file_info)
+            logger.debug("Updated structure view")
+        except Exception as e:
+            logger.debug(f"Structure view not available: {e}")
+
+        try:
+            column_stats = self.query_one("#column-stats", ColumnStatsView)
+            column_stats.clear()
+            logger.debug("Cleared column stats view")
+        except Exception as e:
+            logger.debug(f"Column stats view not available: {e}")
+
+        try:
+            profile = self.query_one("#profile", ProfileView)
+            profile.clear()
+            logger.debug("Cleared profile view")
+        except Exception as e:
+            logger.debug(f"Profile view not available: {e}")
+
+        # Note: Views in inactive tabs won't be mounted yet.
+        # They will be updated when the user switches to those tabs.
+
+    def _delayed_update_views(self, file_info: ParquetFileInfo) -> None:
+        """Update views after a delay to catch lazy-mounted tabs.
+
+        Args:
+            file_info: ParquetFileInfo to display
+        """
+        logger.debug("Delayed update of views")
+
+        try:
+            file_detail = self.query_one("#file-detail", FileDetailView)
+            if file_detail.is_mounted:
+                file_detail.update_file_info(file_info)
+                logger.debug("Delayed update: file detail view")
+        except Exception as e:
+            logger.debug(f"Delayed update failed: {e}")
+
+        try:
+            schema = self.query_one("#schema", SchemaView)
+            if schema.is_mounted:
+                schema.update_schema(file_info)
+                logger.debug("Delayed update: schema view")
+        except Exception as e:
+            logger.debug(f"Delayed update failed: {e}")
+
+        try:
+            row_groups = self.query_one("#row-groups", RowGroupsView)
+            if row_groups.is_mounted:
+                row_groups.update_row_groups(file_info)
+                logger.debug("Delayed update: row groups view")
+        except Exception as e:
+            logger.debug(f"Delayed update failed: {e}")
+
+    def _show_loading(self, message: str) -> None:
+        """Show loading indicator.
+
+        Args:
+            message: Loading message to display
+        """
+        logger.debug(message)
+        try:
+            loading = self.query_one("#loading", LoadingIndicator)
+            loading.show(message)
+        except Exception as e:
+            # Widget not mounted yet
+            logger.debug(f"Could not show loading indicator: {e}")
+
+    def _clear_loading(self) -> None:
+        """Clear loading indicator."""
+        try:
+            loading = self.query_one("#loading", LoadingIndicator)
+            loading.hide()
+        except Exception as e:
+            # Widget not mounted yet
+            logger.debug(f"Could not hide loading indicator: {e}")
+
+    def _show_error(self, message: str) -> None:
+        """Show error message to user.
+
+        Args:
+            message: Error message to display
+        """
+        logger.error(message)
+
+        # Show error notification
+        try:
+            notification = self.query_one("#notification", Notification)
+            notification.error(message, duration=10.0)
+        except Exception as e:
+            # Widget not mounted yet
+            logger.debug(f"Could not show error notification: {e}")
+
+        # Clear loading indicator
+        self._clear_loading()
+
+        # Clear all views if app is mounted
+        try:
+            file_detail = self.query_one("#file-detail", FileDetailView)
+            file_detail.clear()
+
+            schema = self.query_one("#schema", SchemaView)
+            schema.clear()
+
+            row_groups = self.query_one("#row-groups", RowGroupsView)
+            row_groups.clear()
+
+            structure = self.query_one("#structure", StructureView)
+            structure.clear()
+
+            column_stats = self.query_one("#column-stats", ColumnStatsView)
+            column_stats.clear()
+
+            profile = self.query_one("#profile", ProfileView)
+            profile.clear()
+        except Exception as e:
+            # App not mounted yet, ignore
+            logger.debug(f"Could not clear profile view: {e}")
+
+    def _on_column_selected(self) -> None:
+        """Handle column selection in schema view."""
+        if self._current_file_info is None:
+            return
+
+        # Get selected column
+        schema = self.query_one("#schema", SchemaView)
+        column_name = schema.get_selected_column()
+
+        if column_name is None:
+            return
+
+        # Find column stats for this column
+        column_stats = None
+        for col in self._current_file_info.columns:
+            if col.name == column_name:
+                column_stats = col
+                break
+
+        if column_stats:
+            # Update column stats view
+            col_stats_view = self.query_one("#column-stats", ColumnStatsView)
+            col_stats_view.update_column_stats(column_stats)
+
+    def action_profile_column(self) -> None:
+        """Profile the currently selected column."""
+        if self._current_file_info is None:
+            logger.warning("No file selected for profiling")
+            return
+
+        if self._profiler is None:
+            try:
+                profile = self.query_one("#profile", ProfileView)
+                profile.show_error("Profiling backend not available")
+            except Exception:
+                # App not mounted yet
+                logger.warning("Profiling backend not available")
+            return
+
+        # Get selected column
+        try:
+            schema = self.query_one("#schema", SchemaView)
+            column_name = schema.get_selected_column()
+
+            if column_name is None:
+                logger.warning("No column selected for profiling")
+                return
+
+            # Trigger profiling
+            self._profile_column(column_name)
+        except Exception:
+            # App not mounted yet
+            logger.warning("Cannot profile: app not mounted")
+
+    def _profile_column(self, column_name: str) -> None:
+        """Profile a column using the profiling backend.
+
+        Uses caching to avoid re-profiling the same column.
+
+        Args:
+            column_name: Name of column to profile
+        """
+        if self._profiler is None or self._current_file_info is None:
+            return
+
+        try:
+            # Show loading indicator
+            profile = self.query_one("#profile", ProfileView)
+            profile.show_loading(column_name)
+
+            # Check cache first
+            cache_key = (self._current_file_info.path, column_name)
+            if cache_key in self._profile_cache:
+                logger.debug(f"Using cached profile for {column_name}")
+                profile_result = self._profile_cache[cache_key]
+            else:
+                # Register file view if not already registered
+                if self._current_view_name is None:
+                    self._current_view_name = self._profiler.register_file_view(
+                        [self._current_file_info.path]
+                    )
+
+                # Profile the column
+                profile_result = self._profiler.profile_single_column(
+                    self._current_view_name,
+                    column_name,
+                )
+
+                # Cache the result
+                self._profile_cache[cache_key] = profile_result
+                logger.debug(f"Cached profile for {column_name}")
+
+            # Update profile view
+            profile = self.query_one("#profile", ProfileView)
+            profile.update_profile(profile_result)
+
+        except ValueError as e:
+            logger.error(f"Profiling error: {e}")
+            profile = self.query_one("#profile", ProfileView)
+            profile.show_error(str(e))
+        except Exception as e:
+            logger.exception("Error profiling column")
+            profile = self.query_one("#profile", ProfileView)
+            profile.show_error(f"Profiling failed: {e}")
+
+    def action_focus_filter(self) -> None:
+        """Focus the schema filter input."""
+        try:
+            schema = self.query_one("#schema", SchemaView)
+            filter_input = schema.query_one("#schema-filter")
+            filter_input.focus()
+        except Exception:
+            # Schema view not available or not mounted
+            logger.debug("Cannot focus filter: schema view not available")
+
+    def action_dismiss_notification(self) -> None:
+        """Dismiss the current notification."""
+        try:
+            notification = self.query_one("#notification", Notification)
+            notification.dismiss()
+        except Exception as e:
+            # Notification not available
+            logger.debug(f"Could not dismiss notification: {e}")
+
+    def action_refresh(self) -> None:
+        """Refresh the current view.
+
+        Invalidates caches and re-inspects the current file.
+        """
+        # Re-inspect current file if one is selected
+        if self._current_file_info:
+            file_list = self.query_one("#file-list", FileListView)
+            selected_file = file_list.get_selected_file()
+            if selected_file:
+                # Invalidate caches for this file
+                self._invalidate_cache(selected_file.path)
+
+                # Clear view name to force re-registration
+                self._current_view_name = None
+
+                # Re-inspect file
+                self._inspect_file(selected_file)
+
+    def _invalidate_cache(self, file_path: str | None = None) -> None:
+        """Invalidate cached data.
+
+        Args:
+            file_path: Optional file path to invalidate. If None, clears all caches.
+        """
+        if file_path is None:
+            # Clear all caches
+            self._file_metadata_cache.clear()
+            self._profile_cache.clear()
+            logger.debug("Cleared all caches")
+        else:
+            # Clear caches for specific file
+            if file_path in self._file_metadata_cache:
+                del self._file_metadata_cache[file_path]
+                logger.debug(f"Cleared metadata cache for {file_path}")
+
+            # Clear profile cache entries for this file
+            keys_to_remove = [key for key in self._profile_cache.keys() if key[0] == file_path]
+            for key in keys_to_remove:
+                del self._profile_cache[key]
+
+            if keys_to_remove:
+                logger.debug(f"Cleared {len(keys_to_remove)} profile cache entries for {file_path}")
+
+    def get_cache_stats(self) -> dict[str, int]:
+        """Get cache statistics.
+
+        Returns:
+            Dictionary with cache statistics
+        """
+        return {
+            "metadata_entries": len(self._file_metadata_cache),
+            "profile_entries": len(self._profile_cache),
+        }

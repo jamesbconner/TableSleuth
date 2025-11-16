@@ -1,0 +1,710 @@
+# Table Sleuth User Guide - MVP 0
+
+## Overview
+
+Table Sleuth is a Parquet file forensics tool that helps you inspect and analyze Parquet files with a powerful terminal user interface (TUI). MVP 0 focuses on file-based inspection with optional Iceberg table support.
+
+## Installation
+
+### Prerequisites
+
+- Python 3.12 or higher
+- Poetry or uv for dependency management
+
+### Install from Source
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd table-sleuth
+
+# Install dependencies with uv (recommended)
+uv sync
+
+# Or with poetry
+poetry install
+
+# Activate virtual environment
+source .venv/bin/activate  # On macOS/Linux
+```
+
+### Verify Installation
+
+```bash
+table-sleuth --version
+```
+
+## Configuration
+
+### Configuration File
+
+Create a `table_sleuth.toml` file in your project directory or `~/.config/table_sleuth.toml`:
+
+```toml
+[catalog]
+default = "local"
+
+[gizmosql]
+uri = "grpc+tls://localhost:31337"
+username = "gizmosql_username"
+password = "gizmosql_password"
+tls_skip_verify = true
+```
+
+### Environment Variables
+
+You can override configuration with environment variables:
+
+```bash
+export TABLE_SLEUTH_CATALOG_NAME="local"
+export TABLE_SLEUTH_GIZMO_URI="grpc+tls://localhost:31337"
+export TABLE_SLEUTH_GIZMO_USERNAME="gizmosql_username"
+export TABLE_SLEUTH_GIZMO_PASSWORD="gizmosql_password"
+```
+
+### PyIceberg Configuration (Optional)
+
+For Iceberg table support, configure PyIceberg in `~/.pyiceberg.yaml`:
+
+```yaml
+catalog:
+  local:
+    type: file
+    warehouse: "file:///path/to/warehouse"
+```
+
+## CLI Usage
+
+### Basic Commands
+
+```bash
+# Show help
+table-sleuth --help
+table-sleuth inspect --help
+
+# Show version
+table-sleuth --version
+```
+
+### Inspect a Single File
+
+```bash
+table-sleuth inspect data/file.parquet
+```
+
+### Inspect a Directory
+
+Recursively scans for all `.parquet` files:
+
+```bash
+table-sleuth inspect data/warehouse/
+```
+
+### Inspect an Iceberg Table
+
+```bash
+table-sleuth inspect ratebeer.reviews --catalog local
+```
+
+### Verbose Mode
+
+Enable debug logging:
+
+```bash
+table-sleuth inspect data/file.parquet --verbose
+```
+
+## TUI Navigation
+
+### Layout
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Table Sleuth - Parquet File Inspector                       │
+├──────────────────┬──────────────────────────────────────────┤
+│ Files            │ [File Detail] [Schema] [Row Groups]      │
+│ ┌──────────────┐ │ [Column Stats] [Profile]                 │
+│ │ file1.parquet│ │                                          │
+│ │ file2.parquet│ │ File details, schema, and statistics     │
+│ │ file3.parquet│ │ displayed here based on selection        │
+│ └──────────────┘ │                                          │
+├──────────────────┴──────────────────────────────────────────┤
+│ q: Quit | r: Refresh | p: Profile | f: Filter | Tab: Next  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Keybindings
+
+| Key | Action | Description |
+|-----|--------|-------------|
+| `q` | Quit | Exit the application |
+| `r` | Refresh | Reload current file and clear caches |
+| `p` | Profile | Profile the selected column (requires GizmoSQL) |
+| `f` | Filter | Focus the schema filter input |
+| `Tab` | Next Tab | Navigate to next tab or widget |
+| `Shift+Tab` | Previous Tab | Navigate to previous tab or widget |
+| `Escape` | Dismiss | Dismiss notification |
+| `↑/↓` | Navigate | Navigate through lists |
+| `Enter` | Select | Select file or row |
+
+### Tabs
+
+1. **File Detail**: Shows file metadata (size, rows, row groups, compression)
+2. **Schema**: Lists all columns with types and filtering
+3. **Row Groups**: Shows row group breakdown with expandable details
+4. **Column Stats**: Displays statistics for selected column
+5. **Profile**: Shows profiling results from GizmoSQL
+
+## Common Workflows
+
+### Workflow 1: Inspect a Single File
+
+1. Launch Table Sleuth:
+   ```bash
+   table-sleuth inspect data/file.parquet
+   ```
+
+2. The file will be automatically selected and inspected
+
+3. Navigate tabs to view:
+   - File details (size, rows, compression)
+   - Schema (column names and types)
+   - Row groups (data distribution)
+
+4. Select a column in the Schema tab (use arrow keys)
+
+5. View column statistics in the Column Stats tab
+
+### Workflow 2: Explore a Directory
+
+1. Launch with directory:
+   ```bash
+   table-sleuth inspect data/warehouse/
+   ```
+
+2. Use arrow keys to navigate the file list
+
+3. Press `Enter` to select a file
+
+4. Explore the file using tabs
+
+5. Select another file to compare
+
+### Workflow 3: Profile Column Data
+
+1. Select a file from the list
+
+2. Navigate to the Schema tab
+
+3. Select a column with arrow keys
+
+4. Press `p` to profile the column
+
+5. View results in the Profile tab:
+   - Row count
+   - Null count and percentage
+   - Distinct count and cardinality
+   - Min/max values
+
+### Workflow 4: Filter Columns
+
+1. Navigate to the Schema tab
+
+2. Press `f` to focus the filter input
+
+3. Type part of a column name or type
+
+4. Results update in real-time
+
+5. Press `Escape` to clear focus
+
+### Workflow 5: Inspect Iceberg Table
+
+1. Configure PyIceberg (see Configuration section)
+
+2. Launch with table identifier:
+   ```bash
+   table-sleuth inspect ratebeer.reviews --catalog local
+   ```
+
+3. All data files from the table will be loaded
+
+4. Navigate and inspect files as usual
+
+## GizmoSQL Setup for Profiling
+
+GizmoSQL is a DuckDB instance exposed via Arrow Flight SQL that enables fast column profiling. It's optional but recommended for advanced analytics.
+
+### Prerequisites
+
+- Docker installed and running
+- Network access to port 31337
+
+### Start GizmoSQL Container
+
+```bash
+# Start with data volume mount
+docker run -d \
+  --name gizmosql \
+  -p 31337:31337 \
+  --volume "$(pwd)/data:/data" \
+  gizmosql/gizmosql:latest
+
+# Verify container is running
+docker ps | grep gizmosql
+
+# Check logs
+docker logs gizmosql
+```
+
+### Configure Connection
+
+Create or update `table_sleuth.toml`:
+
+```toml
+[gizmosql]
+uri = "grpc+tls://localhost:31337"
+username = "gizmo"
+password = "gizmo"
+tls_skip_verify = true
+```
+
+Or use environment variables:
+
+```bash
+export TABLE_SLEUTH_GIZMO_URI="grpc+tls://localhost:31337"
+export TABLE_SLEUTH_GIZMO_USERNAME="gizmo"
+export TABLE_SLEUTH_GIZMO_PASSWORD="gizmo"
+```
+
+### Test Connection
+
+1. Launch Table Sleuth with a file:
+   ```bash
+   table-sleuth inspect data/sample.parquet
+   ```
+
+2. Navigate to Schema tab and select a column
+
+3. Press `p` to profile
+
+4. Check results:
+   - **Success**: Results appear in Profile tab
+   - **Failure**: Error notification appears at top of screen
+
+### Troubleshooting GizmoSQL
+
+**Container Not Running:**
+```bash
+# Check container status
+docker ps -a | grep gizmosql
+
+# Restart container
+docker restart gizmosql
+
+# View logs for errors
+docker logs gizmosql --tail 50
+```
+
+**Connection Refused:**
+```bash
+# Check port is accessible
+nc -zv localhost 31337
+
+# Check firewall settings
+# Ensure port 31337 is not blocked
+```
+
+**Authentication Failed:**
+```bash
+# Verify credentials in configuration
+cat table_sleuth.toml
+
+# Check environment variables
+env | grep TABLE_SLEUTH_GIZMO
+```
+
+**TLS Errors:**
+```toml
+# Try disabling TLS verification
+[gizmosql]
+tls_skip_verify = true
+```
+
+### Advanced GizmoSQL Configuration
+
+**Custom Port:**
+```bash
+docker run -d \
+  --name gizmosql \
+  -p 32000:31337 \
+  gizmosql/gizmosql:latest
+```
+
+Update configuration:
+```toml
+[gizmosql]
+uri = "grpc+tls://localhost:32000"
+```
+
+**Remote GizmoSQL:**
+```toml
+[gizmosql]
+uri = "grpc+tls://gizmosql.example.com:31337"
+username = "your_username"
+password = "your_password"
+tls_skip_verify = false
+```
+
+**Multiple Data Volumes:**
+```bash
+docker run -d \
+  --name gizmosql \
+  -p 31337:31337 \
+  --volume "$(pwd)/data:/data" \
+  --volume "/mnt/warehouse:/warehouse" \
+  gizmosql/gizmosql:latest
+```
+
+## Troubleshooting
+
+### "File not found" Error
+
+- Verify the file path is correct
+- Check file permissions
+- Ensure file has `.parquet` or `.pq` extension
+
+### "Invalid Parquet file" Error
+
+- File may be corrupted
+- File may not be a valid Parquet file
+- Try opening with another tool to verify
+
+### "Profiling backend not available" Error
+
+- GizmoSQL container is not running
+- Check connection settings in configuration
+- Verify network connectivity to GizmoSQL
+
+### No Files Found in Directory
+
+- Directory may not contain Parquet files
+- Check file extensions (`.parquet` or `.pq`)
+- Verify directory path is correct
+
+### Slow Performance
+
+- Large files may take time to inspect
+- Use caching (automatic) for repeated access
+- Press `r` to refresh and clear caches if needed
+
+## Tips and Best Practices
+
+1. **Use Filtering**: Press `f` in Schema tab to quickly find columns
+2. **Cache Awareness**: File metadata is cached automatically
+3. **Refresh When Needed**: Press `r` if file has changed on disk
+4. **Profile Selectively**: Profiling queries can be slow for large files
+5. **Check Notifications**: Watch top of screen for status messages
+
+## Limitations (MVP 0)
+
+- No write operations (read-only)
+- No data preview (metadata only)
+- Profiling requires GizmoSQL
+- Iceberg support limited to file discovery
+- No snapshot history navigation (coming in MVP 1)
+
+## Real-World Examples
+
+### Example 1: Investigating File Size Issues
+
+**Scenario**: Your Parquet files are larger than expected.
+
+```bash
+# Inspect the file
+table-sleuth inspect data/large_file.parquet
+```
+
+**What to check:**
+1. **File Detail Tab**: Check compression codec
+   - SNAPPY: Fast but larger files
+   - GZIP: Slower but better compression
+   - ZSTD: Good balance
+
+2. **Row Groups Tab**: Check row group sizes
+   - Too many small row groups = overhead
+   - Optimal: 100MB-1GB per row group
+
+3. **Column Stats Tab**: Check encoding types
+   - PLAIN: No compression
+   - DICTIONARY: Good for low cardinality
+   - RLE: Good for repeated values
+
+**Action**: If using PLAIN encoding with high cardinality, consider re-encoding with dictionary compression.
+
+### Example 2: Analyzing Partitioned Datasets
+
+**Scenario**: You have a partitioned dataset and want to understand data distribution.
+
+```bash
+# Inspect the partition directory
+table-sleuth inspect data/warehouse/orders/
+```
+
+**What to check:**
+1. **File List**: Review file sizes and row counts
+   - Look for imbalanced partitions
+   - Identify small files (< 10MB)
+   - Identify large files (> 1GB)
+
+2. **Aggregate Statistics**: Check total rows and size
+   - Verify expected data volume
+   - Calculate average file size
+
+3. **Individual Files**: Inspect outliers
+   - Select small files to understand why
+   - Select large files to check row groups
+
+**Action**: Consider repartitioning if you have many small files or very large files.
+
+### Example 3: Validating Data Quality
+
+**Scenario**: You want to check for null values and data ranges.
+
+```bash
+# Inspect with profiling
+table-sleuth inspect data/customer_data.parquet
+```
+
+**What to check:**
+1. **Column Stats Tab**: Check null counts from metadata
+   - Quick overview without profiling
+   - May not be available for all types
+
+2. **Profile Tab**: Profile critical columns
+   - Press `p` on each column
+   - Check null percentage
+   - Verify min/max ranges
+   - Check distinct counts
+
+**Example checks:**
+- `customer_id`: Should have 0 nulls, high distinct count
+- `email`: Should have low null percentage
+- `age`: Should be in reasonable range (e.g., 18-120)
+- `country_code`: Should have low distinct count
+
+**Action**: Document any data quality issues found.
+
+### Example 4: Comparing Schema Evolution
+
+**Scenario**: You have multiple versions of a file and want to compare schemas.
+
+```bash
+# Inspect old version
+table-sleuth inspect data/v1/customers.parquet
+# Note columns in Schema tab
+
+# Quit and inspect new version
+table-sleuth inspect data/v2/customers.parquet
+# Compare columns in Schema tab
+```
+
+**What to check:**
+1. **Schema Tab**: Compare column lists
+   - New columns added?
+   - Columns removed?
+   - Type changes?
+
+2. **Column Stats**: Compare statistics
+   - Data range changes?
+   - Null count changes?
+
+**Action**: Document schema changes for migration planning.
+
+### Example 5: Investigating Query Performance
+
+**Scenario**: Queries on your Parquet files are slow.
+
+```bash
+# Inspect the file
+table-sleuth inspect data/slow_query_table.parquet
+```
+
+**What to check:**
+1. **Row Groups Tab**: Check row group count
+   - Too many row groups = more metadata overhead
+   - Too few row groups = less parallelism
+
+2. **Column Stats Tab**: Check encoding and compression
+   - Inefficient encoding = slower reads
+   - No compression = more I/O
+
+3. **Profile Tab**: Check cardinality of filter columns
+   - Low cardinality = good for filtering
+   - High cardinality = consider indexing
+
+**Action**: Optimize file layout based on query patterns.
+
+### Example 6: Iceberg Table Investigation
+
+**Scenario**: You want to understand the physical files behind an Iceberg table.
+
+```bash
+# Configure PyIceberg first
+cat > ~/.pyiceberg.yaml << EOF
+catalog:
+  local:
+    type: file
+    warehouse: "file:///path/to/warehouse"
+EOF
+
+# Inspect table
+table-sleuth inspect ratebeer.reviews --catalog local
+```
+
+**What to check:**
+1. **File List**: See all data files in current snapshot
+   - Number of files
+   - File size distribution
+   - Total data size
+
+2. **Individual Files**: Inspect file structure
+   - Row group organization
+   - Compression settings
+   - Schema consistency
+
+**Action**: Identify opportunities for compaction or optimization.
+
+## Performance Tips
+
+### Optimizing Inspection Speed
+
+1. **Use Caching**: Metadata is cached automatically
+   - First inspection: Slower (reads metadata)
+   - Subsequent inspections: Faster (uses cache)
+   - Press `r` to refresh and clear cache
+
+2. **Lazy Loading**: Only inspect what you need
+   - File list loads immediately
+   - File details load on selection
+   - Row groups load on tab view
+
+3. **Async Operations**: UI stays responsive
+   - Loading indicators show progress
+   - Can navigate while loading
+   - Cancel operations with `Escape`
+
+### Optimizing Profiling Speed
+
+1. **Profile Selectively**: Don't profile all columns
+   - Focus on key columns
+   - Skip large text columns
+   - Profile numeric columns first
+
+2. **Use Filters**: Reduce data volume
+   - Profile subsets of data
+   - Use WHERE clauses (future feature)
+
+3. **Check Metadata First**: Use Column Stats before profiling
+   - Metadata is instant
+   - Profiling requires query execution
+   - Only profile when metadata insufficient
+
+## Integration with Other Tools
+
+### Export Metadata (Future Feature)
+
+```bash
+# Export to JSON
+table-sleuth inspect data/file.parquet --export json > metadata.json
+
+# Export to Markdown
+table-sleuth inspect data/file.parquet --export markdown > report.md
+```
+
+### Scripting with Table Sleuth
+
+```bash
+# Check file validity
+if table-sleuth inspect data/file.parquet --validate; then
+  echo "File is valid"
+else
+  echo "File is invalid"
+fi
+
+# Get row count
+table-sleuth inspect data/file.parquet --format json | jq '.num_rows'
+```
+
+### Integration with Data Pipelines
+
+```python
+# Python integration (future API)
+from table_sleuth import ParquetInspector
+
+inspector = ParquetInspector()
+info = inspector.inspect_file("data/file.parquet")
+
+if info.num_rows == 0:
+    raise ValueError("Empty file detected")
+
+if info.file_size_bytes > 1_000_000_000:
+    print("Warning: Large file detected")
+```
+
+## Keyboard Shortcuts Reference
+
+### Global Shortcuts
+
+| Key | Action | Context |
+|-----|--------|---------|
+| `q` | Quit | Anywhere |
+| `Ctrl+C` | Force quit | Anywhere |
+| `Escape` | Dismiss notification | When notification shown |
+| `Tab` | Next tab/widget | Anywhere |
+| `Shift+Tab` | Previous tab/widget | Anywhere |
+
+### File List Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `↑` | Previous file |
+| `↓` | Next file |
+| `Enter` | Select file |
+| `Home` | First file |
+| `End` | Last file |
+| `Page Up` | Scroll up |
+| `Page Down` | Scroll down |
+
+### Schema Tab Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `f` | Focus filter input |
+| `↑/↓` | Navigate columns |
+| `Enter` | Select column |
+| `p` | Profile selected column |
+
+### Row Groups Tab Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `↑/↓` | Navigate row groups |
+| `Enter` | Expand/collapse details |
+
+### Application Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `r` | Refresh current file |
+| `?` | Show help (future) |
+| `/` | Search (future) |
+
+## Next Steps
+
+- See [QUICKSTART.md](../QUICKSTART.md) for quick examples
+- See [PERFORMANCE_PROFILING.md](PERFORMANCE_PROFILING.md) for performance analysis
+- See [CHANGELOG.md](../CHANGELOG.md) for version history
+- See `.kiro/specs/table-sleuth-mvp-0/` for detailed specifications
+- See [product_specification.md](product_specification.md) for feature roadmap
+- See [technical_specification.md](technical_specification.md) for architecture details

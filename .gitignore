@@ -68,7 +68,8 @@ input/
 .ruff_cache/
 .mypy_cache/
 *.zip
-data/mcp_cache/
+data/
+scripts/
 docs/archive/
 resources/debug/
 

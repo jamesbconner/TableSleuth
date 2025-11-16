@@ -1,4 +1,4 @@
-.PHONY: help install install-dev sync clean test test-cov lint format type-check security pre-commit check build run
+.PHONY: help install install-dev sync clean test test-cov lint format type-check security pre-commit check build run zip
 
 # Default target
 help:
@@ -24,6 +24,7 @@ help:
 	@echo "Build & Run:"
 	@echo "  make build            Build distribution packages"
 	@echo "  make run              Run table-sleuth CLI"
+	@echo "  make zip              Create source code archive"
 	@echo ""
 	@echo "Cleanup:"
 	@echo "  make clean            Remove build artifacts and cache"
@@ -74,6 +75,14 @@ build:
 run:
 	uv run table-sleuth
 
+# Create source archive (excludes .gitignore files and untracked files)
+zip:
+	@echo "Creating source code archive..."
+	@VERSION=$$(grep '^version = ' pyproject.toml | cut -d'"' -f2); \
+	ARCHIVE_NAME="table-sleuth-$$VERSION-src.zip"; \
+	git archive --format=zip --prefix=table-sleuth/ -o $$ARCHIVE_NAME HEAD; \
+	echo "Created $$ARCHIVE_NAME (excludes .gitignore patterns)"
+
 # Cleanup
 clean:
 	rm -rf build/
@@ -84,5 +93,6 @@ clean:
 	rm -rf .ruff_cache/
 	rm -rf htmlcov/
 	rm -rf .coverage
+	rm -rf *.zip
 	find . -type f -name "*.pyc" -delete
 	find . -type d -name __pycache__ -delete

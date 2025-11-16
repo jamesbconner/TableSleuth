@@ -24,7 +24,7 @@ classifiers = [
 
 # Table format support - MVP: Iceberg
 dependencies = [
-    "pyiceberg[s3fs]>=0.9.1",
+    "pyiceberg[s3fs,sql-sqlite]>=0.9.1",
     "textual>=0.86.2",
     "pyarrow>=22.0.0",
     "pandas>=2.3.0",
@@ -32,6 +32,7 @@ dependencies = [
     "click>=8.1.0",
     "pydantic>=2.11.0",
     "rich>=13.0.0",
+    "sqlalchemy>=2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -117,6 +118,8 @@ ignore_missing_imports = true
 minversion = "8.0"
 addopts = "-ra -q"
 testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 pythonpath = ["src"]
 
 # Optional markers you might use later
