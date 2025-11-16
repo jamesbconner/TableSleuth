@@ -92,7 +92,7 @@ def inspect(path: str, catalog_name: str | None, verbose: bool) -> None:
             table_handle = adapter.open_table(path, catalog_name)
 
             # Discover files from table
-            discovery = FileDiscoveryService()
+            discovery = FileDiscoveryService(iceberg_adapter=adapter)
             files = discovery.discover_from_table(path, catalog_name)
 
             click.echo(f"Found {len(files)} data files in table")

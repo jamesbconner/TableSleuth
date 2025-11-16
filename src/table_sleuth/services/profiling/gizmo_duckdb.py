@@ -225,7 +225,8 @@ class GizmoDuckDbProfiler(ProfilingBackend):
             file_paths = self._view_paths[safe_view_name]
             # Build read_parquet() expression
             if len(file_paths) == 1:
-                from_clause = f"read_parquet('{file_paths[0]}')"
+                escaped_path = file_paths[0].replace("'", "''")
+                from_clause = f"read_parquet('{escaped_path}')"
             else:
                 escaped_paths = [path.replace("'", "''") for path in file_paths]
                 paths_list = ", ".join(f"'{p}'" for p in escaped_paths)
