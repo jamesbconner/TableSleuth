@@ -175,9 +175,9 @@ class TableSleuthApp(App):
             file_list.show_aggregate_stats()
 
             # Auto-select first file for immediate inspection
-            # Use set_timer to ensure tabs are mounted first
-            if len(self._files) > 0:
-                self.set_timer(0.1, lambda: self._inspect_file(self._files[0]))
+            # Capture first file to avoid race condition with list mutation
+            first_file = self._files[0]
+            self.set_timer(0.1, lambda: self._inspect_file(first_file))
 
     def on_tabbed_content_tab_activated(self, event: TabbedContent.TabActivated) -> None:
         """Handle tab activation - update view when tab becomes visible.
