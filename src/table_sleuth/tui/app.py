@@ -334,38 +334,6 @@ class TableSleuthApp(App):
         # Note: Views in inactive tabs won't be mounted yet.
         # They will be updated when the user switches to those tabs.
 
-    def _delayed_update_views(self, file_info: ParquetFileInfo) -> None:
-        """Update views after a delay to catch lazy-mounted tabs.
-
-        Args:
-            file_info: ParquetFileInfo to display
-        """
-        logger.debug("Delayed update of views")
-
-        try:
-            file_detail = self.query_one("#file-detail", FileDetailView)
-            if file_detail.is_mounted:
-                file_detail.update_file_info(file_info)
-                logger.debug("Delayed update: file detail view")
-        except Exception as e:
-            logger.debug(f"Delayed update failed: {e}")
-
-        try:
-            schema = self.query_one("#schema", SchemaView)
-            if schema.is_mounted:
-                schema.update_schema(file_info)
-                logger.debug("Delayed update: schema view")
-        except Exception as e:
-            logger.debug(f"Delayed update failed: {e}")
-
-        try:
-            row_groups = self.query_one("#row-groups", RowGroupsView)
-            if row_groups.is_mounted:
-                row_groups.update_row_groups(file_info)
-                logger.debug("Delayed update: row groups view")
-        except Exception as e:
-            logger.debug(f"Delayed update failed: {e}")
-
     def _show_loading(self, message: str) -> None:
         """Show loading indicator.
 
