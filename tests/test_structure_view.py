@@ -23,6 +23,10 @@ def sample_column_stats() -> list[ColumnStats]:
             max_value=100,
             encodings=["PLAIN", "RLE"],
             compression="SNAPPY",
+            num_values=None,
+            distinct_count=None,
+            total_compressed_size=None,
+            total_uncompressed_size=None,
         ),
         ColumnStats(
             name="name",
@@ -33,6 +37,10 @@ def sample_column_stats() -> list[ColumnStats]:
             max_value="Zoe",
             encodings=["DICTIONARY"],
             compression="GZIP",
+            num_values=None,
+            distinct_count=None,
+            total_compressed_size=None,
+            total_uncompressed_size=None,
         ),
     ]
 
@@ -169,6 +177,10 @@ def test_format_column_chunk_no_encodings() -> None:
         max_value=None,
         encodings=[],
         compression="UNCOMPRESSED",
+        num_values=None,
+        distinct_count=None,
+        total_compressed_size=None,
+        total_uncompressed_size=None,
     )
 
     result = view._create_column_panel(col)
@@ -304,6 +316,10 @@ def test_structure_view_with_missing_metadata() -> None:
                         max_value=None,
                         encodings=[],
                         compression="UNCOMPRESSED",
+                        num_values=None,
+                        distinct_count=None,
+                        total_compressed_size=None,
+                        total_uncompressed_size=None,
                     )
                 ],
             )
@@ -318,6 +334,10 @@ def test_structure_view_with_missing_metadata() -> None:
                 max_value=None,
                 encodings=[],
                 compression="UNCOMPRESSED",
+                num_values=None,
+                distinct_count=None,
+                total_compressed_size=None,
+                total_uncompressed_size=None,
             )
         ],
         created_by=None,
@@ -377,6 +397,10 @@ def test_format_column_chunk_same_physical_logical_type() -> None:
         max_value=None,
         encodings=["PLAIN"],
         compression="SNAPPY",
+        num_values=None,
+        distinct_count=None,
+        total_compressed_size=None,
+        total_uncompressed_size=None,
     )
 
     result = view._create_column_panel(col)
@@ -400,6 +424,10 @@ def test_format_column_chunk_different_physical_logical_type() -> None:
         max_value=None,
         encodings=["DICTIONARY"],
         compression="GZIP",
+        num_values=None,
+        distinct_count=None,
+        total_compressed_size=None,
+        total_uncompressed_size=None,
     )
 
     result = view._create_column_panel(col)

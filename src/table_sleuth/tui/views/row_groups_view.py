@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Container, Vertical
 from textual.widgets import Collapsible, Static
@@ -107,32 +110,43 @@ class RowGroupsView(Container):
             size_str = self._format_size(rg.total_byte_size)
             summary = f"Group {rg.index}: {rg.num_rows:,} rows, {size_str}"
 
-            # Create details content
-            details_lines = []
-            details_lines.append(f"[bold]Row Count:[/bold] {rg.num_rows:,}")
-            details_lines.append(f"[bold]Size:[/bold] {size_str}")
-            details_lines.append("")
-            details_lines.append(f"[bold]Columns ({len(rg.columns)}):[/bold]")
+            # Create details content with Rich panels
+            # Create column panels in a grid layout (3 columns)
+            col_table = Table.grid(padding=(0, 1), expand=True)
+            col_table.add_column(ratio=1)
+            col_table.add_column(ratio=1)
+            col_table.add_column(ratio=1)
 
-            # Show first 5 columns with stats
-            for col in rg.columns[:5]:
-                details_lines.append(f"  • {col.name}")
-                details_lines.append(f"    Type: {col.physical_type}")
-                if col.null_count is not None:
-                    details_lines.append(f"    Nulls: {col.null_count:,}")
-                if col.min_value is not None and col.max_value is not None:
-                    # Truncate long values
-                    min_str = str(col.min_value)[:30]
-                    max_str = str(col.max_value)[:30]
-                    details_lines.append(f"    Min: {min_str}")
-                    details_lines.append(f"    Max: {max_str}")
+            # Build rows of column panels
+            cols_per_row = 3
+            max_cols_to_show = min(len(rg.columns), 15)  # Limit display
 
-            if len(rg.columns) > 5:
-                details_lines.append(f"  ... and {len(rg.columns) - 5} more columns")
+            for row_idx in range(0, max_cols_to_show, cols_per_row):
+                row_panels: list[Panel | Text] = []
+                for col_offset in range(cols_per_row):
+                    col_idx = row_idx + col_offset
+                    if col_idx < max_cols_to_show:
+                        col = rg.columns[col_idx]
+                        col_panel = self._create_column_panel(col)
+                        row_panels.append(col_panel)
+                    else:
+                        # Empty space for alignment
+                        row_panels.append(Text(""))
+
+                col_table.add_row(*row_panels)
+
+            # If too many columns, add note
+            if len(rg.columns) > max_cols_to_show:
+                remaining_text = Text()
+                remaining_text.append(
+                    f"... and {len(rg.columns) - max_cols_to_show} more columns",
+                    style="dim italic",
+                )
+                col_table.add_row(Panel(remaining_text, border_style="dim"), Text(""), Text(""))
 
             # Create collapsible widget
             collapsible = Collapsible(
-                Static("\n".join(details_lines), classes="rg-details"),
+                Static(col_table, classes="rg-details"),
                 title=summary,
                 collapsed=True,
             )
@@ -152,19 +166,119 @@ class RowGroupsView(Container):
         container.remove_children()
         container.mount(Static("No file selected", id="rowgroups-content"))
 
+    def _create_column_panel(self, col) -> Panel:
+        """Create a Rich Panel for a column with enhanced statistics.
+
+        Args:
+            col: Column statistics object
+
+        Returns:
+            Rich Panel with column details
+        """
+        col_text = Text()
+
+        # Type
+        col_text.append("Type: ", style="dim")
+        col_text.append(f"{col.physical_type}\n", style="cyan")
+
+        # Codec
+        col_text.append("Codec: ", style="dim")
+        codec_style = "green" if col.compression != "UNCOMPRESSED" else "yellow"
+        col_text.append(f"{col.compression}\n", style=codec_style)
+
+        # Values
+        col_text.append("Values: ", style="dim")
+        if col.num_values is not None:
+            col_text.append(f"{col.num_values:,}\n")
+        else:
+            col_text.append("N/A\n", style="dim")
+
+        # Nulls
+        col_text.append("Nulls: ", style="dim")
+        if col.null_count is not None:
+            null_style = "red" if col.null_count > 0 else "green"
+            col_text.append(f"{col.null_count:,}\n", style=null_style)
+        else:
+            col_text.append("N/A\n", style="dim")
+
+        # Distinct count
+        col_text.append("Distinct: ", style="dim")
+        if col.distinct_count is not None:
+            col_text.append(f"{col.distinct_count:,}\n")
+        else:
+            col_text.append("N/A\n", style="dim")
+
+        # Sizes and compression ratio
+        if col.total_compressed_size is not None and col.total_uncompressed_size is not None:
+            col_text.append("Compressed: ", style="dim")
+            col_text.append(f"{self._format_size(col.total_compressed_size)}\n")
+
+            col_text.append("Uncompressed: ", style="dim")
+            col_text.append(f"{self._format_size(col.total_uncompressed_size)}\n")
+
+            ratio, ratio_color = self._calculate_compression_ratio(
+                col.total_compressed_size, col.total_uncompressed_size
+            )
+            if ratio is not None:
+                col_text.append("Ratio: ", style="dim")
+                col_text.append(f"{ratio:.1f}%\n", style=ratio_color)
+
+        # Min/Max values
+        if col.min_value is not None and col.max_value is not None:
+            min_str = str(col.min_value)[:25]
+            max_str = str(col.max_value)[:25]
+            col_text.append("Min: ", style="dim")
+            col_text.append(f"{min_str}\n", style="green")
+            col_text.append("Max: ", style="dim")
+            col_text.append(f"{max_str}", style="green")
+        elif col.num_values is None and col.null_count is None:
+            # If most stats are missing, show single message
+            col_text.append("Stats: ", style="dim")
+            col_text.append("Not available", style="yellow")
+
+        return Panel(
+            col_text,
+            title=f"[bold cyan]{col.name}[/bold cyan]",
+            border_style="dim",
+            padding=(0, 1),
+        )
+
     @staticmethod
-    def _format_size(size_bytes: int) -> str:
+    def _format_size(size_bytes: int | None) -> str:
         """Format size in human-readable format.
 
         Args:
-            size_bytes: Size in bytes
+            size_bytes: Size in bytes (None if unavailable)
 
         Returns:
-            Formatted size string (e.g., "1.2 MB")
+            Formatted size string (e.g., "1.2 MB") or "N/A"
         """
+        if size_bytes is None:
+            return "N/A"
+
         size = float(size_bytes)
         for unit in ["B", "KB", "MB", "GB", "TB"]:
             if size < 1024.0:
-                return f"{size:.1f} {unit}"
+                return f"{size:.2f} {unit}"
             size /= 1024.0
-        return f"{size:.1f} PB"
+        return f"{size:.2f} PB"
+
+    @staticmethod
+    def _calculate_compression_ratio(
+        compressed: int | None, uncompressed: int | None
+    ) -> tuple[float | None, str]:
+        """Calculate compression ratio and determine color.
+
+        Args:
+            compressed: Compressed size in bytes
+            uncompressed: Uncompressed size in bytes
+
+        Returns:
+            Tuple of (ratio as percentage, color style)
+        """
+        if compressed is None or uncompressed is None or uncompressed == 0:
+            return None, "dim"
+
+        ratio = (compressed / uncompressed) * 100
+        color = "green" if ratio < 50 else "yellow"
+        return ratio, color

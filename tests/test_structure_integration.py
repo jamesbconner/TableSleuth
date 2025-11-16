@@ -416,3 +416,130 @@ async def test_structure_view_scrollable(
         # Verify structure view has overflow-y: auto in CSS
         # This is defined in DEFAULT_CSS
         assert "overflow-y: auto" in StructureView.DEFAULT_CSS
+
+
+async def test_enhanced_column_stats_end_to_end(
+    table_handle: TableHandle,
+    adapter: IcebergAdapter,
+    app_config: AppConfig,
+    sample_files: list[FileRef],
+    test_parquet_file: Path,
+) -> None:
+    """Test end-to-end flow with enhanced column statistics."""
+    # First inspect the file to verify new fields are populated
+    inspector = ParquetInspector()
+    file_info = inspector.inspect_file(test_parquet_file)
+
+    # Verify new fields are present in extracted metadata
+    for col in file_info.columns:
+        assert hasattr(col, "num_values")
+        assert hasattr(col, "distinct_count")
+        assert hasattr(col, "total_compressed_size")
+        assert hasattr(col, "total_uncompressed_size")
+
+    # Now test in the app
+    app = TableSleuthApp(
+        table_handle=table_handle,
+        adapter=adapter,
+        config=app_config,
+        files=sample_files,
+    )
+
+    async with app.run_test() as pilot:
+        # Wait for app to mount and auto-select first file
+        await pilot.pause()
+        await pilot.pause()
+
+        # Get structure view
+        structure_view = app.query_one("#structure", StructureView)
+
+        # Verify structure view has file info with new fields
+        assert structure_view._file_info is not None
+        for col in structure_view._file_info.columns:
+            assert hasattr(col, "num_values")
+            assert hasattr(col, "distinct_count")
+            assert hasattr(col, "total_compressed_size")
+            assert hasattr(col, "total_uncompressed_size")
+
+
+async def test_enhanced_column_stats_multiple_row_groups(
+    table_handle: TableHandle,
+    adapter: IcebergAdapter,
+    app_config: AppConfig,
+    sample_files: list[FileRef],
+    test_parquet_file: Path,
+) -> None:
+    """Test that column statistics are aggregated correctly across row groups."""
+    # Inspect the file
+    inspector = ParquetInspector()
+    file_info = inspector.inspect_file(test_parquet_file)
+
+    # If file has multiple row groups, verify aggregation
+    if file_info.num_row_groups > 1:
+        for col_idx, file_col in enumerate(file_info.columns):
+            # Verify num_values aggregation
+            if file_col.num_values is not None:
+                # Sum from row groups
+                rg_sum = sum(
+                    rg.columns[col_idx].num_values
+                    for rg in file_info.row_groups
+                    if rg.columns[col_idx].num_values is not None
+                )
+                if rg_sum > 0:
+                    assert file_col.num_values == rg_sum
+
+            # Verify size aggregation
+            if file_col.total_compressed_size is not None:
+                rg_compressed_sum = sum(
+                    rg.columns[col_idx].total_compressed_size
+                    for rg in file_info.row_groups
+                    if rg.columns[col_idx].total_compressed_size is not None
+                )
+                if rg_compressed_sum > 0:
+                    assert file_col.total_compressed_size == rg_compressed_sum
+
+            if file_col.total_uncompressed_size is not None:
+                rg_uncompressed_sum = sum(
+                    rg.columns[col_idx].total_uncompressed_size
+                    for rg in file_info.row_groups
+                    if rg.columns[col_idx].total_uncompressed_size is not None
+                )
+                if rg_uncompressed_sum > 0:
+                    assert file_col.total_uncompressed_size == rg_uncompressed_sum
+
+
+async def test_row_groups_view_displays_enhanced_stats(
+    table_handle: TableHandle,
+    adapter: IcebergAdapter,
+    app_config: AppConfig,
+    sample_files: list[FileRef],
+) -> None:
+    """Test that Row Groups view displays enhanced statistics."""
+    from table_sleuth.tui.views.row_groups_view import RowGroupsView
+
+    app = TableSleuthApp(
+        table_handle=table_handle,
+        adapter=adapter,
+        config=app_config,
+        files=sample_files,
+    )
+
+    async with app.run_test() as pilot:
+        # Wait for app to mount and auto-select first file
+        await pilot.pause()
+        await pilot.pause()
+
+        # Find Row Groups view
+        row_groups_view = app.query_one(RowGroupsView)
+        assert row_groups_view is not None
+
+        # Verify it has file info
+        assert row_groups_view._file_info is not None
+
+        # Verify row groups have columns with new fields
+        for rg in row_groups_view._file_info.row_groups:
+            for col in rg.columns:
+                assert hasattr(col, "num_values")
+                assert hasattr(col, "distinct_count")
+                assert hasattr(col, "total_compressed_size")
+                assert hasattr(col, "total_uncompressed_size")

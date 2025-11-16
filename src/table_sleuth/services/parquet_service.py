@@ -271,16 +271,17 @@ class ParquetInspector:
         min_value = None
         max_value = None
         try:
-            mins = [
-                c.statistics.min
-                for c in col_metadata
-                if c.statistics is not None and c.statistics.has_min_max
-            ]
-            maxs = [
-                c.statistics.max
-                for c in col_metadata
-                if c.statistics is not None and c.statistics.has_min_max
-            ]
+            mins = []
+            maxs = []
+            for c in col_metadata:
+                if c.statistics is not None and c.statistics.has_min_max:
+                    try:
+                        mins.append(c.statistics.min)
+                        maxs.append(c.statistics.max)
+                    except Exception as e:
+                        # PyArrow can't extract stats for some types (e.g., DECIMAL stored as INT64)
+                        logger.debug(f"Could not extract min/max for {col_name} in row group: {e}")
+                        continue
 
             if mins:
                 min_value = min(mins)
@@ -312,6 +313,37 @@ class ParquetInspector:
         except Exception as e:
             logger.debug(f"Could not extract compression/encodings for {col_name}: {e}")
 
+        # Extract num_values (sum across all row groups)
+        num_values = None
+        try:
+            num_values = sum(c.num_values for c in col_metadata if c.num_values is not None)
+        except Exception as e:
+            logger.debug(f"Could not calculate num_values for {col_name}: {e}")
+
+        # Extract distinct_count (from statistics, if available)
+        distinct_count = None
+        try:
+            # Distinct count is rarely populated, check first row group
+            if col_metadata and col_metadata[0].statistics:
+                distinct_count = col_metadata[0].statistics.distinct_count
+        except Exception as e:
+            logger.debug(f"Could not extract distinct_count for {col_name}: {e}")
+
+        # Extract sizes (sum across all row groups)
+        total_compressed_size = None
+        total_uncompressed_size = None
+        try:
+            total_compressed_size = sum(
+                c.total_compressed_size for c in col_metadata if c.total_compressed_size is not None
+            )
+            total_uncompressed_size = sum(
+                c.total_uncompressed_size
+                for c in col_metadata
+                if c.total_uncompressed_size is not None
+            )
+        except Exception as e:
+            logger.debug(f"Could not extract sizes for {col_name}: {e}")
+
         return ColumnStats(
             name=col_name,
             physical_type=physical_type,
@@ -321,6 +353,10 @@ class ParquetInspector:
             max_value=max_value,
             encodings=encodings,
             compression=compression,
+            num_values=num_values,
+            distinct_count=distinct_count,
+            total_compressed_size=total_compressed_size,
+            total_uncompressed_size=total_uncompressed_size,
         )
 
 

@@ -25,6 +25,10 @@ def sample_column_stats() -> ColumnStats:
         max_value=9999,
         encodings=["PLAIN", "RLE"],
         compression="SNAPPY",
+        num_values=None,
+        distinct_count=None,
+        total_compressed_size=None,
+        total_uncompressed_size=None,
     )
 
 
@@ -44,6 +48,10 @@ def minimal_column_stats() -> ColumnStats:
         max_value=None,
         encodings=[],
         compression="UNCOMPRESSED",
+        num_values=None,
+        distinct_count=None,
+        total_compressed_size=None,
+        total_uncompressed_size=None,
     )
 
 

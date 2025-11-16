@@ -17,6 +17,10 @@ class ColumnStats:
         max_value: Maximum value from statistics (None if unavailable)
         encodings: List of encoding types used
         compression: Compression codec name
+        num_values: Total number of values in column (None if unavailable)
+        distinct_count: Number of unique values (None if unavailable)
+        total_compressed_size: Compressed size in bytes (None if unavailable)
+        total_uncompressed_size: Uncompressed size in bytes (None if unavailable)
     """
 
     name: str
@@ -27,6 +31,10 @@ class ColumnStats:
     max_value: Any | None
     encodings: list[str]
     compression: str
+    num_values: int | None
+    distinct_count: int | None
+    total_compressed_size: int | None
+    total_uncompressed_size: int | None
 
 
 @dataclass
