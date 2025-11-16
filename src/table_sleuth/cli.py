@@ -168,18 +168,13 @@ def inspect(path: str, catalog_name: str | None, verbose: bool) -> None:
     default=None,
     help="Catalog name (for example local). If omitted, identifier is treated as a path.",
 )
-def run_tui(identifier: str, catalog_name: str | None) -> None:
+@click.pass_context
+def run_tui(ctx: click.Context, identifier: str, catalog_name: str | None) -> None:
     """Launch the Textual TUI (legacy command, use 'inspect' instead)."""
     click.echo("Note: 'tui' command is deprecated, use 'inspect' instead", err=True)
 
-    # Forward to inspect command
-    from click.testing import CliRunner
-
-    runner = CliRunner()
-    result = runner.invoke(
-        inspect, [identifier] + (["--catalog", catalog_name] if catalog_name else [])
-    )
-    sys.exit(result.exit_code)
+    # Forward to inspect command using ctx.invoke for interactive execution
+    ctx.invoke(inspect, path=identifier, catalog_name=catalog_name, verbose=False)
 
 
 def entry_point() -> None:
