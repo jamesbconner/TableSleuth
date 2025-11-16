@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import logging
 
+from rich.console import Group
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Container, Vertical
 from textual.widgets import Static
@@ -35,24 +39,6 @@ class StructureView(Container):
 
     .structure-section {
         height: auto;
-        margin: 1 0;
-        padding: 1;
-    }
-
-    .header-section {
-        border: heavy $accent;
-    }
-
-    .row-group-section {
-        border: heavy $success;
-    }
-
-    .page-index-section {
-        border: heavy $warning;
-    }
-
-    .footer-section {
-        border: heavy $secondary;
     }
     """
 
@@ -117,7 +103,7 @@ class StructureView(Container):
             self._content_container.remove_children()
 
             # Build structure display with error handling
-            widgets: list[Container | Static] = []
+            widgets: list[Static | Container] = []
 
             try:
                 widgets.append(self._render_header(file_info))
@@ -126,7 +112,7 @@ class StructureView(Container):
                 widgets.append(Static("[red]Error rendering header[/red]"))
 
             try:
-                widgets.extend(self._render_row_groups(file_info))
+                widgets.append(self._render_row_groups(file_info))
             except Exception as e:
                 logger.warning(f"Failed to render row groups: {e}")
                 widgets.append(Static("[red]Error rendering row groups[/red]"))
@@ -158,8 +144,8 @@ class StructureView(Container):
             self._content_container.remove_children()
             self._content_container.mount(Static("No file selected", id="structure-placeholder"))
 
-    def _render_header(self, file_info: ParquetFileInfo) -> Container:
-        """Render the file header section.
+    def _render_header(self, file_info: ParquetFileInfo) -> Static:
+        """Render the file header section using Rich Panel.
 
         Args:
             file_info: ParquetFileInfo object
@@ -167,89 +153,138 @@ class StructureView(Container):
         Returns:
             Container with header information
         """
-        content = []
-        content.append("[bold]HEADER[/bold]")
-        content.append("")
-        content.append("Magic Number: PAR1")
-        content.append("Size: 4 bytes")
+        header_text = Text()
+        header_text.append("Magic Number: ", style="bold")
+        header_text.append("PAR1\n", style="yellow")
+        header_text.append("Size: ", style="bold")
+        header_text.append("4 bytes")
 
-        return Container(
-            Static("\n".join(content)),
-            classes="structure-section header-section",
+        panel = Panel(
+            header_text,
+            title="[bold yellow]HEADER[/bold yellow]",
+            border_style="yellow",
         )
 
+        return Static(panel)
+
     def _render_row_groups(self, file_info: ParquetFileInfo) -> list[Container]:
-        """Render all row group sections.
+        """Render all row group sections using Rich Panels and Tables.
 
         Args:
             file_info: ParquetFileInfo object
 
         Returns:
-            List of Container widgets, one per row group
+            Container widget with all row groups
         """
-        row_group_widgets = []
+        row_group_panels = []
 
         for rg in file_info.row_groups:
-            # Row group header
-            header_text = (
-                f"[bold]ROW GROUP {rg.index}[/bold]\n"
-                f"Rows: {rg.num_rows:,} | "
-                f"Size: {self._format_size(rg.total_byte_size)}"
+            # Row group summary
+            summary = Text()
+            summary.append("Rows: ", style="bold")
+            summary.append(f"{rg.num_rows:,}\n")
+            summary.append("Size: ", style="bold")
+            summary.append(f"{self._format_size(rg.total_byte_size)}\n")
+            summary.append("Columns: ", style="bold")
+            summary.append(f"{len(rg.columns)}")
+
+            # Create column chunks table (3 columns layout)
+            col_table = Table.grid(padding=(0, 1), expand=True)
+            col_table.add_column(ratio=1)
+            col_table.add_column(ratio=1)
+            col_table.add_column(ratio=1)
+
+            # Build rows of column panels
+            cols_per_row = 3
+            max_cols_to_show = min(len(rg.columns), 15)  # Limit display
+
+            for row_idx in range(0, max_cols_to_show, cols_per_row):
+                row_panels: list[Panel | Text] = []
+                for col_offset in range(cols_per_row):
+                    col_idx = row_idx + col_offset
+                    if col_idx < max_cols_to_show:
+                        col = rg.columns[col_idx]
+                        col_panel = self._create_column_panel(col)
+                        row_panels.append(col_panel)
+                    else:
+                        # Empty space for alignment
+                        row_panels.append(Text(""))
+
+                col_table.add_row(*row_panels)
+
+            # If too many columns, add note
+            if len(rg.columns) > max_cols_to_show:
+                remaining_text = Text()
+                remaining_text.append(
+                    f"... and {len(rg.columns) - max_cols_to_show} more columns",
+                    style="dim italic",
+                )
+                col_table.add_row(Panel(remaining_text, border_style="dim"), Text(""), Text(""))
+
+            # Combine summary and column table
+            rg_content = Group(summary, Text(), col_table)
+
+            panel = Panel(
+                rg_content,
+                title=f"[bold]Row Group {rg.index}[/bold]",
+                border_style="dim",
             )
 
-            # Build column chunks text
-            column_chunks_text = []
-            for col in rg.columns:
-                col_text = self._format_column_chunk(col)
-                column_chunks_text.append(col_text)
-                column_chunks_text.append("")  # Spacing between columns
+            row_group_panels.append(panel)
 
-            # Combine header and column chunks
-            full_text = header_text + "\n\n" + "\n".join(column_chunks_text)
+        # Combine all row groups into a single Group
+        all_row_groups = Group(*row_group_panels)
 
-            # Create row group container
-            rg_container = Container(
-                Static(full_text),
-                classes="structure-section row-group-section",
-            )
+        # Wrap in a single panel
+        row_groups_panel = Panel(
+            all_row_groups,
+            title="[bold green]ROW GROUPS[/bold green]",
+            border_style="green",
+        )
 
-            row_group_widgets.append(rg_container)
+        return Container(
+            Static(row_groups_panel),
+            classes="structure-section",
+        )
 
-        return row_group_widgets
-
-    def _format_column_chunk(self, col: ColumnStats) -> str:
-        """Format column chunk information.
+    def _create_column_panel(self, col: ColumnStats) -> Panel:
+        """Create a Rich Panel for a column chunk.
 
         Args:
             col: ColumnStats object
 
         Returns:
-            Formatted string with column chunk details
+            Rich Panel with column chunk details
         """
-        lines = []
-
-        # Column name
-        lines.append(f"[bold]{col.name}[/bold]")
+        col_text = Text()
 
         # Type information
         type_str = col.physical_type
         if col.logical_type and col.logical_type != col.physical_type:
             type_str += f" ({col.logical_type})"
-        lines.append(f"Type: {type_str}")
+        col_text.append("Type: ", style="dim")
+        col_text.append(f"{type_str}\n", style="cyan")
 
-        # Size (not directly available, show N/A)
-        lines.append("Size: N/A")
+        # Compression
+        col_text.append("Codec: ", style="dim")
+        codec_style = "green" if col.compression != "UNCOMPRESSED" else "yellow"
+        col_text.append(f"{col.compression}\n", style=codec_style)
 
-        # Compression and encoding
-        lines.append(f"Codec: {col.compression}")
+        # Encoding
         if col.encodings:
             encodings_str = ", ".join(col.encodings)
-            lines.append(f"Encoding: {encodings_str}")
+            col_text.append("Encoding: ", style="dim")
+            col_text.append(encodings_str, style="dim")
 
-        return "\n".join(lines)
+        return Panel(
+            col_text,
+            title=f"[bold cyan]{col.name}[/bold cyan]",
+            border_style="dim",
+            padding=(0, 1),
+        )
 
-    def _render_page_indexes(self, file_info: ParquetFileInfo) -> Container:
-        """Render the page indexes section.
+    def _render_page_indexes(self, file_info: ParquetFileInfo) -> Static:
+        """Render the page indexes section using Rich Panel.
 
         Args:
             file_info: ParquetFileInfo object
@@ -257,24 +292,23 @@ class StructureView(Container):
         Returns:
             Container with page index information
         """
-        content = []
-        content.append("[bold]PAGE INDEXES[/bold]")
-        content.append("")
+        content = Text()
+        content.append("Page index information not available\n\n", style="dim italic")
+        content.append("Column Index: ", style="bold")
+        content.append("Per-page statistics for filtering\n")
+        content.append("Offset Index: ", style="bold")
+        content.append("Page locations for random access")
 
-        # Note: PyArrow doesn't expose page index information directly
-        # We'll show a placeholder message
-        content.append("[dim]Page index information not available[/dim]")
-        content.append("")
-        content.append("Column Index: Per-page statistics for filtering")
-        content.append("Offset Index: Page locations for random access")
-
-        return Container(
-            Static("\n".join(content)),
-            classes="structure-section page-index-section",
+        panel = Panel(
+            content,
+            title="[bold magenta]PAGE INDEXES[/bold magenta]",
+            border_style="magenta",
         )
 
-    def _render_footer(self, file_info: ParquetFileInfo) -> Container:
-        """Render the file footer section.
+        return Static(panel)
+
+    def _render_footer(self, file_info: ParquetFileInfo) -> Static:
+        """Render the file footer section using Rich Panel.
 
         Args:
             file_info: ParquetFileInfo object
@@ -282,24 +316,25 @@ class StructureView(Container):
         Returns:
             Container with footer information
         """
-        content = []
-        content.append("[bold]FOOTER[/bold]")
-        content.append("")
-        content.append(f"Total Rows: {file_info.num_rows:,}")
-        content.append(f"Row Groups: {file_info.num_row_groups}")
+        footer_text = Text()
+        footer_text.append("Total Rows: ", style="bold")
+        footer_text.append(f"{file_info.num_rows:,}\n")
+        footer_text.append("Row Groups: ", style="bold")
+        footer_text.append(f"{file_info.num_row_groups}\n")
+        footer_text.append("Metadata Size: ", style="bold")
+        footer_text.append("N/A\n", style="dim")
+        footer_text.append("Footer Size: ", style="bold")
+        footer_text.append("4 bytes\n")
+        footer_text.append("Magic Number: ", style="bold")
+        footer_text.append("PAR1", style="yellow")
 
-        # Calculate approximate metadata size
-        # (actual metadata size not directly available from PyArrow)
-        metadata_size = "N/A"
-        content.append(f"Metadata Size: {metadata_size}")
-
-        content.append("Footer Size: 4 bytes")
-        content.append("Magic Number: PAR1")
-
-        return Container(
-            Static("\n".join(content)),
-            classes="structure-section footer-section",
+        panel = Panel(
+            footer_text,
+            title="[bold blue]FOOTER[/bold blue]",
+            border_style="blue",
         )
+
+        return Static(panel)
 
     @staticmethod
     def _format_size(size_bytes: int) -> str:
