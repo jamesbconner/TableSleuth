@@ -1,0 +1,19 @@
+# Table Sleuth Configuration
+
+[catalog]
+# Default catalog for Iceberg tables
+default = "local"
+
+[gizmosql]
+# GizmoSQL connection settings for column profiling
+# Update these with your actual GizmoSQL credentials
+uri = "grpc+tls://localhost:31337"
+username = "gizmo"
+password = "gizmo"
+tls_skip_verify = true
+
+# Note: If you don't have GizmoSQL running, profiling features won't work
+# but all other features (file inspection, schema viewing, etc.) will still work.
+#
+# To start GizmoSQL:
+# docker run -d --name gizmosql -p 31337:31337 --volume "$(pwd)/data:/data" gizmosql/gizmosql:latest

@@ -41,13 +41,15 @@ def estimate_mor(snapshot: SnapshotInfo) -> SnapshotMorSummary:
     for base in snapshot.data_files:
         key = _partition_key(base.partition)
         deletes = delete_by_partition.get(key, [])
-        delete_rows = sum(d.record_count for d in deletes)
+        delete_rows = sum(d.record_count or 0 for d in deletes)
+
+        base_rows = base.record_count or 0
 
         impact = FileMorImpact(
             file_path=base.path,
-            base_rows=base.record_count,
+            base_rows=base_rows,
             delete_rows_estimate=delete_rows,
-            effective_rows_estimate=max(0, base.record_count - delete_rows),
+            effective_rows_estimate=max(0, base_rows - delete_rows),
             num_position_delete_files=sum(
                 1 for d in deletes if d.content_type == "POSITION_DELETES"
             ),
@@ -56,7 +58,7 @@ def estimate_mor(snapshot: SnapshotInfo) -> SnapshotMorSummary:
             ),
         )
         file_impacts.append(impact)
-        total_base_rows += base.record_count
+        total_base_rows += base_rows
         total_delete_rows += delete_rows
 
     return SnapshotMorSummary(

@@ -51,27 +51,88 @@ class IcebergAdapter(TableFormatAdapter):
     def iter_delete_files(self, snapshot: SnapshotInfo) -> Iterable[FileRef]:
         return (f for f in snapshot.delete_files)
 
-    def _build_snapshot_info(self, table: Table, snapshot: Snapshot) -> SnapshotInfo:
-        data_files: list[FileRef] = []
-        delete_files: list[FileRef] = []
+    def get_data_files(
+        self, table_identifier: str, catalog_name: str | None = None
+    ) -> list[FileRef]:
+        """Get all data files from an Iceberg table's current snapshot.
 
-        scan = table.scan().use_snapshot(snapshot.snapshot_id)
+        This method is used for MVP 0 to discover Parquet files from Iceberg tables
+        without exposing full snapshot/delete file functionality.
+
+        Args:
+            table_identifier: Table identifier (e.g., "db.table")
+            catalog_name: Catalog name (uses default if None)
+
+        Returns:
+            List of FileRef objects for data files with source="iceberg"
+
+        Raises:
+            Exception: If catalog or table cannot be loaded
+        """
+        # Open the table
+        table_handle = self.open_table(table_identifier, catalog_name)
+        py_table: Table = table_handle.native
+
+        # Get current snapshot
+        snapshot = py_table.current_snapshot()
+        if snapshot is None:
+            return []
+
+        # Extract data files only (ignore delete files for MVP 0)
+        data_files: list[FileRef] = []
+        scan = py_table.scan(snapshot_id=snapshot.snapshot_id)
+
         for file_task in scan.plan_files():
             f = file_task.file
+
+            # DataFile objects are data files (delete files would be DeleteFile)
+            # For MVP 0, we only want data files
             ref = FileRef(
-                path=f.path,
-                content_type=f.content_type.name,
-                partition=dict(f.partition) if f.partition is not None else {},
+                path=f.file_path,
                 file_size_bytes=f.file_size_in_bytes,
                 record_count=f.record_count,
-                sequence_number=f.file_sequence_number,
-                data_sequence_number=f.data_sequence_number,
+                source="iceberg",
+                content_type="DATA",
+                partition=dict(f.partition) if f.partition is not None else {},
+                sequence_number=None,  # Not available in this API version
+                data_sequence_number=None,  # Not available in this API version
                 extra={
                     "spec_id": f.spec_id,
                     "sort_order_id": getattr(f, "sort_order_id", None),
                 },
             )
-            if ref.content_type == "DATA":
+            data_files.append(ref)
+
+        return data_files
+
+    def _build_snapshot_info(self, table: Table, snapshot: Snapshot) -> SnapshotInfo:
+        data_files: list[FileRef] = []
+        delete_files: list[FileRef] = []
+
+        scan = table.scan(snapshot_id=snapshot.snapshot_id)
+        for file_task in scan.plan_files():
+            f = file_task.file
+
+            # Determine content type based on file type
+            # DataFile objects are data files, DeleteFile would be delete files
+            content_type = "DATA"  # Default for DataFile
+
+            ref = FileRef(
+                path=f.file_path,
+                file_size_bytes=f.file_size_in_bytes,
+                record_count=f.record_count,
+                source="iceberg",
+                content_type=content_type,
+                partition=dict(f.partition) if f.partition is not None else {},
+                sequence_number=None,  # Not available in this API version
+                data_sequence_number=None,  # Not available in this API version
+                extra={
+                    "spec_id": f.spec_id,
+                    "sort_order_id": getattr(f, "sort_order_id", None),
+                },
+            )
+
+            if content_type == "DATA":
                 data_files.append(ref)
             else:
                 delete_files.append(ref)

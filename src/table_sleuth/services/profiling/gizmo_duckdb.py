@@ -128,6 +128,17 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         )
 
     def register_snapshot_view(self, snapshot: SnapshotInfo) -> str:
+        """Create a backend-specific view for an Iceberg snapshot.
+
+        Args:
+            snapshot: SnapshotInfo with data files
+
+        Returns:
+            View name that can be used in subsequent queries
+
+        Raises:
+            ValueError: If snapshot ID is invalid or no data files
+        """
         # Validate snapshot ID is positive (Iceberg constraint)
         if snapshot.snapshot_id < 0:
             raise ValueError(
@@ -145,19 +156,49 @@ class GizmoDuckDbProfiler(ProfilingBackend):
 
         # Create view name with validated snapshot ID
         view_name = f"snap_{snapshot.snapshot_id}"
-        # Sanitize view name to prevent SQL injection
-        safe_view_name = _sanitize_identifier(view_name)
         paths = [f.path for f in snapshot.data_files]
 
-        # Use parameterized query for the paths list
-        # safe_view_name is sanitized via _sanitize_identifier()
-        sql = f"""
-        CREATE OR REPLACE VIEW {safe_view_name} AS
-        SELECT *
-        FROM read_parquet($paths)
-        """  # nosec B608
-        with self._connect() as conn, conn.cursor() as cur:
-            cur.execute(sql, {"paths": paths})
+        return self.register_file_view(paths, view_name)
+
+    def register_file_view(self, file_paths: list[str], view_name: str | None = None) -> str:
+        """Register Parquet files for profiling.
+
+        Note: While DuckDB supports CREATE VIEW, GizmoSQL's Flight SQL interface
+        doesn't persist views across connections. Each connection gets its own
+        DuckDB instance. Therefore, this method stores the file paths and returns
+        a view name that will be used to construct read_parquet() queries dynamically
+        in subsequent profiling calls.
+
+        Args:
+            file_paths: List of Parquet file paths (local or remote)
+            view_name: Optional view name (auto-generated if None)
+
+        Returns:
+            View name that can be used in subsequent queries
+
+        Raises:
+            ValueError: If file_paths is empty or view_name is invalid
+        """
+        if not file_paths:
+            raise ValueError("file_paths cannot be empty")
+
+        # Generate view name if not provided
+        if view_name is None:
+            import hashlib
+
+            # Create a hash of the file paths for a unique view name
+            paths_str = "|".join(sorted(file_paths))
+            hash_val = hashlib.md5(paths_str.encode(), usedforsecurity=False).hexdigest()[:8]  # noqa: S324
+            view_name = f"files_{hash_val}"
+
+        # Sanitize view name to prevent SQL injection
+        safe_view_name = _sanitize_identifier(view_name)
+
+        # Store the file paths mapping for this view name
+        if not hasattr(self, "_view_paths"):
+            self._view_paths = {}
+        self._view_paths[safe_view_name] = file_paths
+
         return safe_view_name
 
     def profile_single_column(
@@ -179,6 +220,21 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         else:
             where_clause = ""
 
+        # Get the file paths for this view name
+        if hasattr(self, "_view_paths") and safe_view_name in self._view_paths:
+            file_paths = self._view_paths[safe_view_name]
+            # Build read_parquet() expression
+            if len(file_paths) == 1:
+                escaped_path = file_paths[0].replace("'", "''")
+                from_clause = f"read_parquet('{escaped_path}')"
+            else:
+                escaped_paths = [path.replace("'", "''") for path in file_paths]
+                paths_list = ", ".join(f"'{p}'" for p in escaped_paths)
+                from_clause = f"read_parquet([{paths_list}])"
+        else:
+            # Fallback: assume view_name is a table/view name
+            from_clause = safe_view_name
+
         # safe_view_name and safe_column are sanitized via _sanitize_identifier()
         # filters is validated via _validate_filter_expression()
         sql = f"""
@@ -189,7 +245,7 @@ class GizmoDuckDbProfiler(ProfilingBackend):
             COUNT(DISTINCT {safe_column}) AS distinct_count,
             MIN({safe_column}) AS min_value,
             MAX({safe_column}) AS max_value
-        FROM {safe_view_name}
+        FROM {from_clause}
         {where_clause}
         """  # nosec B608
 
@@ -214,3 +270,12 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         filters: Optional[str] = None,
     ) -> dict[str, ColumnProfile]:
         return {col: self.profile_single_column(view_name, col, filters) for col in columns}
+
+    def clear_views(self) -> None:
+        """Clear all registered view-to-file mappings.
+
+        This removes all stored file path mappings, forcing views to be
+        re-registered on next use. Useful when refreshing or invalidating caches.
+        """
+        if hasattr(self, "_view_paths"):
+            self._view_paths.clear()
