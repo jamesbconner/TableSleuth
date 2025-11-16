@@ -290,14 +290,14 @@ class StructureView(Container):
             file_info: ParquetFileInfo object
 
         Returns:
-            Container with page index information
+            Static widget with page index information
         """
+        # Note: PyArrow doesn't expose page index data directly in Python API
+        # We can only check if they exist, not read their contents
+
         content = Text()
-        content.append("Page index information not available\n\n", style="dim italic")
-        content.append("Column Index: ", style="bold")
-        content.append("Per-page statistics for filtering\n")
-        content.append("Offset Index: ", style="bold")
-        content.append("Page locations for random access")
+        content.append("Status: ", style="bold")
+        content.append("Not present", style="yellow")
 
         panel = Panel(
             content,
