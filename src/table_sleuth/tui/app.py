@@ -456,6 +456,22 @@ class TableSleuthApp(App):
             # App not mounted yet
             logger.warning("Cannot profile: app not mounted")
 
+    def _convert_to_docker_path(self, local_path: str) -> str:
+        """Convert local file path to Docker container path.
+
+        GizmoSQL runs in Docker with /data mounted to ./data, so we need to
+        convert local paths to Docker paths for profiling to work.
+
+        Args:
+            local_path: Local file path (e.g., "data/warehouse/...")
+
+        Returns:
+            Docker path (e.g., "/data/warehouse/...")
+        """
+        if local_path.startswith("data/"):
+            return "/data/" + local_path[5:]  # Remove "data/" and add "/data/"
+        return local_path
+
     def _profile_column(self, column_name: str) -> None:
         """Profile a column using the profiling backend.
 
@@ -480,9 +496,10 @@ class TableSleuthApp(App):
             else:
                 # Register file view if not already registered
                 if self._current_view_name is None:
-                    self._current_view_name = self._profiler.register_file_view(
-                        [self._current_file_info.path]
-                    )
+                    # Convert local path to Docker path for GizmoSQL
+                    docker_path = self._convert_to_docker_path(self._current_file_info.path)
+                    logger.debug(f"Registering file view: {docker_path}")
+                    self._current_view_name = self._profiler.register_file_view([docker_path])
 
                 # Profile the column
                 profile_result = self._profiler.profile_single_column(

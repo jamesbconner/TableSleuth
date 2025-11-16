@@ -8,12 +8,12 @@ default = "local"
 # GizmoSQL connection settings for column profiling
 # Update these with your actual GizmoSQL credentials
 uri = "grpc+tls://localhost:31337"
-username = "gizmo"
-password = "gizmo"
+username = "gizmosql_username"
+password = "gizmosql_password"
 tls_skip_verify = true
 
 # Note: If you don't have GizmoSQL running, profiling features won't work
 # but all other features (file inspection, schema viewing, etc.) will still work.
 #
 # To start GizmoSQL:
-# docker run -d --name gizmosql -p 31337:31337 --volume "$(pwd)/data:/data" gizmosql/gizmosql:latest
+# docker run --name gizmosql --detach --rm --tty --init --publish 31337:31337 --env TLS_ENABLED="1" --env GIZMOSQL_PASSWORD="gizmosql_password" --env PRINT_QUERIES="1" --volume "$(pwd)/data:/data" --pull always gizmodata/gizmosql:latest
