@@ -256,10 +256,13 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         # Sanitize view name to prevent SQL injection
         safe_view_name = _sanitize_identifier(view_name)
 
-        # Store the file paths mapping for this view name
+        # Convert file paths to Docker paths if Docker configuration is present
+        converted_paths = [self._convert_to_docker_path(path) for path in file_paths]
+
+        # Store the converted file paths mapping for this view name
         if not hasattr(self, "_view_paths"):
             self._view_paths = {}
-        self._view_paths[safe_view_name] = file_paths
+        self._view_paths[safe_view_name] = converted_paths
 
         return safe_view_name
 

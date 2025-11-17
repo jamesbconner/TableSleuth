@@ -227,6 +227,70 @@ class TestGizmoProfilerConfiguration:
         call_args = str(mock_logger.debug.call_args)
         assert "Using local paths directly" in call_args
 
+    def test_register_file_view_converts_paths_with_docker(self):
+        """Test that register_file_view converts paths when Docker is configured.
+
+        Verifies that file paths are converted to Docker paths before storage.
+
+        Requirements: 1.1, 1.3
+        """
+        profiler = GizmoDuckDbProfiler(
+            uri="grpc+tls://localhost:31337",
+            username="test_user",
+            password="test_pass",
+            local_data_path="data",
+            docker_data_path="/data",
+        )
+
+        # Register files with local paths
+        local_paths = [
+            str(Path("data/warehouse/file1.parquet").resolve()),
+            str(Path("data/warehouse/file2.parquet").resolve()),
+        ]
+
+        view_name = profiler.register_file_view(local_paths, "test_view")
+
+        # Verify paths were converted and stored
+        assert view_name == "test_view"
+        assert hasattr(profiler, "_view_paths")
+        assert "test_view" in profiler._view_paths
+
+        stored_paths = profiler._view_paths["test_view"]
+        # All stored paths should be Docker paths
+        for path in stored_paths:
+            assert path.startswith("/data/")
+            assert "warehouse" in path
+
+    def test_register_file_view_no_conversion_without_docker(self):
+        """Test that register_file_view doesn't convert paths without Docker config.
+
+        Verifies that file paths are stored as-is when Docker is not configured.
+
+        Requirements: 1.2, 1.5
+        """
+        profiler = GizmoDuckDbProfiler(
+            uri="grpc://localhost:10501",
+            username="test_user",
+            password="test_pass",
+        )
+
+        # Register files with absolute paths
+        local_paths = [
+            "/absolute/path/to/file1.parquet",
+            "/absolute/path/to/file2.parquet",
+        ]
+
+        view_name = profiler.register_file_view(local_paths, "test_view")
+
+        # Verify paths were stored as-is
+        assert view_name == "test_view"
+        assert hasattr(profiler, "_view_paths")
+        assert "test_view" in profiler._view_paths
+
+        stored_paths = profiler._view_paths["test_view"]
+        # Paths should be unchanged
+        assert stored_paths == local_paths
+
 
 class TestConfigurationLoading:
     """Test configuration loading from environment and TOML."""
