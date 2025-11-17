@@ -199,17 +199,12 @@ class IcebergAdapter(TableFormatAdapter):
         operation_value = getattr(snapshot, "operation", None)
         operation_str = str(operation_value) if operation_value is not None else "unknown"
 
-        # Convert Summary to dict[str, str]
+        # Convert Summary to dict[str, str] using additional_properties
         summary_dict: dict[str, str] = {}
-        if snapshot.summary:
-            for key in dir(snapshot.summary):
-                if not key.startswith("_"):
-                    try:
-                        value = getattr(snapshot.summary, key)
-                        if not callable(value):
-                            summary_dict[key] = str(value)
-                    except (AttributeError, TypeError):
-                        pass
+        if snapshot.summary and hasattr(snapshot.summary, "additional_properties"):
+            summary_dict = {
+                str(k): str(v) for k, v in snapshot.summary.additional_properties.items()
+            }
 
         return SnapshotInfo(
             snapshot_id=snapshot.snapshot_id,

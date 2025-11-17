@@ -115,10 +115,10 @@ class SnapshotTestManager:
 
             # Check if table already exists and drop it
             try:
-                existing_table = self._catalog.load_table(full_identifier)
-                if existing_table:
-                    logger.debug(f"Table {full_identifier} already exists, dropping it")
-                    self._catalog.drop_table(full_identifier)
+                self._catalog.load_table(full_identifier)
+                # If load_table succeeds, table exists - drop it
+                logger.debug(f"Table {full_identifier} already exists, dropping it")
+                self._catalog.drop_table(full_identifier)
             except Exception as e:
                 # Table doesn't exist, which is fine
                 logger.debug(f"Table {full_identifier} does not exist yet: {e}")
