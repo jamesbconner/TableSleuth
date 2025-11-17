@@ -466,16 +466,16 @@ class TableSleuthApp(App):
         local_data = self.config.gizmosql.local_data_path
         docker_data = self.config.gizmosql.docker_data_path
 
-        # Normalize paths for comparison
-        local_path_normalized = str(Path(local_path).resolve())
-        local_data_normalized = str(Path(local_data).resolve())
+        # Normalize paths for comparison using POSIX format for cross-platform compatibility
+        local_path_normalized = Path(local_path).resolve().as_posix()
+        local_data_normalized = Path(local_data).resolve().as_posix()
 
         # Handle relative paths starting with local_data_path (using normalized paths)
-        if local_path_normalized.startswith(f"{local_data_normalized}{Path('/').as_posix()}"):
+        if local_path_normalized.startswith(f"{local_data_normalized}/"):
             # Remove local_data prefix and add docker_data prefix
             relative_part = local_path_normalized[len(local_data_normalized) + 1 :]
-            # Ensure forward slashes for Docker
-            return f"{docker_data}/{Path(relative_part).as_posix()}"
+            # Already in POSIX format from normalization
+            return f"{docker_data}/{relative_part}"
 
         # Handle absolute paths containing the local_data_path
         # Use Path operations to ensure we match complete path components, not substrings
