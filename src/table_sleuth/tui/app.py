@@ -477,14 +477,18 @@ class TableSleuthApp(App):
             return f"{docker_data}/{relative_part}"
 
         # Handle absolute paths containing the local_data_path
-        if local_data_normalized in local_path_normalized:
-            # Extract the relative part after local_data_path
-            idx = local_path_normalized.find(local_data_normalized)
-            after_data = local_path_normalized[idx + len(local_data_normalized) :]
-            # Remove leading slash if present
-            if after_data.startswith("/"):
-                after_data = after_data[1:]
-            return f"{docker_data}/{after_data}"
+        # Use Path operations to ensure we match complete path components, not substrings
+        try:
+            local_path_obj = Path(local_path).resolve()
+            local_data_obj = Path(local_data).resolve()
+
+            # Check if local_path is relative to local_data_path
+            relative_path = local_path_obj.relative_to(local_data_obj)
+            # Convert to Docker path
+            return f"{docker_data}/{relative_path}"
+        except ValueError:
+            # Path is not relative to local_data_path, fall through to warning
+            pass
 
         # If path doesn't match expected patterns, return as-is
         # (will likely fail, but at least we tried)
