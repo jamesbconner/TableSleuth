@@ -254,6 +254,8 @@ def test_action_profile_column_no_file(
     fake_profiler: FakeProfiler,
 ) -> None:
     """Test profile action with no file selected."""
+    from table_sleuth.tui.views.profile_view import ProfileColumnRequested
+
     app = TableSleuthApp(
         table_handle=table_handle,
         adapter=adapter,
@@ -261,8 +263,9 @@ def test_action_profile_column_no_file(
         profiler=fake_profiler,
     )
 
-    # Should not raise error
-    app.action_profile_column()
+    # Should not raise error when handling message with no file
+    message = ProfileColumnRequested("test_column")
+    app.on_profile_column_requested(message)
 
 
 def test_action_profile_column_no_profiler(
@@ -272,6 +275,8 @@ def test_action_profile_column_no_profiler(
     sample_file_info: ParquetFileInfo,
 ) -> None:
     """Test profile action with no profiler."""
+    from table_sleuth.tui.views.profile_view import ProfileColumnRequested
+
     app = TableSleuthApp(
         table_handle=table_handle,
         adapter=adapter,
@@ -283,8 +288,9 @@ def test_action_profile_column_no_profiler(
     app._current_file_info = sample_file_info
     app._profiler = None
 
-    # Should not raise error
-    app.action_profile_column()
+    # Should not raise error when handling message with no profiler
+    message = ProfileColumnRequested("test_column")
+    app.on_profile_column_requested(message)
 
 
 def test_view_name_tracking(

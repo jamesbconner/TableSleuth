@@ -255,7 +255,9 @@ class ParquetInspector:
         # Calculate null count
         null_count = None
         try:
-            null_count = sum(c.num_nulls for c in col_metadata if c.num_nulls is not None)
+            null_counts = [c.num_nulls for c in col_metadata if c.num_nulls is not None]
+            if null_counts:
+                null_count = sum(null_counts)
         except Exception as e:
             logger.debug(f"Could not calculate null count for {col_name}: {e}")
 
@@ -316,7 +318,9 @@ class ParquetInspector:
         # Extract num_values (sum across all row groups)
         num_values = None
         try:
-            num_values = sum(c.num_values for c in col_metadata if c.num_values is not None)
+            num_values_list = [c.num_values for c in col_metadata if c.num_values is not None]
+            if num_values_list:
+                num_values = sum(num_values_list)
         except Exception as e:
             logger.debug(f"Could not calculate num_values for {col_name}: {e}")
 
@@ -333,14 +337,19 @@ class ParquetInspector:
         total_compressed_size = None
         total_uncompressed_size = None
         try:
-            total_compressed_size = sum(
+            compressed_sizes = [
                 c.total_compressed_size for c in col_metadata if c.total_compressed_size is not None
-            )
-            total_uncompressed_size = sum(
+            ]
+            if compressed_sizes:
+                total_compressed_size = sum(compressed_sizes)
+
+            uncompressed_sizes = [
                 c.total_uncompressed_size
                 for c in col_metadata
                 if c.total_uncompressed_size is not None
-            )
+            ]
+            if uncompressed_sizes:
+                total_uncompressed_size = sum(uncompressed_sizes)
         except Exception as e:
             logger.debug(f"Could not extract sizes for {col_name}: {e}")
 

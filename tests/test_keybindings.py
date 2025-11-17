@@ -100,8 +100,7 @@ def test_profile_keybinding(
     # Extract binding keys
     binding_keys = [b[0] for b in app.BINDINGS]
 
-    # Verify profile binding
-    assert "p" in binding_keys
+    # Note: 'p' keybinding removed - profiling now done via ProfileView column selection
 
 
 def test_filter_keybinding(
@@ -197,15 +196,16 @@ def test_action_profile_column_exists(
     adapter: IcebergAdapter,
     app_config: AppConfig,
 ) -> None:
-    """Test profile column action exists."""
+    """Test profile column message handler exists."""
     app = TableSleuthApp(
         table_handle=table_handle,
         adapter=adapter,
         config=app_config,
     )
 
-    assert hasattr(app, "action_profile_column")
-    assert callable(app.action_profile_column)
+    # Profile action replaced with message handler
+    assert hasattr(app, "on_profile_column_requested")
+    assert callable(app.on_profile_column_requested)
 
 
 def test_action_focus_filter_exists(
@@ -288,7 +288,8 @@ def test_all_required_keybindings_present(
     binding_keys = [b[0] for b in app.BINDINGS]
 
     # Required keybindings from task
-    required_keys = ["q", "r", "p", "f", "tab"]
+    # Note: 'p' removed - profiling now done via ProfileView column selection
+    required_keys = ["q", "r", "f", "tab"]
 
     for key in required_keys:
         assert key in binding_keys, f"Required keybinding '{key}' not found"
