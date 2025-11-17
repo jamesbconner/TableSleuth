@@ -20,8 +20,8 @@ class CatalogConfig:
 @dataclass
 class GizmoConfig:
     uri: str = "grpc+tls://localhost:31337"
-    username: str = "gizmo"
-    password: str = "gizmo"
+    username: str = "gizmosql_username"
+    password: str = "gizmosql_password"
     tls_skip_verify: bool = True
     # Docker volume mount configuration
     local_data_path: str = "data"  # Local path that's mounted to Docker

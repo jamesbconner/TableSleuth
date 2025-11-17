@@ -126,13 +126,22 @@ class SnapshotComparisonView(Container):
 
     @staticmethod
     def _format_size(size_bytes: int) -> str:
-        """Format size in human-readable format."""
-        size = float(size_bytes)
+        """Format size in human-readable format.
+
+        Handles both positive and negative sizes correctly.
+        """
+        # Handle negative sizes
+        is_negative = size_bytes < 0
+        size = float(abs(size_bytes))
+
         for unit in ["B", "KB", "MB", "GB", "TB"]:
             if size < 1024.0:
-                return f"{size:.1f} {unit}"
+                result = f"{size:.1f} {unit}"
+                return f"-{result}" if is_negative else result
             size /= 1024.0
-        return f"{size:.1f} PB"
+
+        result = f"{size:.1f} PB"
+        return f"-{result}" if is_negative else result
 
 
 class PerformanceTestView(Container):

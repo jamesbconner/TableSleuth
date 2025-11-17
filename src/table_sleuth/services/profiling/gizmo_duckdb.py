@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 from collections.abc import Sequence
 from pathlib import Path
@@ -12,6 +13,8 @@ from table_sleuth.models import ColumnProfile, SnapshotInfo
 from table_sleuth.models.iceberg import QueryPerformanceMetrics
 
 from .backend_base import ProfilingBackend
+
+logger = logging.getLogger(__name__)
 
 
 def _sanitize_identifier(identifier: str) -> str:
@@ -113,11 +116,15 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         username: str,
         password: str,
         tls_skip_verify: bool = True,
+        local_data_path: str = "data",
+        docker_data_path: str = "/data",
     ) -> None:
         self._uri = uri
         self._username = username
         self._password = password
         self._tls_skip_verify = tls_skip_verify
+        self._local_data_path = Path(local_data_path).resolve()
+        self._docker_data_path = docker_data_path
         self._registered_catalogs: dict[str, str] = {}  # catalog_name -> catalog_path
 
     def _connect(self):
@@ -129,6 +136,39 @@ class GizmoDuckDbProfiler(ProfilingBackend):
                 DatabaseOptions.TLS_SKIP_VERIFY.value: "true" if self._tls_skip_verify else "false",
             },
         )
+
+    def _convert_to_docker_path(self, local_path: str) -> str:
+        """Convert a local filesystem path to a Docker container path.
+
+        Args:
+            local_path: Local filesystem path (may include file:// prefix)
+
+        Returns:
+            Docker container path
+
+        Raises:
+            ValueError: If path is not within the mounted data directory
+        """
+        # Remove file:// prefix if present
+        if local_path.startswith("file://"):
+            local_path = local_path[7:]
+
+        # Convert to absolute path
+        abs_path = Path(local_path).resolve()
+
+        # Check if path is within the local data directory
+        try:
+            rel_path = abs_path.relative_to(self._local_data_path)
+        except ValueError as e:
+            raise ValueError(
+                f"Path {abs_path} is not within the mounted data directory {self._local_data_path}. "
+                f"Only files within this directory can be accessed from Docker."
+            ) from e
+
+        # Convert to Docker path
+        docker_path = f"{self._docker_data_path}/{rel_path.as_posix()}"
+        logger.debug(f"Converted path: {local_path} -> {docker_path}")
+        return docker_path
 
     def register_snapshot_view(self, snapshot: SnapshotInfo) -> str:
         """Create a backend-specific view for an Iceberg snapshot.
@@ -379,47 +419,174 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         if hasattr(self, "_view_paths"):
             self._view_paths.clear()
 
+    def register_iceberg_table(self, table_identifier: str, metadata_location: str) -> None:
+        """Register an Iceberg table for querying.
+
+        Note: DuckDB's Iceberg extension reads tables directly from metadata files,
+        not through PyIceberg catalogs. This method creates a rewritten metadata
+        file with Docker paths and stores the mapping.
+
+        Args:
+            table_identifier: Full table identifier (e.g., "snapshot_tests.table_snap_123")
+            metadata_location: Path to the Iceberg metadata JSON file
+
+        Raises:
+            ValueError: If table_identifier or metadata_location is invalid
+        """
+        self.register_iceberg_table_with_snapshot(table_identifier, metadata_location, None)
+
+    def register_iceberg_table_with_snapshot(
+        self, table_identifier: str, metadata_location: str, snapshot_id: int | None = None
+    ) -> None:
+        """Register an Iceberg table with a specific snapshot for querying.
+
+        Note: DuckDB's Iceberg extension reads tables directly from metadata files,
+        not through PyIceberg catalogs. This method creates a rewritten metadata
+        file with Docker paths and stores the mapping with snapshot information.
+
+        Args:
+            table_identifier: Full table identifier (e.g., "snapshot_tests.table_snap_123")
+            metadata_location: Path to the Iceberg metadata JSON file
+            snapshot_id: Optional snapshot ID to query (None for current snapshot)
+
+        Raises:
+            ValueError: If table_identifier or metadata_location is invalid
+        """
+        if not table_identifier or not metadata_location:
+            raise ValueError("table_identifier and metadata_location are required")
+
+        # Create a rewritten metadata file with Docker paths
+        try:
+            docker_metadata_location = self._rewrite_metadata_for_docker(metadata_location)
+        except Exception as e:
+            logger.error(f"Failed to rewrite metadata for Docker: {e}")
+            raise ValueError(f"Failed to prepare metadata for Docker: {e}") from e
+
+        # Store the mapping with snapshot info
+        if not hasattr(self, "_iceberg_tables"):
+            self._iceberg_tables: dict[str, tuple[str, int | None]] = {}
+
+        self._iceberg_tables[table_identifier] = (docker_metadata_location, snapshot_id)
+        logger.info(
+            f"Registered Iceberg table {table_identifier} -> {docker_metadata_location}"
+            + (f" (snapshot {snapshot_id})" if snapshot_id else "")
+        )
+
+    def _rewrite_metadata_for_docker(self, metadata_location: str) -> str:
+        """Rewrite an Iceberg metadata file with Docker paths.
+
+        Reads the metadata JSON, replaces all local paths with Docker paths,
+        and writes a temporary metadata file that DuckDB can use.
+
+        Args:
+            metadata_location: Path to the original metadata JSON file
+
+        Returns:
+            Path to the rewritten metadata file (Docker path)
+
+        Raises:
+            ValueError: If metadata cannot be read or rewritten
+        """
+        import json
+        import tempfile
+
+        # Remove file:// prefix if present
+        local_metadata_path = metadata_location
+        if local_metadata_path.startswith("file://"):
+            local_metadata_path = local_metadata_path[7:]
+
+        # Read the original metadata
+        try:
+            with open(local_metadata_path) as f:
+                metadata = json.load(f)
+        except Exception as e:
+            raise ValueError(f"Failed to read metadata file {local_metadata_path}: {e}") from e
+
+        # Recursively replace all local paths with Docker paths
+        def replace_paths(obj):
+            if isinstance(obj, dict):
+                return {k: replace_paths(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [replace_paths(item) for item in obj]
+            elif isinstance(obj, str):
+                # Check if this looks like a file path
+                if (
+                    obj.startswith("file://")
+                    or obj.startswith("/")
+                    or (len(obj) > 2 and obj[1] == ":")
+                ):
+                    try:
+                        # Try to convert to Docker path
+                        return self._convert_to_docker_path(obj)
+                    except ValueError:
+                        # If conversion fails, return original (might be a non-file string)
+                        return obj
+                return obj
+            else:
+                return obj
+
+        rewritten_metadata = replace_paths(metadata)
+
+        # Write the rewritten metadata to a temporary file in the local data directory
+        # This ensures the temp file is also accessible from Docker
+        try:
+            # Create temp directory at the root of the local data path
+            # Use absolute path to avoid any confusion
+            temp_dir = self._local_data_path / "temp_metadata"
+            temp_dir.mkdir(parents=True, exist_ok=True)
+
+            # Generate a unique filename based on the original metadata path and timestamp
+            import hashlib
+            import time
+
+            unique_str = f"{local_metadata_path}_{time.time()}"
+            metadata_hash = hashlib.md5(unique_str.encode(), usedforsecurity=False).hexdigest()[:12]
+            temp_file = temp_dir / f"metadata_{metadata_hash}.json"
+
+            logger.debug(f"Creating temp metadata file: {temp_file}")
+            logger.debug(f"Local data path: {self._local_data_path}")
+
+            # Write rewritten metadata
+            with open(temp_file, "w") as f:
+                json.dump(rewritten_metadata, f, indent=2)
+
+            logger.info(f"Created rewritten metadata file: {temp_file}")
+
+            # Convert temp file path to Docker path
+            docker_temp_path = self._convert_to_docker_path(str(temp_file))
+            logger.info(f"Docker path for metadata: {docker_temp_path}")
+
+            return docker_temp_path
+
+        except Exception as e:
+            logger.exception("Failed to write rewritten metadata")
+            raise ValueError(f"Failed to write rewritten metadata: {e}") from e
+
     def register_catalog(self, catalog_path: str, catalog_name: str = "test_catalog") -> None:
         """Register an Iceberg catalog with DuckDB.
+
+        DEPRECATED: This method doesn't work as intended because DuckDB's Iceberg
+        extension doesn't support attaching PyIceberg SQLite catalogs. Use
+        register_iceberg_table() instead to register individual tables.
 
         Args:
             catalog_path: Path to the SQLite catalog database file
             catalog_name: Name to use for the catalog in DuckDB
 
         Raises:
-            RuntimeError: If catalog registration fails
+            RuntimeError: Always raises with deprecation message
         """
-        # Sanitize catalog name
-        safe_catalog_name = _sanitize_identifier(catalog_name)
-
-        # Convert path for Docker if needed
-        # Note: This assumes the profiler has access to a path conversion method
-        # In production, this would need to be injected or configured
-        docker_catalog_path = catalog_path  # TODO: Add Docker path conversion
-
-        # Store catalog registration
-        self._registered_catalogs[safe_catalog_name] = docker_catalog_path
-
-        # Install and load Iceberg extension, then attach catalog
-        # Note: These commands need to be executed in the same connection
-        # that will be used for queries
-        try:
-            with self._connect() as conn, conn.cursor() as cur:
-                # Install Iceberg extension if not already installed
-                cur.execute("INSTALL iceberg")
-                cur.execute("LOAD iceberg")
-
-                # Attach the catalog
-                # Note: DuckDB's Iceberg extension syntax may vary
-                # This is a placeholder for the actual attachment command
-                attach_sql = f"ATTACH '{docker_catalog_path}' AS {safe_catalog_name} (TYPE ICEBERG)"
-                cur.execute(attach_sql)
-
-        except Exception as e:
-            raise RuntimeError(f"Failed to register catalog {catalog_name}: {e}") from e
+        raise RuntimeError(
+            "register_catalog() is deprecated. DuckDB's Iceberg extension cannot "
+            "attach PyIceberg SQLite catalogs. Use register_iceberg_table() to "
+            "register individual Iceberg tables by their metadata locations instead."
+        )
 
     def execute_query_with_metrics(self, query: str) -> tuple[Any, QueryPerformanceMetrics]:
         """Execute query and return results plus detailed metrics.
+
+        For Iceberg tables, this method replaces table references with iceberg_scan()
+        function calls using the registered metadata locations.
 
         Args:
             query: SQL query to execute
@@ -433,15 +600,25 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         import time
 
         try:
+            # Replace Iceberg table references with iceberg_scan() calls
+            modified_query = self._replace_iceberg_tables(query)
+
             with self._connect() as conn, conn.cursor() as cur:
+                # Install and load Iceberg extension
+                try:
+                    cur.execute("INSTALL iceberg")
+                    cur.execute("LOAD iceberg")
+                except Exception as e:
+                    logger.warning(f"Failed to install/load Iceberg extension: {e}")
+
                 # Execute query and measure time
                 start_time = time.time()
-                cur.execute(query)
+                cur.execute(modified_query)
                 results = cur.fetchall()
                 execution_time_ms = (time.time() - start_time) * 1000
 
                 # Get EXPLAIN ANALYZE output for detailed metrics
-                explain_query = f"EXPLAIN ANALYZE {query}"
+                explain_query = f"EXPLAIN ANALYZE {modified_query}"
                 cur.execute(explain_query)
                 explain_output = cur.fetchall()
 
@@ -453,6 +630,51 @@ class GizmoDuckDbProfiler(ProfilingBackend):
 
         except Exception as e:
             raise RuntimeError(f"Query execution failed: {e}") from e
+
+    def _replace_iceberg_tables(self, query: str) -> str:
+        """Replace Iceberg table references with iceberg_scan() calls.
+
+        Args:
+            query: Original SQL query
+
+        Returns:
+            Modified query with iceberg_scan() calls
+        """
+        if not hasattr(self, "_iceberg_tables") or not self._iceberg_tables:
+            return query
+
+        modified_query = query
+        for table_id, table_info in self._iceberg_tables.items():
+            # Unpack table info (could be tuple or string for backwards compatibility)
+            if isinstance(table_info, tuple):
+                metadata_loc, snapshot_id = table_info
+            else:
+                metadata_loc = table_info
+                snapshot_id = None
+
+            # Build iceberg_scan() call with optional snapshot parameter
+            if snapshot_id is not None:
+                scan_call = f"iceberg_scan('{metadata_loc}', version => {snapshot_id})"
+            else:
+                scan_call = f"iceberg_scan('{metadata_loc}')"
+
+            # Replace table references with iceberg_scan()
+            # Handle both quoted and unquoted table names
+            patterns = [
+                rf"\b{re.escape(table_id)}\b",  # Unquoted
+                rf'"{re.escape(table_id)}"',  # Double quoted
+                rf"'{re.escape(table_id)}'",  # Single quoted
+            ]
+
+            for pattern in patterns:
+                modified_query = re.sub(pattern, scan_call, modified_query, flags=re.IGNORECASE)
+
+        if modified_query != query:
+            logger.debug(
+                f"Replaced Iceberg tables in query:\nOriginal: {query}\nModified: {modified_query}"
+            )
+
+        return modified_query
 
     def explain_analyze(self, query: str) -> str:
         """Get query execution plan with timing information.

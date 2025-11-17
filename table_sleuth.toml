@@ -7,7 +7,8 @@ default = "local"
 [gizmosql]
 # GizmoSQL connection settings for column profiling
 # Update these with your actual GizmoSQL credentials
-uri = "grpc+tls://localhost:31337"
+#uri = "grpc+tls://localhost:31337"
+uri = "grpc://localhost:10501"
 username = "gizmosql_username"
 password = "gizmosql_password"
 tls_skip_verify = true
