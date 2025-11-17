@@ -87,8 +87,13 @@ class IcebergAdapter(TableFormatAdapter):
 
             # DataFile objects are data files (delete files would be DeleteFile)
             # For MVP 0, we only want data files
+            # Convert file:// URI to regular path
+            file_path = f.file_path
+            if file_path.startswith("file://"):
+                file_path = file_path[7:]  # Remove "file://" prefix
+
             ref = FileRef(
-                path=f.file_path,
+                path=file_path,
                 file_size_bytes=f.file_size_in_bytes,
                 record_count=f.record_count,
                 source="iceberg",
@@ -117,8 +122,13 @@ class IcebergAdapter(TableFormatAdapter):
             # DataFile objects are data files, DeleteFile would be delete files
             content_type = "DATA"  # Default for DataFile
 
+            # Convert file:// URI to regular path
+            file_path = f.file_path
+            if file_path.startswith("file://"):
+                file_path = file_path[7:]  # Remove "file://" prefix
+
             ref = FileRef(
-                path=f.file_path,
+                path=file_path,
                 file_size_bytes=f.file_size_in_bytes,
                 record_count=f.record_count,
                 source="iceberg",

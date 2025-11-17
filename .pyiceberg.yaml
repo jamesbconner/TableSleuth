@@ -1,0 +1,5 @@
+catalog:
+  local:
+    type: sql
+    uri: sqlite:////Users/james/Code/TableSleuth/data/warehouse/catalog.db
+    warehouse: file:///Users/james/Code/TableSleuth/data/warehouse

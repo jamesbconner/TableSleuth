@@ -23,6 +23,9 @@ class GizmoConfig:
     username: str = "gizmo"
     password: str = "gizmo"
     tls_skip_verify: bool = True
+    # Docker volume mount configuration
+    local_data_path: str = "data"  # Local path that's mounted to Docker
+    docker_data_path: str = "/data"  # Path inside Docker container
 
 
 @dataclass
@@ -56,6 +59,14 @@ def load_config() -> AppConfig:
             "TABLE_SLEUTH_GIZMO_PASSWORD", gizmo_section.get("password", GizmoConfig.password)
         ),
         tls_skip_verify=bool(gizmo_section.get("tls_skip_verify", GizmoConfig.tls_skip_verify)),
+        local_data_path=os.getenv(
+            "TABLE_SLEUTH_LOCAL_DATA_PATH",
+            gizmo_section.get("local_data_path", GizmoConfig.local_data_path),
+        ),
+        docker_data_path=os.getenv(
+            "TABLE_SLEUTH_DOCKER_DATA_PATH",
+            gizmo_section.get("docker_data_path", GizmoConfig.docker_data_path),
+        ),
     )
 
     return AppConfig(catalog=CatalogConfig(default=catalog_default), gizmosql=gizmo)

@@ -454,17 +454,44 @@ class TableSleuthApp(App):
     def _convert_to_docker_path(self, local_path: str) -> str:
         """Convert local file path to Docker container path.
 
-        GizmoSQL runs in Docker with /data mounted to ./data, so we need to
-        convert local paths to Docker paths for profiling to work.
+        GizmoSQL runs in Docker with a volume mount, so we need to convert
+        local paths to Docker paths for profiling to work.
 
         Args:
-            local_path: Local file path (e.g., "data/warehouse/...")
+            local_path: Local file path (e.g., "data/warehouse/..." or "/absolute/path/data/warehouse/...")
 
         Returns:
             Docker path (e.g., "/data/warehouse/...")
         """
-        if local_path.startswith("data/"):
-            return "/data/" + local_path[5:]  # Remove "data/" and add "/data/"
+        local_data = self.config.gizmosql.local_data_path
+        docker_data = self.config.gizmosql.docker_data_path
+
+        # Normalize paths for comparison
+        local_path_normalized = str(Path(local_path))
+        local_data_normalized = str(Path(local_data).resolve())
+
+        # Handle relative paths starting with local_data_path
+        if local_path.startswith(f"{local_data}/"):
+            # Remove local_data prefix and add docker_data prefix
+            relative_part = local_path[len(local_data) + 1 :]
+            return f"{docker_data}/{relative_part}"
+
+        # Handle absolute paths containing the local_data_path
+        if local_data_normalized in local_path_normalized:
+            # Extract the relative part after local_data_path
+            idx = local_path_normalized.find(local_data_normalized)
+            after_data = local_path_normalized[idx + len(local_data_normalized) :]
+            # Remove leading slash if present
+            if after_data.startswith("/"):
+                after_data = after_data[1:]
+            return f"{docker_data}/{after_data}"
+
+        # If path doesn't match expected patterns, return as-is
+        # (will likely fail, but at least we tried)
+        logger.warning(
+            f"Could not convert path '{local_path}' to Docker path. "
+            f"Expected path to contain '{local_data}' which maps to '{docker_data}'"
+        )
         return local_path
 
     def _profile_column(self, column_name: str) -> None:

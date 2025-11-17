@@ -92,11 +92,14 @@ Navigate through the file list with arrow keys and press Enter to inspect each f
 
 ```bash
 # Start GizmoSQL container
-docker run -d \
-  --name gizmosql \
-  -p 31337:31337 \
+docker run --name gizmosql --detach --rm --tty --init \
+  --publish 31337:31337 \
+  --env TLS_ENABLED="1" \
+  --env GIZMOSQL_PASSWORD="gizmo" \
+  --env PRINT_QUERIES="1" \
   --volume "$(pwd)/data:/data" \
-  gizmosql/gizmosql:latest
+  --pull always \
+  gizmodata/gizmosql:latest
 ```
 
 #### Configure Connection
@@ -109,15 +112,18 @@ uri = "grpc+tls://localhost:31337"
 username = "gizmo"
 password = "gizmo"
 tls_skip_verify = true
+local_data_path = "data"  # Must match the local path in --volume
+docker_data_path = "/data"  # Must match the container path in --volume
 ```
+
+**Note**: If your data files are in a different location (e.g., `/Users/you/data`), update both the Docker `--volume` argument and the `local_data_path` configuration to match.
 
 #### Profile a Column
 
 1. Launch Table Sleuth with a file
-2. Navigate to **Schema** tab
-3. Select a column with arrow keys
-4. Press `p` to profile
-5. View results in **Profile** tab:
+2. Navigate to **Profile** tab
+3. Click on a column name in the list (or use arrow keys and Enter)
+4. View profiling results with statistics:
 
 ```
 Column: customer_id
@@ -137,8 +143,19 @@ Create `~/.pyiceberg.yaml`:
 ```yaml
 catalog:
   local:
-    type: file
-    warehouse: "file:///path/to/warehouse"
+    type: sql  # Use SQL catalog for local file-based catalogs
+    uri: sqlite:////absolute/path/to/warehouse/catalog.db
+    warehouse: file:///absolute/path/to/warehouse
+```
+
+**Example** for a warehouse at `/Users/you/data/warehouse`:
+
+```yaml
+catalog:
+  local:
+    type: sql
+    uri: sqlite:////Users/you/data/warehouse/catalog.db
+    warehouse: file:///Users/you/data/warehouse
 ```
 
 #### Inspect Table Files
@@ -148,6 +165,13 @@ table-sleuth inspect ratebeer.reviews --catalog local
 ```
 
 All data files from the current snapshot will be loaded for inspection.
+
+**Note**: PyIceberg supports several catalog types:
+- `sql` - Local file-based catalog with SQLite
+- `rest` - REST catalog server
+- `hive` - Hive Metastore
+- `glue` - AWS Glue
+- See [PyIceberg documentation](https://py.iceberg.apache.org/) for more options
 
 ## Common Workflows
 
@@ -195,14 +219,15 @@ table-sleuth inspect data/file.parquet
 # Launch with file (GizmoSQL required)
 table-sleuth inspect data/file.parquet
 
-# Navigate to Schema tab
-# Select column with arrow keys
-# Press 'p' to profile
-# Check Profile tab for:
+# Navigate to Profile tab
+# Click on a column name (or use arrow keys and Enter)
+# View profiling results:
 #   - Null percentage
 #   - Distinct count
 #   - Cardinality ratio
 #   - Min/max values
+#   - Quartiles (for numeric columns)
+#   - Mode (most frequent value)
 ```
 
 ### Workflow 5: Inspect Partitioned Dataset
@@ -237,6 +262,8 @@ uri = "grpc+tls://localhost:31337"
 username = "gizmo"
 password = "gizmo"
 tls_skip_verify = true
+local_data_path = "data"
+docker_data_path = "/data"
 ```
 
 ### Environment Variables
@@ -248,6 +275,8 @@ export TABLE_SLEUTH_CATALOG_NAME="local"
 export TABLE_SLEUTH_GIZMO_URI="grpc+tls://localhost:31337"
 export TABLE_SLEUTH_GIZMO_USERNAME="gizmo"
 export TABLE_SLEUTH_GIZMO_PASSWORD="gizmo"
+export TABLE_SLEUTH_LOCAL_DATA_PATH="data"
+export TABLE_SLEUTH_DOCKER_DATA_PATH="/data"
 ```
 
 ## Troubleshooting
@@ -329,8 +358,11 @@ table-sleuth inspect data/sample.parquet
 
 # In Schema tab:
 # - Use ↑/↓ to select column
-# - Press 'p' to profile (if GizmoSQL configured)
 # - Press 'f' to filter columns
+
+# In Profile tab:
+# - Click column name to profile (if GizmoSQL configured)
+# - Or use ↑/↓ and Enter to select column
 
 # Press 'q' to quit
 ```
