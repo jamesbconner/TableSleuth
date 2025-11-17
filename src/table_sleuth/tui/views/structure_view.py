@@ -167,7 +167,7 @@ class StructureView(Container):
 
         return Static(panel)
 
-    def _render_row_groups(self, file_info: ParquetFileInfo) -> list[Container]:
+    def _render_row_groups(self, file_info: ParquetFileInfo) -> Container:
         """Render all row group sections using Rich Panels and Tables.
 
         Args:

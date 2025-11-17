@@ -71,6 +71,10 @@ class IcebergAdapter(TableFormatAdapter):
             snapshot = py_table.current_snapshot()
         else:
             snapshot = next(s for s in py_table.snapshots() if s.snapshot_id == snapshot_id)
+
+        if snapshot is None:
+            raise ValueError(f"Snapshot {snapshot_id} not found")
+
         return self._build_snapshot_info(py_table, snapshot)
 
     def iter_data_files(self, snapshot: SnapshotInfo) -> Iterable[FileRef]:
@@ -118,13 +122,23 @@ class IcebergAdapter(TableFormatAdapter):
             # Convert file:// URI to regular path
             file_path = self._file_uri_to_path(f.file_path)
 
+            # Convert partition Record to dict - use vars() to get dict representation
+            partition_dict: dict[str, str] = {}
+            if f.partition is not None:
+                try:
+                    # Try to convert Record to dict using vars or dict()
+                    partition_dict = {str(k): str(v) for k, v in vars(f.partition).items()}
+                except (TypeError, AttributeError):
+                    # Fallback if vars() doesn't work
+                    partition_dict = {}
+
             ref = FileRef(
                 path=file_path,
                 file_size_bytes=f.file_size_in_bytes,
                 record_count=f.record_count,
                 source="iceberg",
                 content_type="DATA",
-                partition=dict(f.partition) if f.partition is not None else {},
+                partition=partition_dict,
                 sequence_number=None,  # Not available in this API version
                 data_sequence_number=None,  # Not available in this API version
                 extra={
@@ -151,13 +165,23 @@ class IcebergAdapter(TableFormatAdapter):
             # Convert file:// URI to regular path
             file_path = self._file_uri_to_path(f.file_path)
 
+            # Convert partition Record to dict - use vars() to get dict representation
+            partition_dict: dict[str, str] = {}
+            if f.partition is not None:
+                try:
+                    # Try to convert Record to dict using vars or dict()
+                    partition_dict = {str(k): str(v) for k, v in vars(f.partition).items()}
+                except (TypeError, AttributeError):
+                    # Fallback if vars() doesn't work
+                    partition_dict = {}
+
             ref = FileRef(
                 path=file_path,
                 file_size_bytes=f.file_size_in_bytes,
                 record_count=f.record_count,
                 source="iceberg",
                 content_type=content_type,
-                partition=dict(f.partition) if f.partition is not None else {},
+                partition=partition_dict,
                 sequence_number=None,  # Not available in this API version
                 data_sequence_number=None,  # Not available in this API version
                 extra={
@@ -171,12 +195,28 @@ class IcebergAdapter(TableFormatAdapter):
             else:
                 delete_files.append(ref)
 
+        # Extract operation and summary with proper type handling
+        operation_value = getattr(snapshot, "operation", None)
+        operation_str = str(operation_value) if operation_value is not None else "unknown"
+
+        # Convert Summary to dict[str, str]
+        summary_dict: dict[str, str] = {}
+        if snapshot.summary:
+            for key in dir(snapshot.summary):
+                if not key.startswith("_"):
+                    try:
+                        value = getattr(snapshot.summary, key)
+                        if not callable(value):
+                            summary_dict[key] = str(value)
+                    except (AttributeError, TypeError):
+                        pass
+
         return SnapshotInfo(
             snapshot_id=snapshot.snapshot_id,
             parent_id=snapshot.parent_snapshot_id,
             timestamp_ms=snapshot.timestamp_ms,
-            operation=snapshot.operation,
-            summary=dict(snapshot.summary),
+            operation=operation_str,
+            summary=summary_dict,
             data_files=data_files,
             delete_files=delete_files,
         )

@@ -3,8 +3,7 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Sequence
-from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from adbc_driver_flightsql import DatabaseOptions
 from adbc_driver_flightsql import dbapi as flightsql
@@ -109,6 +108,20 @@ def _validate_filter_expression(filters: str) -> None:
         )
 
 
+def _clean_file_path(path: str) -> str:
+    """Remove file:// prefix from paths if present.
+
+    Args:
+        path: File path that may include file:// prefix
+
+    Returns:
+        Cleaned path without file:// prefix
+    """
+    if path.startswith("file://"):
+        return path[7:]
+    return path
+
+
 class GizmoDuckDbProfiler(ProfilingBackend):
     def __init__(
         self,
@@ -116,25 +129,12 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         username: str,
         password: str,
         tls_skip_verify: bool = True,
-        local_data_path: str | None = None,
-        docker_data_path: str | None = None,
     ) -> None:
         self._uri = uri
         self._username = username
         self._password = password
         self._tls_skip_verify = tls_skip_verify
-        # If local_data_path is None, path conversion is disabled (for local GizmoSQL)
-        self._local_data_path = Path(local_data_path).resolve() if local_data_path else None
-        self._docker_data_path = docker_data_path
         self._registered_catalogs: dict[str, str] = {}  # catalog_name -> catalog_path
-
-        # Log configuration mode
-        if self._local_data_path and self._docker_data_path:
-            logger.debug(
-                f"Docker path conversion enabled: {self._local_data_path} -> {self._docker_data_path}"
-            )
-        else:
-            logger.debug("Using local paths directly (Docker path conversion disabled)")
 
     def _connect(self):
         return flightsql.connect(
@@ -145,49 +145,6 @@ class GizmoDuckDbProfiler(ProfilingBackend):
                 DatabaseOptions.TLS_SKIP_VERIFY.value: "true" if self._tls_skip_verify else "false",
             },
         )
-
-    def _convert_to_docker_path(self, local_path: str) -> str:
-        """Convert a local filesystem path to a Docker container path.
-
-        If local_data_path is None, path conversion is disabled and the path
-        is returned as-is (for local GizmoSQL instances).
-
-        Args:
-            local_path: Local filesystem path (may include file:// prefix)
-
-        Returns:
-            Docker container path, or original path if conversion is disabled
-
-        Raises:
-            ValueError: If path is not within the mounted data directory (when conversion enabled)
-        """
-        # If path conversion is disabled, just clean the path and return it
-        if self._local_data_path is None or self._docker_data_path is None:
-            # Just remove file:// prefix if present
-            if local_path.startswith("file://"):
-                return local_path[7:]
-            return local_path
-
-        # Remove file:// prefix if present
-        if local_path.startswith("file://"):
-            local_path = local_path[7:]
-
-        # Convert to absolute path
-        abs_path = Path(local_path).resolve()
-
-        # Check if path is within the local data directory
-        try:
-            rel_path = abs_path.relative_to(self._local_data_path)
-        except ValueError as e:
-            raise ValueError(
-                f"Path {abs_path} is not within the mounted data directory {self._local_data_path}. "
-                f"Only files within this directory can be accessed from Docker."
-            ) from e
-
-        # Convert to Docker path
-        docker_path = f"{self._docker_data_path}/{rel_path.as_posix()}"
-        logger.debug(f"Converted path: {local_path} -> {docker_path}")
-        return docker_path
 
     def register_snapshot_view(self, snapshot: SnapshotInfo) -> str:
         """Create a backend-specific view for an Iceberg snapshot.
@@ -256,13 +213,13 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         # Sanitize view name to prevent SQL injection
         safe_view_name = _sanitize_identifier(view_name)
 
-        # Convert file paths to Docker paths if Docker configuration is present
-        converted_paths = [self._convert_to_docker_path(path) for path in file_paths]
+        # Clean file paths (remove file:// prefix if present)
+        cleaned_paths = [_clean_file_path(path) for path in file_paths]
 
-        # Store the converted file paths mapping for this view name
+        # Store the cleaned file paths mapping for this view name
         if not hasattr(self, "_view_paths"):
             self._view_paths = {}
-        self._view_paths[safe_view_name] = converted_paths
+        self._view_paths[safe_view_name] = cleaned_paths
 
         return safe_view_name
 
@@ -385,9 +342,6 @@ class GizmoDuckDbProfiler(ProfilingBackend):
                     mode_count = mode_row[1]
         except Exception as e:
             # Mode calculation failed, leave as None
-            import logging
-
-            logger = logging.getLogger(__name__)
             logger.debug(f"Could not calculate mode: {e}")
 
         # Build ColumnProfile with extended fields
@@ -475,10 +429,8 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         if not table_identifier or not metadata_location:
             raise ValueError("table_identifier and metadata_location are required")
 
-        # Remove file:// prefix if present for cleaner paths
-        clean_metadata_location = metadata_location
-        if clean_metadata_location.startswith("file://"):
-            clean_metadata_location = clean_metadata_location[7:]
+        # Clean metadata location (remove file:// prefix if present)
+        clean_metadata_location = _clean_file_path(metadata_location)
 
         # Store the mapping with snapshot info
         if not hasattr(self, "_iceberg_tables"):
@@ -489,103 +441,6 @@ class GizmoDuckDbProfiler(ProfilingBackend):
             f"Registered Iceberg table {table_identifier} -> {clean_metadata_location}"
             + (f" (snapshot {snapshot_id})" if snapshot_id else "")
         )
-
-    def _rewrite_metadata_for_docker(self, metadata_location: str) -> str:
-        """Rewrite an Iceberg metadata file with Docker paths.
-
-        Reads the metadata JSON, replaces all local paths with Docker paths,
-        and writes a temporary metadata file that DuckDB can use.
-
-        Args:
-            metadata_location: Path to the original metadata JSON file
-
-        Returns:
-            Path to the rewritten metadata file (Docker path)
-
-        Raises:
-            ValueError: If metadata cannot be read or rewritten
-        """
-        # This method should only be called when Docker paths are configured
-        if self._local_data_path is None or self._docker_data_path is None:
-            raise ValueError(
-                "Docker path conversion is not configured. "
-                "This method requires local_data_path and docker_data_path to be set."
-            )
-
-        import json
-        import tempfile
-
-        # Remove file:// prefix if present
-        local_metadata_path = metadata_location
-        if local_metadata_path.startswith("file://"):
-            local_metadata_path = local_metadata_path[7:]
-
-        # Read the original metadata
-        try:
-            with open(local_metadata_path) as f:
-                metadata = json.load(f)
-        except Exception as e:
-            raise ValueError(f"Failed to read metadata file {local_metadata_path}: {e}") from e
-
-        # Recursively replace all local paths with Docker paths
-        def replace_paths(obj):
-            if isinstance(obj, dict):
-                return {k: replace_paths(v) for k, v in obj.items()}
-            elif isinstance(obj, list):
-                return [replace_paths(item) for item in obj]
-            elif isinstance(obj, str):
-                # Check if this looks like a file path
-                if (
-                    obj.startswith("file://")
-                    or obj.startswith("/")
-                    or (len(obj) > 2 and obj[1] == ":")
-                ):
-                    try:
-                        # Try to convert to Docker path
-                        return self._convert_to_docker_path(obj)
-                    except ValueError:
-                        # If conversion fails, return original (might be a non-file string)
-                        return obj
-                return obj
-            else:
-                return obj
-
-        rewritten_metadata = replace_paths(metadata)
-
-        # Write the rewritten metadata to a temporary file in the local data directory
-        # This ensures the temp file is also accessible from Docker
-        try:
-            # Create temp directory at the root of the local data path
-            # Use absolute path to avoid any confusion
-            temp_dir = self._local_data_path / "temp_metadata"
-            temp_dir.mkdir(parents=True, exist_ok=True)
-
-            # Generate a unique filename based on the original metadata path and timestamp
-            import hashlib
-            import time
-
-            unique_str = f"{local_metadata_path}_{time.time()}"
-            metadata_hash = hashlib.md5(unique_str.encode(), usedforsecurity=False).hexdigest()[:12]
-            temp_file = temp_dir / f"metadata_{metadata_hash}.json"
-
-            logger.debug(f"Creating temp metadata file: {temp_file}")
-            logger.debug(f"Local data path: {self._local_data_path}")
-
-            # Write rewritten metadata
-            with open(temp_file, "w") as f:
-                json.dump(rewritten_metadata, f, indent=2)
-
-            logger.debug(f"Created rewritten metadata file: {temp_file}")
-
-            # Convert temp file path to Docker path
-            docker_temp_path = self._convert_to_docker_path(str(temp_file))
-            logger.debug(f"Docker path for metadata: {docker_temp_path}")
-
-            return docker_temp_path
-
-        except Exception as e:
-            logger.exception("Failed to write rewritten metadata")
-            raise ValueError(f"Failed to write rewritten metadata: {e}") from e
 
     def register_catalog(self, catalog_path: str, catalog_name: str = "test_catalog") -> None:
         """Register an Iceberg catalog with DuckDB.

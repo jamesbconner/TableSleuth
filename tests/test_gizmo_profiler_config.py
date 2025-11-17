@@ -1,273 +1,70 @@
 """Tests for GizmoDuckDbProfiler configuration handling."""
 
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 
-from table_sleuth.services.profiling.gizmo_duckdb import GizmoDuckDbProfiler
+from table_sleuth.services.profiling.gizmo_duckdb import GizmoDuckDbProfiler, _clean_file_path
 
 
 class TestGizmoProfilerConfiguration:
     """Test configuration handling in GizmoDuckDbProfiler."""
 
-    def test_profiler_with_docker_paths_configured(self):
-        """Test profiler initialization with Docker paths configured.
-
-        Verifies that Docker path conversion is enabled when both
-        local_data_path and docker_data_path are provided.
-
-        Requirements: 1.1, 1.3
-        """
+    def test_profiler_initialization(self):
+        """Test basic profiler initialization."""
         profiler = GizmoDuckDbProfiler(
             uri="grpc+tls://localhost:31337",
             username="test_user",
             password="test_pass",
             tls_skip_verify=True,
-            local_data_path="data",
-            docker_data_path="/data",
         )
 
-        # Verify Docker paths are set
-        assert profiler._local_data_path is not None
-        assert profiler._docker_data_path == "/data"
-        assert profiler._local_data_path == Path("data").resolve()
+        assert profiler._uri == "grpc+tls://localhost:31337"
+        assert profiler._username == "test_user"
+        assert profiler._password == "test_pass"
+        assert profiler._tls_skip_verify is True
 
-    def test_profiler_without_docker_paths(self):
-        """Test profiler initialization without Docker paths.
-
-        Verifies that Docker path conversion is disabled when
-        local_data_path and docker_data_path are not provided.
-
-        Requirements: 1.2, 1.5
-        """
-        profiler = GizmoDuckDbProfiler(
-            uri="grpc://localhost:10501",
-            username="test_user",
-            password="test_pass",
-            tls_skip_verify=False,
-        )
-
-        # Verify Docker paths are not set
-        assert profiler._local_data_path is None
-        assert profiler._docker_data_path is None
-
-    def test_path_conversion_with_docker_enabled(self):
-        """Test path conversion when Docker paths are configured.
-
-        Verifies that paths are correctly converted from local to Docker paths.
-
-        Requirements: 1.1, 1.3
-        """
-        profiler = GizmoDuckDbProfiler(
-            uri="grpc+tls://localhost:31337",
-            username="test_user",
-            password="test_pass",
-            local_data_path="data",
-            docker_data_path="/data",
-        )
-
-        # Create a test file path within the data directory
-        test_file = Path("data/warehouse/test.parquet").resolve()
-
-        # Convert to Docker path
-        docker_path = profiler._convert_to_docker_path(str(test_file))
-
-        # Verify conversion
-        assert docker_path.startswith("/data/")
-        assert "warehouse/test.parquet" in docker_path
-
-    def test_path_conversion_without_docker(self):
-        """Test path conversion when Docker paths are not configured.
-
-        Verifies that paths are used directly without conversion.
-
-        Requirements: 1.2, 1.5
-        """
-        profiler = GizmoDuckDbProfiler(
-            uri="grpc://localhost:10501",
-            username="test_user",
-            password="test_pass",
-        )
-
-        # Test with regular path
-        test_path = "/absolute/path/to/file.parquet"
-        result = profiler._convert_to_docker_path(test_path)
-
-        # Verify path is returned as-is
-        assert result == test_path
-
-    def test_path_validation_in_docker_mode(self):
-        """Test path validation when Docker paths are configured.
-
-        Verifies that ValueError is raised for paths outside the mounted directory.
-
-        Requirements: 1.4, 4.1
-        """
-        profiler = GizmoDuckDbProfiler(
-            uri="grpc+tls://localhost:31337",
-            username="test_user",
-            password="test_pass",
-            local_data_path="data",
-            docker_data_path="/data",
-        )
-
-        # Try to convert a path outside the data directory
-        outside_path = "/tmp/outside.parquet"
-
-        with pytest.raises(ValueError) as exc_info:
-            profiler._convert_to_docker_path(outside_path)
-
-        # Verify error message is helpful
-        assert "not within the mounted data directory" in str(exc_info.value)
-        assert "data" in str(exc_info.value)
-
-    def test_file_prefix_handling_with_docker(self):
-        """Test file:// prefix handling with Docker paths.
-
-        Verifies that file:// prefix is removed correctly in Docker mode.
-
-        Requirements: 1.1, 1.2
-        """
-        profiler = GizmoDuckDbProfiler(
-            uri="grpc+tls://localhost:31337",
-            username="test_user",
-            password="test_pass",
-            local_data_path="data",
-            docker_data_path="/data",
-        )
-
+    def test_clean_file_path_removes_prefix(self):
+        """Test that file:// prefix is removed from paths."""
         # Test with file:// prefix
-        test_file = Path("data/test.parquet").resolve()
-        file_uri = f"file://{test_file}"
+        assert _clean_file_path("file:///path/to/file.parquet") == "/path/to/file.parquet"
 
-        docker_path = profiler._convert_to_docker_path(file_uri)
-
-        # Verify prefix is removed and path is converted
-        assert not docker_path.startswith("file://")
-        assert docker_path.startswith("/data/")
-
-    def test_file_prefix_handling_without_docker(self):
-        """Test file:// prefix handling without Docker paths.
-
-        Verifies that file:// prefix is removed correctly in local mode.
-
-        Requirements: 1.1, 1.2
-        """
-        profiler = GizmoDuckDbProfiler(
-            uri="grpc://localhost:10501",
-            username="test_user",
-            password="test_pass",
-        )
-
-        # Test with file:// prefix
-        test_path = "file:///absolute/path/to/file.parquet"
-        result = profiler._convert_to_docker_path(test_path)
-
-        # Verify prefix is removed
-        assert result == "/absolute/path/to/file.parquet"
-        assert not result.startswith("file://")
-
-    def test_relative_path_conversion(self):
-        """Test conversion of relative paths in Docker mode.
-
-        Verifies that relative paths within the data directory are converted correctly.
-
-        Requirements: 1.1, 1.3
-        """
-        profiler = GizmoDuckDbProfiler(
-            uri="grpc+tls://localhost:31337",
-            username="test_user",
-            password="test_pass",
-            local_data_path="data",
-            docker_data_path="/data",
-        )
+        # Test without prefix
+        assert _clean_file_path("/path/to/file.parquet") == "/path/to/file.parquet"
 
         # Test with relative path
-        relative_path = "data/subdir/file.parquet"
-        docker_path = profiler._convert_to_docker_path(relative_path)
+        assert _clean_file_path("data/file.parquet") == "data/file.parquet"
 
-        # Verify conversion
-        assert docker_path.startswith("/data/")
-        assert "subdir/file.parquet" in docker_path
-
-    @patch("table_sleuth.services.profiling.gizmo_duckdb.logger")
-    def test_configuration_logging_docker_enabled(self, mock_logger):
-        """Test that configuration mode is logged when Docker paths are enabled.
-
-        Requirements: 3.3
-        """
-        GizmoDuckDbProfiler(
-            uri="grpc+tls://localhost:31337",
-            username="test_user",
-            password="test_pass",
-            local_data_path="data",
-            docker_data_path="/data",
-        )
-
-        # Verify debug log was called
-        mock_logger.debug.assert_called()
-        call_args = str(mock_logger.debug.call_args)
-        assert "Docker path conversion enabled" in call_args
-
-    @patch("table_sleuth.services.profiling.gizmo_duckdb.logger")
-    def test_configuration_logging_docker_disabled(self, mock_logger):
-        """Test that configuration mode is logged when Docker paths are disabled.
-
-        Requirements: 3.3
-        """
-        GizmoDuckDbProfiler(
-            uri="grpc://localhost:10501",
-            username="test_user",
-            password="test_pass",
-        )
-
-        # Verify debug log was called
-        mock_logger.debug.assert_called()
-        call_args = str(mock_logger.debug.call_args)
-        assert "Using local paths directly" in call_args
-
-    def test_register_file_view_converts_paths_with_docker(self):
-        """Test that register_file_view converts paths when Docker is configured.
-
-        Verifies that file paths are converted to Docker paths before storage.
-
-        Requirements: 1.1, 1.3
-        """
+    def test_register_file_view_cleans_paths(self):
+        """Test that register_file_view cleans file:// prefixes from paths."""
         profiler = GizmoDuckDbProfiler(
             uri="grpc+tls://localhost:31337",
             username="test_user",
             password="test_pass",
-            local_data_path="data",
-            docker_data_path="/data",
         )
 
-        # Register files with local paths
-        local_paths = [
-            str(Path("data/warehouse/file1.parquet").resolve()),
-            str(Path("data/warehouse/file2.parquet").resolve()),
+        # Register files with file:// prefix
+        file_paths = [
+            "file:///path/to/file1.parquet",
+            "file:///path/to/file2.parquet",
         ]
 
-        view_name = profiler.register_file_view(local_paths, "test_view")
+        view_name = profiler.register_file_view(file_paths, "test_view")
 
-        # Verify paths were converted and stored
+        # Verify paths were cleaned and stored
         assert view_name == "test_view"
         assert hasattr(profiler, "_view_paths")
         assert "test_view" in profiler._view_paths
 
         stored_paths = profiler._view_paths["test_view"]
-        # All stored paths should be Docker paths
+        # All stored paths should have file:// prefix removed
         for path in stored_paths:
-            assert path.startswith("/data/")
-            assert "warehouse" in path
+            assert not path.startswith("file://")
+            assert path.startswith("/path/to/")
 
-    def test_register_file_view_no_conversion_without_docker(self):
-        """Test that register_file_view doesn't convert paths without Docker config.
-
-        Verifies that file paths are stored as-is when Docker is not configured.
-
-        Requirements: 1.2, 1.5
-        """
+    def test_register_file_view_without_prefix(self):
+        """Test that register_file_view handles paths without file:// prefix."""
         profiler = GizmoDuckDbProfiler(
             uri="grpc://localhost:10501",
             username="test_user",
@@ -275,188 +72,96 @@ class TestGizmoProfilerConfiguration:
         )
 
         # Register files with absolute paths
-        local_paths = [
+        file_paths = [
             "/absolute/path/to/file1.parquet",
             "/absolute/path/to/file2.parquet",
         ]
 
-        view_name = profiler.register_file_view(local_paths, "test_view")
+        view_name = profiler.register_file_view(file_paths, "test_view")
 
         # Verify paths were stored as-is
         assert view_name == "test_view"
-        assert hasattr(profiler, "_view_paths")
-        assert "test_view" in profiler._view_paths
-
         stored_paths = profiler._view_paths["test_view"]
-        # Paths should be unchanged
-        assert stored_paths == local_paths
+        assert stored_paths == file_paths
+
+    def test_register_file_view_auto_generates_name(self):
+        """Test that register_file_view auto-generates view name when not provided."""
+        profiler = GizmoDuckDbProfiler(
+            uri="grpc://localhost:10501",
+            username="test_user",
+            password="test_pass",
+        )
+
+        file_paths = ["/path/to/file.parquet"]
+        view_name = profiler.register_file_view(file_paths)
+
+        # Verify auto-generated name
+        assert view_name.startswith("files_")
+        assert len(view_name) > 6  # "files_" + hash
+
+    def test_register_file_view_empty_paths_raises(self):
+        """Test that register_file_view raises ValueError for empty paths."""
+        profiler = GizmoDuckDbProfiler(
+            uri="grpc://localhost:10501",
+            username="test_user",
+            password="test_pass",
+        )
+
+        with pytest.raises(ValueError, match="file_paths cannot be empty"):
+            profiler.register_file_view([])
+
+    def test_clear_views(self):
+        """Test that clear_views removes all registered views."""
+        profiler = GizmoDuckDbProfiler(
+            uri="grpc://localhost:10501",
+            username="test_user",
+            password="test_pass",
+        )
+
+        # Register some views
+        profiler.register_file_view(["/path/to/file1.parquet"], "view1")
+        profiler.register_file_view(["/path/to/file2.parquet"], "view2")
+
+        assert len(profiler._view_paths) == 2
+
+        # Clear views
+        profiler.clear_views()
+
+        assert len(profiler._view_paths) == 0
 
 
 class TestConfigurationLoading:
     """Test configuration loading from environment and TOML."""
 
-    def test_empty_string_env_vars_disable_docker_paths(self, monkeypatch):
-        """Test that empty string environment variables disable Docker paths.
-
-        Requirements: 5.5
-        """
-        from table_sleuth.config import load_config
-
-        # Set environment variables to empty strings
-        monkeypatch.setenv("TABLE_SLEUTH_LOCAL_DATA_PATH", "")
-        monkeypatch.setenv("TABLE_SLEUTH_DOCKER_DATA_PATH", "")
-
-        config = load_config()
-
-        # Verify Docker paths are None
-        assert config.gizmosql.local_data_path is None
-        assert config.gizmosql.docker_data_path is None
-
-    def test_empty_string_toml_values_converted_to_none(self, tmp_path, monkeypatch):
-        """Test that empty string values in TOML are converted to None.
-
-        This is the core bug fix test - ensures empty strings in TOML
-        don't override the default None value.
-        """
-        from table_sleuth.config import load_config
-
-        # Create a temporary TOML file with empty string values
-        config_file = tmp_path / "table_sleuth.toml"
-        config_file.write_text("""
-[gizmosql]
-uri = "grpc+tls://localhost:31337"
-username = "test_user"
-password = "test_pass"
-local_data_path = ""
-docker_data_path = ""
-""")
-
-        # Clear environment variables
-        monkeypatch.delenv("TABLE_SLEUTH_LOCAL_DATA_PATH", raising=False)
-        monkeypatch.delenv("TABLE_SLEUTH_DOCKER_DATA_PATH", raising=False)
-
-        # Patch the config paths to use our test file
-        monkeypatch.setattr("table_sleuth.config.DEFAULT_CONFIG_PATHS", [config_file])
-
-        config = load_config()
-
-        # Verify empty strings are converted to None
-        assert config.gizmosql.local_data_path is None
-        assert config.gizmosql.docker_data_path is None
-
-    def test_toml_values_with_content_are_preserved(self, tmp_path, monkeypatch):
-        """Test that non-empty TOML values are preserved correctly."""
-        from table_sleuth.config import load_config
-
-        # Create a temporary TOML file with actual values
-        config_file = tmp_path / "table_sleuth.toml"
-        config_file.write_text("""
-[gizmosql]
-uri = "grpc+tls://localhost:31337"
-username = "test_user"
-password = "test_pass"
-local_data_path = "data"
-docker_data_path = "/data"
-""")
-
-        # Clear environment variables
-        monkeypatch.delenv("TABLE_SLEUTH_LOCAL_DATA_PATH", raising=False)
-        monkeypatch.delenv("TABLE_SLEUTH_DOCKER_DATA_PATH", raising=False)
-
-        # Patch the config paths to use our test file
-        monkeypatch.setattr("table_sleuth.config.DEFAULT_CONFIG_PATHS", [config_file])
-
-        config = load_config()
-
-        # Verify values are preserved
-        assert config.gizmosql.local_data_path == "data"
-        assert config.gizmosql.docker_data_path == "/data"
-
-    def test_env_var_overrides_empty_toml_value(self, tmp_path, monkeypatch):
-        """Test that environment variable overrides empty TOML value."""
-        from table_sleuth.config import load_config
-
-        # Create a temporary TOML file with empty string values
-        config_file = tmp_path / "table_sleuth.toml"
-        config_file.write_text("""
-[gizmosql]
-uri = "grpc+tls://localhost:31337"
-local_data_path = ""
-docker_data_path = ""
-""")
-
-        # Set environment variables with actual values
-        monkeypatch.setenv("TABLE_SLEUTH_LOCAL_DATA_PATH", "env_data")
-        monkeypatch.setenv("TABLE_SLEUTH_DOCKER_DATA_PATH", "/env_data")
-
-        # Patch the config paths to use our test file
-        monkeypatch.setattr("table_sleuth.config.DEFAULT_CONFIG_PATHS", [config_file])
-
-        config = load_config()
-
-        # Verify environment variables take precedence
-        assert config.gizmosql.local_data_path == "env_data"
-        assert config.gizmosql.docker_data_path == "/env_data"
-
-    def test_toml_value_used_when_env_var_is_empty(self, tmp_path, monkeypatch):
-        """Test that TOML value is used when environment variable is empty."""
-        from table_sleuth.config import load_config
-
-        # Create a temporary TOML file with actual values
-        config_file = tmp_path / "table_sleuth.toml"
-        config_file.write_text("""
-[gizmosql]
-uri = "grpc+tls://localhost:31337"
-local_data_path = "toml_data"
-docker_data_path = "/toml_data"
-""")
-
-        # Set environment variables to empty strings
-        monkeypatch.setenv("TABLE_SLEUTH_LOCAL_DATA_PATH", "")
-        monkeypatch.setenv("TABLE_SLEUTH_DOCKER_DATA_PATH", "")
-
-        # Patch the config paths to use our test file
-        monkeypatch.setattr("table_sleuth.config.DEFAULT_CONFIG_PATHS", [config_file])
-
-        config = load_config()
-
-        # Verify TOML values are used (empty env vars are converted to None)
-        assert config.gizmosql.local_data_path == "toml_data"
-        assert config.gizmosql.docker_data_path == "/toml_data"
-
-    def test_env_vars_override_toml(self, monkeypatch):
-        """Test that environment variables override TOML configuration.
-
-        Requirements: 5.1, 5.2, 5.3
-        """
+    def test_config_loads_basic_settings(self, monkeypatch):
+        """Test that configuration loads basic GizmoSQL settings."""
         from table_sleuth.config import load_config
 
         # Set environment variables
-        monkeypatch.setenv("TABLE_SLEUTH_LOCAL_DATA_PATH", "custom_data")
-        monkeypatch.setenv("TABLE_SLEUTH_DOCKER_DATA_PATH", "/custom_data")
+        monkeypatch.setenv("TABLE_SLEUTH_GIZMO_URI", "grpc://custom:9999")
+        monkeypatch.setenv("TABLE_SLEUTH_GIZMO_USERNAME", "custom_user")
+        monkeypatch.setenv("TABLE_SLEUTH_GIZMO_PASSWORD", "custom_pass")
 
         config = load_config()
 
-        # Verify environment variables take precedence
-        assert config.gizmosql.local_data_path == "custom_data"
-        assert config.gizmosql.docker_data_path == "/custom_data"
+        # Verify environment variables are loaded
+        assert config.gizmosql.uri == "grpc://custom:9999"
+        assert config.gizmosql.username == "custom_user"
+        assert config.gizmosql.password == "custom_pass"
 
-    def test_default_values_when_not_configured(self, monkeypatch):
-        """Test that default values are None when not configured.
-
-        Requirements: 2.2, 2.3
-        """
+    def test_config_uses_defaults_when_not_set(self, monkeypatch):
+        """Test that configuration uses defaults when not configured."""
         from table_sleuth.config import load_config
 
         # Clear any environment variables
-        monkeypatch.delenv("TABLE_SLEUTH_LOCAL_DATA_PATH", raising=False)
-        monkeypatch.delenv("TABLE_SLEUTH_DOCKER_DATA_PATH", raising=False)
+        monkeypatch.delenv("TABLE_SLEUTH_GIZMO_URI", raising=False)
+        monkeypatch.delenv("TABLE_SLEUTH_GIZMO_USERNAME", raising=False)
+        monkeypatch.delenv("TABLE_SLEUTH_GIZMO_PASSWORD", raising=False)
 
         config = load_config()
 
-        # Verify defaults are None (no Docker paths)
-        # Note: This assumes no table_sleuth.toml with these values
-        # In practice, the actual default depends on the TOML file
-        assert config.gizmosql.local_data_path is None or isinstance(
-            config.gizmosql.local_data_path, str
-        )
+        # Verify config is loaded (values may come from TOML or defaults)
+        assert config.gizmosql.uri is not None
+        assert config.gizmosql.username is not None
+        assert config.gizmosql.password is not None
+        assert isinstance(config.gizmosql.tls_skip_verify, bool)

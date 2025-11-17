@@ -132,8 +132,6 @@ class TableSleuthApp(App):
                     username=config.gizmosql.username,
                     password=config.gizmosql.password,
                     tls_skip_verify=config.gizmosql.tls_skip_verify,
-                    local_data_path=config.gizmosql.local_data_path,
-                    docker_data_path=config.gizmosql.docker_data_path,
                 )
             except Exception as e:
                 logger.warning(f"Failed to initialize profiling backend: {e}")
@@ -515,26 +513,12 @@ class TableSleuthApp(App):
             profile = self.query_one("#profile", ProfileView)
 
             # Provide deployment-specific guidance
-            error_msg = "GizmoSQL connection failed. Please ensure GizmoSQL is running.\n\n"
-
-            if self.config.gizmosql.local_data_path and self.config.gizmosql.docker_data_path:
-                # Docker deployment
-                error_msg += (
-                    "Docker GizmoSQL:\n"
-                    "docker run --name gizmosql --detach --rm --tty --init \\\n"
-                    "  --publish 31337:31337 \\\n"
-                    '  --env TLS_ENABLED="1" \\\n'
-                    '  --env GIZMOSQL_PASSWORD="gizmosql_password" \\\n'
-                    f'  --volume "$(pwd)/{self.config.gizmosql.local_data_path}:{self.config.gizmosql.docker_data_path}" \\\n'
-                    "  --pull always gizmodata/gizmosql:latest"
-                )
-            else:
-                # Local deployment
-                error_msg += (
-                    "Local GizmoSQL:\n"
-                    "gizmosql --port 10501\n\n"
-                    "Or install via: pip install gizmosql"
-                )
+            error_msg = (
+                "GizmoSQL connection failed. Please ensure GizmoSQL is running.\n\n"
+                "Local GizmoSQL:\n"
+                "gizmosql --port 10501\n\n"
+                "Or install via: pip install gizmosql"
+            )
 
             profile.show_error(error_msg)
         except Exception as e:

@@ -27,7 +27,7 @@ class SnapshotTestManager:
         """
         self._catalog_name = catalog_name
         self._catalog: Catalog | None = None
-        self._registered_tables: list[str] = []
+        self._registered_tables: set[str] = set()
         self._namespace = "snapshot_tests"
 
     def ensure_snapshot_namespace(self) -> str:
@@ -128,7 +128,7 @@ class SnapshotTestManager:
                 metadata_location=source_metadata_path,
             )
 
-            self._registered_tables.append(full_identifier)
+            self._registered_tables.add(full_identifier)
             logger.debug(f"Registered snapshot {snapshot_id} as {full_identifier}")
 
             return full_identifier
@@ -143,7 +143,7 @@ class SnapshotTestManager:
         Returns:
             List of table identifiers
         """
-        return self._registered_tables.copy()
+        return list(self._registered_tables)
 
     def cleanup_tables(self, table_names: list[str] | None = None):
         """Drop specified tables from snapshot_tests namespace or all tables if None.
@@ -155,13 +155,12 @@ class SnapshotTestManager:
             logger.debug("No catalog to clean up")
             return
 
-        tables_to_drop = table_names if table_names else self._registered_tables.copy()
+        tables_to_drop = table_names if table_names else list(self._registered_tables)
 
         for table_name in tables_to_drop:
             try:
                 self._catalog.drop_table(table_name)
-                if table_name in self._registered_tables:
-                    self._registered_tables.remove(table_name)
+                self._registered_tables.discard(table_name)
                 logger.debug(f"Dropped table {table_name} from snapshot_tests namespace")
             except Exception as e:
                 logger.warning(f"Failed to drop table {table_name}: {e}")

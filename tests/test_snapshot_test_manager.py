@@ -114,13 +114,44 @@ class TestSnapshotTestManager:
         manager.ensure_snapshot_namespace()
 
         # Simulate registered tables
-        manager._registered_tables = ["snapshot_tests.table1", "snapshot_tests.table2"]
+        manager._registered_tables = {"snapshot_tests.table1", "snapshot_tests.table2"}
 
         manager.cleanup_tables()
 
         # Should drop both tables
         assert mock_catalog.drop_table.call_count == 2
         assert len(manager._registered_tables) == 0
+
+    @patch("table_sleuth.services.snapshot_test_manager.load_catalog")
+    def test_register_snapshot_prevents_duplicates(self, mock_load_catalog):
+        """Test that registering the same snapshot multiple times doesn't create duplicates.
+
+        This verifies the fix for the duplicate registration bug where re-registering
+        a snapshot (e.g., by toggling compare mode) would add duplicate entries.
+        """
+        mock_catalog = MagicMock()
+        mock_catalog.load_table.side_effect = Exception("Table doesn't exist")
+        mock_load_catalog.return_value = mock_catalog
+
+        manager = SnapshotTestManager(catalog_name="local")
+        manager.ensure_snapshot_namespace()
+
+        # Register the same snapshot twice
+        metadata_path = "/path/to/metadata/v1.metadata.json"
+        table1 = manager.register_snapshot(metadata_path, snapshot_id=123)
+        table2 = manager.register_snapshot(metadata_path, snapshot_id=123)
+
+        # Both should return the same identifier
+        assert table1 == table2
+
+        # Should only have one entry in registered tables
+        registered = manager.get_registered_tables()
+        assert len(registered) == 1
+        assert table1 in registered
+
+        # Cleanup should only try to drop once
+        manager.cleanup_tables()
+        assert mock_catalog.drop_table.call_count == 1
 
     # Integration tests requiring real Iceberg table and configured local catalog
 
