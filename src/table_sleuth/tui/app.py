@@ -467,14 +467,15 @@ class TableSleuthApp(App):
         docker_data = self.config.gizmosql.docker_data_path
 
         # Normalize paths for comparison
-        local_path_normalized = str(Path(local_path))
+        local_path_normalized = str(Path(local_path).resolve())
         local_data_normalized = str(Path(local_data).resolve())
 
-        # Handle relative paths starting with local_data_path
-        if local_path.startswith(f"{local_data}/"):
+        # Handle relative paths starting with local_data_path (using normalized paths)
+        if local_path_normalized.startswith(f"{local_data_normalized}{Path('/').as_posix()}"):
             # Remove local_data prefix and add docker_data prefix
-            relative_part = local_path[len(local_data) + 1 :]
-            return f"{docker_data}/{relative_part}"
+            relative_part = local_path_normalized[len(local_data_normalized) + 1 :]
+            # Ensure forward slashes for Docker
+            return f"{docker_data}/{Path(relative_part).as_posix()}"
 
         # Handle absolute paths containing the local_data_path
         # Use Path operations to ensure we match complete path components, not substrings
@@ -484,8 +485,8 @@ class TableSleuthApp(App):
 
             # Check if local_path is relative to local_data_path
             relative_path = local_path_obj.relative_to(local_data_obj)
-            # Convert to Docker path
-            return f"{docker_data}/{relative_path}"
+            # Convert to Docker path using POSIX format (forward slashes)
+            return f"{docker_data}/{relative_path.as_posix()}"
         except ValueError:
             # Path is not relative to local_data_path, fall through to warning
             pass
