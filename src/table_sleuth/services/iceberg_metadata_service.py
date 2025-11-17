@@ -203,7 +203,9 @@ class IcebergMetadataService:
 
             # Get snapshot info
             snapshots = self.list_snapshots(table)
-            snapshot_info = next(s for s in snapshots if s.snapshot_id == snapshot_id)
+            snapshot_info = next((s for s in snapshots if s.snapshot_id == snapshot_id), None)
+            if snapshot_info is None:
+                raise SnapshotNotFoundError(f"Snapshot {snapshot_id} not found in snapshot list")
 
             # Scan to get files
             scan = py_table.scan(snapshot_id=snapshot_id)
@@ -305,8 +307,13 @@ class IcebergMetadataService:
         """
         # Get snapshot info for both
         snapshots = self.list_snapshots(table)
-        snapshot_a = next(s for s in snapshots if s.snapshot_id == snapshot_a_id)
-        snapshot_b = next(s for s in snapshots if s.snapshot_id == snapshot_b_id)
+        snapshot_a = next((s for s in snapshots if s.snapshot_id == snapshot_a_id), None)
+        snapshot_b = next((s for s in snapshots if s.snapshot_id == snapshot_b_id), None)
+
+        if snapshot_a is None:
+            raise SnapshotNotFoundError(f"Snapshot {snapshot_a_id} not found")
+        if snapshot_b is None:
+            raise SnapshotNotFoundError(f"Snapshot {snapshot_b_id} not found")
 
         # Calculate file changes
         data_files_added = snapshot_b.total_data_files - snapshot_a.total_data_files
