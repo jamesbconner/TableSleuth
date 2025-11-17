@@ -95,6 +95,17 @@ class FileDetailView(Container):
         content_lines.append(f"[bold]Path:[/bold] {file_info.path}")
         content_lines.append("")
 
+        # Check if this is an Iceberg file
+        # Note: Full Iceberg context requires metadata location tracking
+        # which would need to be added to FileRef.extra during discovery
+        if hasattr(file_info, "source") and file_info.source == "iceberg":
+            content_lines.append("[bold cyan]Iceberg File[/bold cyan]")
+            content_lines.append("  This file is part of an Iceberg table")
+            content_lines.append(
+                "  [dim]Use 'table-sleuth iceberg <metadata>' to view snapshots[/dim]"
+            )
+            content_lines.append("")
+
         # File statistics
         content_lines.append("[bold]File Statistics:[/bold]")
         content_lines.append(f"  Size: {self._format_size(file_info.file_size_bytes)}")
