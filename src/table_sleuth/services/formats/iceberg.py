@@ -70,7 +70,7 @@ class IcebergAdapter(TableFormatAdapter):
         if snapshot_id is None:
             snapshot = py_table.current_snapshot()
         else:
-            snapshot = next(s for s in py_table.snapshots() if s.snapshot_id == snapshot_id)
+            snapshot = next((s for s in py_table.snapshots() if s.snapshot_id == snapshot_id), None)
 
         if snapshot is None:
             raise ValueError(f"Snapshot {snapshot_id} not found")
