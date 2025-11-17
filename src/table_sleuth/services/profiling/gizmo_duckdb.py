@@ -674,11 +674,16 @@ class GizmoDuckDbProfiler(ProfilingBackend):
                 metadata_loc = table_info
                 snapshot_id = None
 
+            # Escape single quotes in metadata location to prevent SQL injection
+            # SQL standard: escape single quotes by doubling them
+            escaped_metadata_loc = metadata_loc.replace("'", "''")
+
             # Build iceberg_scan() call with optional snapshot parameter
+            # snapshot_id is an integer, so no escaping needed
             if snapshot_id is not None:
-                scan_call = f"iceberg_scan('{metadata_loc}', version => {snapshot_id})"
+                scan_call = f"iceberg_scan('{escaped_metadata_loc}', version => {snapshot_id})"
             else:
-                scan_call = f"iceberg_scan('{metadata_loc}')"
+                scan_call = f"iceberg_scan('{escaped_metadata_loc}')"
 
             # Replace table references with iceberg_scan()
             # Handle both quoted and unquoted table names

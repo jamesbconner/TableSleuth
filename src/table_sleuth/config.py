@@ -42,6 +42,18 @@ def _load_toml_config() -> dict:
     return {}
 
 
+def _normalize_config_value(value: str | None) -> str | None:
+    """Convert empty strings to None for optional configuration values.
+
+    Args:
+        value: Configuration value that may be None or an empty string
+
+    Returns:
+        None if value is None or empty string, otherwise the original value
+    """
+    return None if value == "" or value is None else value
+
+
 def load_config() -> AppConfig:
     raw = _load_toml_config()
 
@@ -51,22 +63,15 @@ def load_config() -> AppConfig:
 
     gizmo_section = raw.get("gizmosql", {})
 
-    # Handle Docker path configuration - treat empty strings as None
-    local_data_env = os.getenv("TABLE_SLEUTH_LOCAL_DATA_PATH")
-    local_data_path = (
-        None
-        if local_data_env == ""
-        else (local_data_env or gizmo_section.get("local_data_path", GizmoConfig.local_data_path))
-    )
+    # Handle Docker path configuration - normalize empty strings to None
+    # Precedence: env var (if set and not empty) → TOML config (if set and not empty) → dataclass default
+    local_data_env = _normalize_config_value(os.getenv("TABLE_SLEUTH_LOCAL_DATA_PATH"))
+    local_data_toml = _normalize_config_value(gizmo_section.get("local_data_path"))
+    local_data_path = local_data_env or local_data_toml or GizmoConfig.local_data_path
 
-    docker_data_env = os.getenv("TABLE_SLEUTH_DOCKER_DATA_PATH")
-    docker_data_path = (
-        None
-        if docker_data_env == ""
-        else (
-            docker_data_env or gizmo_section.get("docker_data_path", GizmoConfig.docker_data_path)
-        )
-    )
+    docker_data_env = _normalize_config_value(os.getenv("TABLE_SLEUTH_DOCKER_DATA_PATH"))
+    docker_data_toml = _normalize_config_value(gizmo_section.get("docker_data_path"))
+    docker_data_path = docker_data_env or docker_data_toml or GizmoConfig.docker_data_path
 
     gizmo = GizmoConfig(
         uri=os.getenv("TABLE_SLEUTH_GIZMO_URI", gizmo_section.get("uri", GizmoConfig.uri)),

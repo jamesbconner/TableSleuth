@@ -248,6 +248,118 @@ class TestConfigurationLoading:
         assert config.gizmosql.local_data_path is None
         assert config.gizmosql.docker_data_path is None
 
+    def test_empty_string_toml_values_converted_to_none(self, tmp_path, monkeypatch):
+        """Test that empty string values in TOML are converted to None.
+
+        This is the core bug fix test - ensures empty strings in TOML
+        don't override the default None value.
+        """
+        from table_sleuth.config import load_config
+
+        # Create a temporary TOML file with empty string values
+        config_file = tmp_path / "table_sleuth.toml"
+        config_file.write_text("""
+[gizmosql]
+uri = "grpc+tls://localhost:31337"
+username = "test_user"
+password = "test_pass"
+local_data_path = ""
+docker_data_path = ""
+""")
+
+        # Clear environment variables
+        monkeypatch.delenv("TABLE_SLEUTH_LOCAL_DATA_PATH", raising=False)
+        monkeypatch.delenv("TABLE_SLEUTH_DOCKER_DATA_PATH", raising=False)
+
+        # Patch the config paths to use our test file
+        monkeypatch.setattr("table_sleuth.config.DEFAULT_CONFIG_PATHS", [config_file])
+
+        config = load_config()
+
+        # Verify empty strings are converted to None
+        assert config.gizmosql.local_data_path is None
+        assert config.gizmosql.docker_data_path is None
+
+    def test_toml_values_with_content_are_preserved(self, tmp_path, monkeypatch):
+        """Test that non-empty TOML values are preserved correctly."""
+        from table_sleuth.config import load_config
+
+        # Create a temporary TOML file with actual values
+        config_file = tmp_path / "table_sleuth.toml"
+        config_file.write_text("""
+[gizmosql]
+uri = "grpc+tls://localhost:31337"
+username = "test_user"
+password = "test_pass"
+local_data_path = "data"
+docker_data_path = "/data"
+""")
+
+        # Clear environment variables
+        monkeypatch.delenv("TABLE_SLEUTH_LOCAL_DATA_PATH", raising=False)
+        monkeypatch.delenv("TABLE_SLEUTH_DOCKER_DATA_PATH", raising=False)
+
+        # Patch the config paths to use our test file
+        monkeypatch.setattr("table_sleuth.config.DEFAULT_CONFIG_PATHS", [config_file])
+
+        config = load_config()
+
+        # Verify values are preserved
+        assert config.gizmosql.local_data_path == "data"
+        assert config.gizmosql.docker_data_path == "/data"
+
+    def test_env_var_overrides_empty_toml_value(self, tmp_path, monkeypatch):
+        """Test that environment variable overrides empty TOML value."""
+        from table_sleuth.config import load_config
+
+        # Create a temporary TOML file with empty string values
+        config_file = tmp_path / "table_sleuth.toml"
+        config_file.write_text("""
+[gizmosql]
+uri = "grpc+tls://localhost:31337"
+local_data_path = ""
+docker_data_path = ""
+""")
+
+        # Set environment variables with actual values
+        monkeypatch.setenv("TABLE_SLEUTH_LOCAL_DATA_PATH", "env_data")
+        monkeypatch.setenv("TABLE_SLEUTH_DOCKER_DATA_PATH", "/env_data")
+
+        # Patch the config paths to use our test file
+        monkeypatch.setattr("table_sleuth.config.DEFAULT_CONFIG_PATHS", [config_file])
+
+        config = load_config()
+
+        # Verify environment variables take precedence
+        assert config.gizmosql.local_data_path == "env_data"
+        assert config.gizmosql.docker_data_path == "/env_data"
+
+    def test_toml_value_used_when_env_var_is_empty(self, tmp_path, monkeypatch):
+        """Test that TOML value is used when environment variable is empty."""
+        from table_sleuth.config import load_config
+
+        # Create a temporary TOML file with actual values
+        config_file = tmp_path / "table_sleuth.toml"
+        config_file.write_text("""
+[gizmosql]
+uri = "grpc+tls://localhost:31337"
+local_data_path = "toml_data"
+docker_data_path = "/toml_data"
+""")
+
+        # Set environment variables to empty strings
+        monkeypatch.setenv("TABLE_SLEUTH_LOCAL_DATA_PATH", "")
+        monkeypatch.setenv("TABLE_SLEUTH_DOCKER_DATA_PATH", "")
+
+        # Patch the config paths to use our test file
+        monkeypatch.setattr("table_sleuth.config.DEFAULT_CONFIG_PATHS", [config_file])
+
+        config = load_config()
+
+        # Verify TOML values are used (empty env vars are converted to None)
+        assert config.gizmosql.local_data_path == "toml_data"
+        assert config.gizmosql.docker_data_path == "/toml_data"
+
     def test_env_vars_override_toml(self, monkeypatch):
         """Test that environment variables override TOML configuration.
 
