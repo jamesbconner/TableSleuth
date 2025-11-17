@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import re
 from collections.abc import Sequence
-from typing import Dict, Optional
+from pathlib import Path
+from typing import Any, Dict, Optional
 
 from adbc_driver_flightsql import DatabaseOptions
 from adbc_driver_flightsql import dbapi as flightsql
 
 from table_sleuth.models import ColumnProfile, SnapshotInfo
+from table_sleuth.models.iceberg import QueryPerformanceMetrics
 
 from .backend_base import ProfilingBackend
 
@@ -116,6 +118,7 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         self._username = username
         self._password = password
         self._tls_skip_verify = tls_skip_verify
+        self._registered_catalogs: dict[str, str] = {}  # catalog_name -> catalog_path
 
     def _connect(self):
         return flightsql.connect(
@@ -375,3 +378,152 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         """
         if hasattr(self, "_view_paths"):
             self._view_paths.clear()
+
+    def register_catalog(self, catalog_path: str, catalog_name: str = "test_catalog") -> None:
+        """Register an Iceberg catalog with DuckDB.
+
+        Args:
+            catalog_path: Path to the SQLite catalog database file
+            catalog_name: Name to use for the catalog in DuckDB
+
+        Raises:
+            RuntimeError: If catalog registration fails
+        """
+        # Sanitize catalog name
+        safe_catalog_name = _sanitize_identifier(catalog_name)
+
+        # Convert path for Docker if needed
+        # Note: This assumes the profiler has access to a path conversion method
+        # In production, this would need to be injected or configured
+        docker_catalog_path = catalog_path  # TODO: Add Docker path conversion
+
+        # Store catalog registration
+        self._registered_catalogs[safe_catalog_name] = docker_catalog_path
+
+        # Install and load Iceberg extension, then attach catalog
+        # Note: These commands need to be executed in the same connection
+        # that will be used for queries
+        try:
+            with self._connect() as conn, conn.cursor() as cur:
+                # Install Iceberg extension if not already installed
+                cur.execute("INSTALL iceberg")
+                cur.execute("LOAD iceberg")
+
+                # Attach the catalog
+                # Note: DuckDB's Iceberg extension syntax may vary
+                # This is a placeholder for the actual attachment command
+                attach_sql = f"ATTACH '{docker_catalog_path}' AS {safe_catalog_name} (TYPE ICEBERG)"
+                cur.execute(attach_sql)
+
+        except Exception as e:
+            raise RuntimeError(f"Failed to register catalog {catalog_name}: {e}") from e
+
+    def execute_query_with_metrics(self, query: str) -> tuple[Any, QueryPerformanceMetrics]:
+        """Execute query and return results plus detailed metrics.
+
+        Args:
+            query: SQL query to execute
+
+        Returns:
+            Tuple of (query results, performance metrics)
+
+        Raises:
+            RuntimeError: If query execution fails
+        """
+        import time
+
+        try:
+            with self._connect() as conn, conn.cursor() as cur:
+                # Execute query and measure time
+                start_time = time.time()
+                cur.execute(query)
+                results = cur.fetchall()
+                execution_time_ms = (time.time() - start_time) * 1000
+
+                # Get EXPLAIN ANALYZE output for detailed metrics
+                explain_query = f"EXPLAIN ANALYZE {query}"
+                cur.execute(explain_query)
+                explain_output = cur.fetchall()
+
+                # Parse metrics from EXPLAIN ANALYZE output
+                # This is a simplified version - actual parsing would be more complex
+                metrics = self._parse_explain_analyze(explain_output, execution_time_ms)
+
+                return results, metrics
+
+        except Exception as e:
+            raise RuntimeError(f"Query execution failed: {e}") from e
+
+    def explain_analyze(self, query: str) -> str:
+        """Get query execution plan with timing information.
+
+        Args:
+            query: SQL query to analyze
+
+        Returns:
+            Formatted execution plan text
+
+        Raises:
+            RuntimeError: If EXPLAIN ANALYZE fails
+        """
+        try:
+            with self._connect() as conn, conn.cursor() as cur:
+                explain_query = f"EXPLAIN ANALYZE {query}"
+                cur.execute(explain_query)
+                rows = cur.fetchall()
+
+                # Format output as text
+                return "\n".join(str(row[0]) for row in rows)
+
+        except Exception as e:
+            raise RuntimeError(f"EXPLAIN ANALYZE failed: {e}") from e
+
+    def _parse_explain_analyze(
+        self, explain_output: list, execution_time_ms: float
+    ) -> QueryPerformanceMetrics:
+        """Parse EXPLAIN ANALYZE output to extract metrics.
+
+        Args:
+            explain_output: Raw EXPLAIN ANALYZE output
+            execution_time_ms: Measured execution time
+
+        Returns:
+            QueryPerformanceMetrics object
+        """
+        # This is a simplified parser
+        # In production, this would need to parse DuckDB's EXPLAIN ANALYZE format
+        # to extract actual metrics
+
+        # Default values
+        files_scanned = 0
+        bytes_scanned = 0
+        rows_scanned = 0
+        rows_returned = 0
+        memory_peak_mb = 0.0
+
+        # Parse explain output (simplified)
+        explain_text = "\n".join(str(row[0]) for row in explain_output)
+
+        # Try to extract metrics from explain text
+        # This is a placeholder - actual implementation would parse DuckDB's format
+        import re
+
+        # Look for row counts
+        row_match = re.search(r"(\d+) rows", explain_text, re.IGNORECASE)
+        if row_match:
+            rows_returned = int(row_match.group(1))
+            rows_scanned = rows_returned  # Simplified
+
+        # Look for file counts
+        file_match = re.search(r"(\d+) files?", explain_text, re.IGNORECASE)
+        if file_match:
+            files_scanned = int(file_match.group(1))
+
+        return QueryPerformanceMetrics(
+            execution_time_ms=execution_time_ms,
+            files_scanned=files_scanned,
+            bytes_scanned=bytes_scanned,
+            rows_scanned=rows_scanned,
+            rows_returned=rows_returned,
+            memory_peak_mb=memory_peak_mb,
+        )

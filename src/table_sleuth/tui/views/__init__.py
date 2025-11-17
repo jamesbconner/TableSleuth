@@ -3,6 +3,7 @@
 from .data_sample_view import DataSampleView
 from .file_detail_view import FileDetailView
 from .file_list_view import FileListView
+from .iceberg_view import IcebergView, SnapshotListView
 from .profile_view import ProfileView
 from .row_groups_view import RowGroupsView
 from .schema_view import SchemaView
@@ -16,4 +17,6 @@ __all__ = [
     "DataSampleView",
     "ProfileView",
     "StructureView",
+    "IcebergView",
+    "SnapshotListView",
 ]

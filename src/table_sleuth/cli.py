@@ -11,7 +11,10 @@ from .models import TableHandle
 from .models.file_ref import FileRef
 from .services.file_discovery import FileDiscoveryService
 from .services.formats.iceberg import IcebergAdapter
+from .services.iceberg_metadata_service import IcebergMetadataService
+from .services.profiling.gizmo_duckdb import GizmoDuckDbProfiler
 from .tui.app import TableSleuthApp
+from .tui.views.iceberg_view import IcebergView
 
 logger = logging.getLogger(__name__)
 
@@ -175,6 +178,155 @@ def run_tui(ctx: click.Context, identifier: str, catalog_name: str | None) -> No
 
     # Forward to inspect command using ctx.invoke for interactive execution
     ctx.invoke(inspect, path=identifier, catalog_name=catalog_name, verbose=False)
+
+
+@main.command("iceberg")
+@click.argument("metadata_path", type=str, required=False)
+@click.option(
+    "--catalog",
+    "catalog_name",
+    type=str,
+    default=None,
+    help="Catalog name for loading table from catalog.",
+)
+@click.option(
+    "--table",
+    "table_identifier",
+    type=str,
+    default=None,
+    help="Table identifier when using --catalog (e.g., 'database.table').",
+)
+@click.option(
+    "--verbose",
+    "-v",
+    is_flag=True,
+    help="Enable verbose logging.",
+)
+def iceberg_viewer(
+    metadata_path: str | None,
+    catalog_name: str | None,
+    table_identifier: str | None,
+    verbose: bool,
+) -> None:
+    """Launch Iceberg metadata viewer for snapshot analysis.
+
+    METADATA_PATH: Path to Iceberg metadata.json file (optional if using --catalog)
+
+    \b
+    Usage:
+    - From metadata file: table-sleuth iceberg /path/to/metadata.json
+    - From catalog: table-sleuth iceberg --catalog local --table database.table
+
+    The Iceberg viewer allows you to:
+
+    \b
+    - Browse all snapshots in an Iceberg table
+    - View detailed snapshot information (files, schema, deletes)
+    - Compare two snapshots side-by-side
+    - Measure query performance differences between snapshots
+    - Analyze merge-on-read (MOR) overhead
+
+    Examples:
+
+    \b
+    # View snapshots from metadata file
+    table-sleuth iceberg data/warehouse/ratebeer/reviews/metadata/metadata.json
+
+    \b
+    # View snapshots from catalog
+    table-sleuth iceberg --catalog local --table ratebeer.reviews
+
+    \b
+    # View with verbose logging
+    table-sleuth iceberg --catalog local --table ratebeer.reviews -v
+    """
+    # Configure logging
+    if verbose:
+        logging.basicConfig(level=logging.DEBUG)
+    else:
+        logging.basicConfig(level=logging.INFO)
+
+    # Load configuration
+    config = load_config()
+
+    try:
+        # Initialize services
+        metadata_service = IcebergMetadataService()
+
+        # Initialize profiler for performance testing
+        try:
+            profiler = GizmoDuckDbProfiler(
+                uri=config.gizmosql.uri,
+                username=config.gizmosql.username,
+                password=config.gizmosql.password,
+                tls_skip_verify=config.gizmosql.tls_skip_verify,
+            )
+        except Exception as e:
+            click.echo(
+                f"Warning: Could not initialize profiler: {e}. Performance testing will be disabled.",
+                err=True,
+            )
+            profiler = None
+
+        # Load table
+        if catalog_name and table_identifier:
+            # Load from catalog
+            click.echo(f"Loading Iceberg table: {table_identifier} (catalog: {catalog_name})")
+            table_info = metadata_service.load_table(
+                catalog_name=catalog_name, table_identifier=table_identifier
+            )
+        elif metadata_path:
+            # Load from metadata file path
+            metadata_file = Path(metadata_path)
+            if not metadata_file.exists():
+                click.echo(f"Error: Metadata file not found: {metadata_path}", err=True)
+                sys.exit(1)
+
+            click.echo(f"Loading Iceberg table from metadata: {metadata_path}")
+            table_info = metadata_service.load_table(metadata_path=str(metadata_file))
+        else:
+            # Neither provided
+            click.echo(
+                "Error: Must provide either METADATA_PATH or both --catalog and --table",
+                err=True,
+            )
+            click.echo("Try 'table-sleuth iceberg --help' for more information.", err=True)
+            sys.exit(1)
+
+        click.echo(f"Table UUID: {table_info.table_uuid}")
+        click.echo(f"Format version: {table_info.format_version}")
+        click.echo(f"Location: {table_info.location}")
+
+        # Create and run Iceberg viewer
+        from textual.app import App
+
+        class IcebergViewerApp(App):
+            """Wrapper app for IcebergView screen."""
+
+            def on_mount(self) -> None:
+                """Push the IcebergView screen on mount."""
+                self.push_screen(
+                    IcebergView(
+                        table_info=table_info,
+                        metadata_service=metadata_service,
+                        profiler=profiler,
+                    )
+                )
+
+        app = IcebergViewerApp()
+        app.run()
+
+    except FileNotFoundError as e:
+        click.echo(f"Error: File not found: {e}", err=True)
+        sys.exit(1)
+    except ValueError as e:
+        click.echo(f"Error: Invalid input: {e}", err=True)
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        if verbose:
+            logger.exception("Detailed error information")
+        sys.exit(1)
 
 
 def entry_point() -> None:
