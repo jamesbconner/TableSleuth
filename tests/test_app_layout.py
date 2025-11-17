@@ -88,7 +88,7 @@ def test_app_has_keybindings(
     # Verify required bindings
     assert "q" in binding_keys  # Quit
     assert "r" in binding_keys  # Refresh
-    assert "p" in binding_keys  # Profile
+    # Note: 'p' keybinding removed - profiling now done via ProfileView column selection
 
 
 def test_app_with_files(
@@ -142,7 +142,7 @@ def test_app_has_required_actions(
     # Verify action methods exist
     assert hasattr(app, "action_quit")
     assert hasattr(app, "action_refresh")
-    assert hasattr(app, "action_profile_column")
+    # Note: action_profile_column removed - profiling now handled via ProfileColumnRequested message
     assert hasattr(app, "action_focus_filter")
     assert hasattr(app, "action_focus_next")
 

@@ -49,6 +49,10 @@ def sample_file_info() -> ParquetFileInfo:
             max_value=100,
             encodings=["PLAIN"],
             compression="SNAPPY",
+            num_values=None,
+            distinct_count=None,
+            total_compressed_size=None,
+            total_uncompressed_size=None,
         ),
     ]
 

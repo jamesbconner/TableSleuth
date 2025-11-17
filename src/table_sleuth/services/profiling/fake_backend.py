@@ -14,6 +14,12 @@ class FakeProfiler(ProfilingBackend):
     def register_snapshot_view(self, snapshot: SnapshotInfo) -> str:
         return f"fake_{snapshot.snapshot_id}"
 
+    def register_file_view(self, file_paths: list[str], view_name: str | None = None) -> str:
+        """Register file view for testing."""
+        if view_name:
+            return view_name
+        return f"fake_view_{len(file_paths)}"
+
     def profile_single_column(
         self,
         view_name: str,

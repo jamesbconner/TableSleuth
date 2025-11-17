@@ -285,3 +285,111 @@ def test_inspect_file_format_version(
 
     assert file_info.format_version is not None
     assert isinstance(file_info.format_version, str)
+
+
+def test_column_stats_num_values(
+    inspector: ParquetInspector,
+    test_parquet_file: Path,
+) -> None:
+    """Test that num_values is extracted from column metadata."""
+    file_info = inspector.inspect_file(test_parquet_file)
+
+    for col in file_info.columns:
+        # num_values should be present and be an integer or None
+        assert hasattr(col, "num_values")
+        assert col.num_values is None or isinstance(col.num_values, int)
+
+        # If present, should be positive
+        if col.num_values is not None:
+            assert col.num_values > 0
+
+
+def test_column_stats_distinct_count(
+    inspector: ParquetInspector,
+    test_parquet_file: Path,
+) -> None:
+    """Test that distinct_count is extracted from column statistics."""
+    file_info = inspector.inspect_file(test_parquet_file)
+
+    for col in file_info.columns:
+        # distinct_count should be present (may be None)
+        assert hasattr(col, "distinct_count")
+        assert col.distinct_count is None or isinstance(col.distinct_count, int)
+
+        # If present, should be positive and <= num_values
+        if col.distinct_count is not None and col.num_values is not None:
+            assert col.distinct_count > 0
+            assert col.distinct_count <= col.num_values
+
+
+def test_column_stats_sizes(
+    inspector: ParquetInspector,
+    test_parquet_file: Path,
+) -> None:
+    """Test that compressed and uncompressed sizes are extracted."""
+    file_info = inspector.inspect_file(test_parquet_file)
+
+    for col in file_info.columns:
+        # Size fields should be present
+        assert hasattr(col, "total_compressed_size")
+        assert hasattr(col, "total_uncompressed_size")
+
+        # Should be integers or None
+        assert col.total_compressed_size is None or isinstance(col.total_compressed_size, int)
+        assert col.total_uncompressed_size is None or isinstance(col.total_uncompressed_size, int)
+
+        # If present, should be positive
+        if col.total_compressed_size is not None:
+            assert col.total_compressed_size > 0
+
+        if col.total_uncompressed_size is not None:
+            assert col.total_uncompressed_size > 0
+
+        # Compressed size should typically be <= uncompressed size
+        if col.total_compressed_size is not None and col.total_uncompressed_size is not None:
+            # Allow for some overhead in compression
+            assert col.total_compressed_size <= col.total_uncompressed_size * 1.1
+
+
+def test_row_group_column_stats_aggregation(
+    inspector: ParquetInspector,
+    test_parquet_file: Path,
+) -> None:
+    """Test that column statistics are aggregated across row groups."""
+    file_info = inspector.inspect_file(test_parquet_file)
+
+    # If file has multiple row groups, verify aggregation
+    if file_info.num_row_groups > 1:
+        # File-level num_values should equal sum of row group num_values
+        for col_idx, file_col in enumerate(file_info.columns):
+            if file_col.num_values is not None:
+                # Sum num_values from all row groups for this column
+                rg_sum = sum(
+                    rg.columns[col_idx].num_values
+                    for rg in file_info.row_groups
+                    if rg.columns[col_idx].num_values is not None
+                )
+                # Should match file-level value
+                if rg_sum > 0:
+                    assert file_col.num_values == rg_sum
+
+
+def test_column_stats_new_fields_structure(
+    inspector: ParquetInspector,
+    test_parquet_file: Path,
+) -> None:
+    """Test that all new column stat fields have correct structure."""
+    file_info = inspector.inspect_file(test_parquet_file)
+
+    for col in file_info.columns:
+        # Verify all new fields exist
+        assert hasattr(col, "num_values")
+        assert hasattr(col, "distinct_count")
+        assert hasattr(col, "total_compressed_size")
+        assert hasattr(col, "total_uncompressed_size")
+
+        # Verify types
+        assert col.num_values is None or isinstance(col.num_values, int)
+        assert col.distinct_count is None or isinstance(col.distinct_count, int)
+        assert col.total_compressed_size is None or isinstance(col.total_compressed_size, int)
+        assert col.total_uncompressed_size is None or isinstance(col.total_uncompressed_size, int)

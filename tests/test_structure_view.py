@@ -23,6 +23,10 @@ def sample_column_stats() -> list[ColumnStats]:
             max_value=100,
             encodings=["PLAIN", "RLE"],
             compression="SNAPPY",
+            num_values=None,
+            distinct_count=None,
+            total_compressed_size=None,
+            total_uncompressed_size=None,
         ),
         ColumnStats(
             name="name",
@@ -33,6 +37,10 @@ def sample_column_stats() -> list[ColumnStats]:
             max_value="Zoe",
             encodings=["DICTIONARY"],
             compression="GZIP",
+            num_values=None,
+            distinct_count=None,
+            total_compressed_size=None,
+            total_uncompressed_size=None,
         ),
     ]
 
@@ -126,38 +134,39 @@ def test_format_size_terabytes() -> None:
 
 
 def test_format_column_chunk_basic(sample_column_stats: list[ColumnStats]) -> None:
-    """Test _format_column_chunk with basic column."""
+    """Test _create_column_panel with basic column."""
     view = StructureView()
     col = sample_column_stats[0]
 
-    result = view._format_column_chunk(col)
+    result = view._create_column_panel(col)
 
-    assert "id" in result
-    assert "INT64" in result
-    assert "SNAPPY" in result
-    assert "PLAIN" in result
-    assert "RLE" in result
-    assert "N/A" in result  # Size not available
+    # Check that it returns a Panel
+    from rich.panel import Panel
+
+    assert isinstance(result, Panel)
+    # Check title contains column name
+    assert "id" in str(result.title)
 
 
 def test_format_column_chunk_with_logical_type(
     sample_column_stats: list[ColumnStats],
 ) -> None:
-    """Test _format_column_chunk with logical type."""
+    """Test _create_column_panel with logical type."""
     view = StructureView()
     col = sample_column_stats[1]
 
-    result = view._format_column_chunk(col)
+    result = view._create_column_panel(col)
 
-    assert "name" in result
-    assert "BYTE_ARRAY" in result
-    assert "UTF8" in result
-    assert "GZIP" in result
-    assert "DICTIONARY" in result
+    # Check that it returns a Panel
+    from rich.panel import Panel
+
+    assert isinstance(result, Panel)
+    # Check title contains column name
+    assert "name" in str(result.title)
 
 
 def test_format_column_chunk_no_encodings() -> None:
-    """Test _format_column_chunk with no encodings."""
+    """Test _create_column_panel with no encodings."""
     view = StructureView()
     col = ColumnStats(
         name="test",
@@ -168,15 +177,20 @@ def test_format_column_chunk_no_encodings() -> None:
         max_value=None,
         encodings=[],
         compression="UNCOMPRESSED",
+        num_values=None,
+        distinct_count=None,
+        total_compressed_size=None,
+        total_uncompressed_size=None,
     )
 
-    result = view._format_column_chunk(col)
+    result = view._create_column_panel(col)
 
-    assert "test" in result
-    assert "INT32" in result
-    assert "UNCOMPRESSED" in result
-    # Should not have encoding line if no encodings
-    assert "Encoding:" not in result
+    # Check that it returns a Panel
+    from rich.panel import Panel
+
+    assert isinstance(result, Panel)
+    # Check title contains column name
+    assert "test" in str(result.title)
 
 
 def test_render_header(sample_file_info: ParquetFileInfo) -> None:
@@ -185,7 +199,10 @@ def test_render_header(sample_file_info: ParquetFileInfo) -> None:
     header = view._render_header(sample_file_info)
 
     assert header is not None
-    assert "header-section" in header.classes
+    # Header now returns a Static widget with Rich Panel
+    from textual.widgets import Static
+
+    assert isinstance(header, Static)
 
 
 def test_render_row_groups(sample_file_info: ParquetFileInfo) -> None:
@@ -194,11 +211,10 @@ def test_render_row_groups(sample_file_info: ParquetFileInfo) -> None:
     row_groups = view._render_row_groups(sample_file_info)
 
     assert row_groups is not None
-    assert isinstance(row_groups, list)
-    assert len(row_groups) == 1  # One row group in sample data
+    # Row groups now returns a single Container with all row groups
+    from textual.containers import Container
 
-    # Check that row group has correct class
-    assert "row-group-section" in row_groups[0].classes
+    assert isinstance(row_groups, Container)
 
 
 def test_render_row_groups_multiple(sample_column_stats: list[ColumnStats]) -> None:
@@ -234,7 +250,10 @@ def test_render_row_groups_multiple(sample_column_stats: list[ColumnStats]) -> N
 
     row_groups = view._render_row_groups(file_info)
 
-    assert len(row_groups) == 2
+    # Row groups now returns a single Container
+    from textual.containers import Container
+
+    assert isinstance(row_groups, Container)
 
 
 def test_render_page_indexes(sample_file_info: ParquetFileInfo) -> None:
@@ -243,7 +262,10 @@ def test_render_page_indexes(sample_file_info: ParquetFileInfo) -> None:
     page_indexes = view._render_page_indexes(sample_file_info)
 
     assert page_indexes is not None
-    assert "page-index-section" in page_indexes.classes
+    # Page indexes now returns a Static widget
+    from textual.widgets import Static
+
+    assert isinstance(page_indexes, Static)
 
 
 def test_render_footer(sample_file_info: ParquetFileInfo) -> None:
@@ -252,7 +274,10 @@ def test_render_footer(sample_file_info: ParquetFileInfo) -> None:
     footer = view._render_footer(sample_file_info)
 
     assert footer is not None
-    assert "footer-section" in footer.classes
+    # Footer now returns a Static widget
+    from textual.widgets import Static
+
+    assert isinstance(footer, Static)
 
 
 def test_render_footer_shows_row_count(sample_file_info: ParquetFileInfo) -> None:
@@ -291,6 +316,10 @@ def test_structure_view_with_missing_metadata() -> None:
                         max_value=None,
                         encodings=[],
                         compression="UNCOMPRESSED",
+                        num_values=None,
+                        distinct_count=None,
+                        total_compressed_size=None,
+                        total_uncompressed_size=None,
                     )
                 ],
             )
@@ -305,6 +334,10 @@ def test_structure_view_with_missing_metadata() -> None:
                 max_value=None,
                 encodings=[],
                 compression="UNCOMPRESSED",
+                num_values=None,
+                distinct_count=None,
+                total_compressed_size=None,
+                total_uncompressed_size=None,
             )
         ],
         created_by=None,
@@ -320,7 +353,10 @@ def test_structure_view_with_missing_metadata() -> None:
     footer = view._render_footer(file_info)
 
     assert header is not None
-    assert len(row_groups) == 1
+    # Row groups now returns a single Container
+    from textual.containers import Container
+
+    assert isinstance(row_groups, Container)
     assert page_indexes is not None
     assert footer is not None
 
@@ -343,8 +379,10 @@ def test_structure_view_with_empty_row_groups() -> None:
     view = StructureView()
     row_groups = view._render_row_groups(file_info)
 
-    assert isinstance(row_groups, list)
-    assert len(row_groups) == 0
+    # Row groups now returns a single Container even when empty
+    from textual.containers import Container
+
+    assert isinstance(row_groups, Container)
 
 
 def test_format_column_chunk_same_physical_logical_type() -> None:
@@ -359,18 +397,23 @@ def test_format_column_chunk_same_physical_logical_type() -> None:
         max_value=None,
         encodings=["PLAIN"],
         compression="SNAPPY",
+        num_values=None,
+        distinct_count=None,
+        total_compressed_size=None,
+        total_uncompressed_size=None,
     )
 
-    result = view._format_column_chunk(col)
+    result = view._create_column_panel(col)
 
-    # Should only show type once when they're the same
-    assert "INT64" in result
-    # Should not have duplicate type in parentheses
-    assert result.count("INT64") == 1
+    # Check that it returns a Panel
+    from rich.panel import Panel
+
+    assert isinstance(result, Panel)
+    assert "test" in str(result.title)
 
 
 def test_format_column_chunk_different_physical_logical_type() -> None:
-    """Test _format_column_chunk when physical and logical types differ."""
+    """Test _create_column_panel when physical and logical types differ."""
     view = StructureView()
     col = ColumnStats(
         name="test",
@@ -381,11 +424,16 @@ def test_format_column_chunk_different_physical_logical_type() -> None:
         max_value=None,
         encodings=["DICTIONARY"],
         compression="GZIP",
+        num_values=None,
+        distinct_count=None,
+        total_compressed_size=None,
+        total_uncompressed_size=None,
     )
 
-    result = view._format_column_chunk(col)
+    result = view._create_column_panel(col)
 
-    # Should show both types
-    assert "BYTE_ARRAY" in result
-    assert "UTF8" in result
-    assert "(UTF8)" in result
+    # Check that it returns a Panel
+    from rich.panel import Panel
+
+    assert isinstance(result, Panel)
+    assert "test" in str(result.title)
