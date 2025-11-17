@@ -34,20 +34,17 @@ See [QUICKSTART.md](QUICKSTART.md) for detailed examples and [docs/USER_GUIDE.md
 ### Prerequisites
 
 - Python 3.12 or higher
-- `uv` or `poetry` for dependency management
+- `uv` for dependency management
 
 ### Install from Source
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/jamesbconner/TableSleuth>
 cd table-sleuth
 
 # Install with uv (recommended)
-uv sync
-
-# Or with poetry
-poetry install
+uv sync --all-extras
 
 # Activate virtual environment
 source .venv/bin/activate  # macOS/Linux
@@ -70,9 +67,12 @@ default = "local"
 
 [gizmosql]
 uri = "grpc+tls://localhost:31337"
-username = "gizmo"
-password = "gizmo"
+username = "gizmosql_username"
+password = "gizmosql_password"
 tls_skip_verify = true
+# Docker volume mount configuration (must match your docker run --volume argument)
+local_data_path = "data"  # Local directory mounted to Docker
+docker_data_path = "/data"  # Path inside Docker container
 ```
 
 For Iceberg support, configure PyIceberg in `~/.pyiceberg.yaml`:
@@ -80,8 +80,9 @@ For Iceberg support, configure PyIceberg in `~/.pyiceberg.yaml`:
 ```yaml
 catalog:
   local:
-    type: file
-    warehouse: "file:///path/to/warehouse"
+    type: sql  # Use SQL catalog for local file-based catalogs
+    uri: sqlite:////absolute/path/to/warehouse/catalog.db
+    warehouse: file:///absolute/path/to/warehouse
 ```
 
 ## Usage
@@ -108,11 +109,11 @@ table-sleuth inspect db.table --catalog local
 |-----|--------|
 | `q` | Quit application |
 | `r` | Refresh and clear caches |
-| `p` | Profile selected column |
 | `f` | Filter columns by name/type |
 | `Tab` | Navigate between tabs |
 | `↑/↓` | Navigate lists |
 | `Enter` | Select file or item |
+| `Click` | Click column in Profile view to profile |
 
 ### Tabs
 
@@ -128,11 +129,14 @@ For column profiling capabilities:
 
 ```bash
 # Start GizmoSQL container
-docker run -d \
-  --name gizmosql \
-  -p 31337:31337 \
+docker run --name gizmosql --detach --rm --tty --init \
+  --publish 31337:31337 \
+  --env TLS_ENABLED="1" \
+  --env GIZMOSQL_PASSWORD="gizmo" \
+  --env PRINT_QUERIES="1" \
   --volume "$(pwd)/data:/data" \
-  gizmosql/gizmosql:latest
+  --pull always \
+  gizmodata/gizmosql:latest
 
 # Configure in table_sleuth.toml
 [gizmosql]
@@ -140,7 +144,11 @@ uri = "grpc+tls://localhost:31337"
 username = "gizmo"
 password = "gizmo"
 tls_skip_verify = true
+local_data_path = "data"  # Must match the local path in --volume
+docker_data_path = "/data"  # Must match the container path in --volume
 ```
+
+**Important**: The `local_data_path` and `docker_data_path` must match your Docker volume mount. If your files are in a different location, adjust both the `--volume` argument and the configuration accordingly.
 
 ## Architecture
 
@@ -157,7 +165,7 @@ tls_skip_verify = true
                             │
 ┌─────────────────────────────────────────────────────────────┐
 │                   External Systems                          │
-│  PyArrow | GizmoSQL (DuckDB/ADBC) | PyIceberg              │
+│  PyArrow | GizmoSQL (DuckDB/ADBC) | PyIceberg               │
 └─────────────────────────────────────────────────────────────┘
 ```
 

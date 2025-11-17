@@ -12,6 +12,11 @@ username = "gizmosql_username"
 password = "gizmosql_password"
 tls_skip_verify = true
 
+# Docker volume mount configuration
+# These paths must match the --volume argument in your docker run command
+local_data_path = "data"  # Local directory mounted to Docker
+docker_data_path = "/data"  # Path inside Docker container
+
 # Note: If you don't have GizmoSQL running, profiling features won't work
 # but all other features (file inspection, schema viewing, etc.) will still work.
 #

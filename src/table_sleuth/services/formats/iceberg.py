@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from typing import Optional
+from urllib.parse import unquote, urlparse
 
 from pyiceberg.catalog import load_catalog
 from pyiceberg.table import Snapshot, StaticTable, Table
@@ -16,6 +17,33 @@ class IcebergAdapter(TableFormatAdapter):
 
     def __init__(self, default_catalog: Optional[str] = None) -> None:
         self._default_catalog = default_catalog
+
+    def _file_uri_to_path(self, uri: str) -> str:
+        """Convert file:// URI to local file path.
+
+        Handles both Unix (file:///path) and Windows (file:///C:/path) URIs correctly.
+
+        Args:
+            uri: File URI string
+
+        Returns:
+            Local file path
+        """
+        if not uri.startswith("file://"):
+            return uri
+
+        # Parse the URI
+        parsed = urlparse(uri)
+        # Get the path component and decode any percent-encoded characters
+        path = unquote(parsed.path)
+
+        # On Windows, urlparse returns /C:/path, we need to remove the leading /
+        # On Unix, urlparse returns /path, which is correct
+        if len(path) > 2 and path[0] == "/" and path[2] == ":":
+            # Windows path: /C:/path -> C:/path
+            return path[1:]
+
+        return path
 
     def _open_via_catalog(self, identifier: str, catalog_name: str) -> Table:
         catalog = load_catalog(catalog_name)
@@ -87,8 +115,11 @@ class IcebergAdapter(TableFormatAdapter):
 
             # DataFile objects are data files (delete files would be DeleteFile)
             # For MVP 0, we only want data files
+            # Convert file:// URI to regular path
+            file_path = self._file_uri_to_path(f.file_path)
+
             ref = FileRef(
-                path=f.file_path,
+                path=file_path,
                 file_size_bytes=f.file_size_in_bytes,
                 record_count=f.record_count,
                 source="iceberg",
@@ -117,8 +148,11 @@ class IcebergAdapter(TableFormatAdapter):
             # DataFile objects are data files, DeleteFile would be delete files
             content_type = "DATA"  # Default for DataFile
 
+            # Convert file:// URI to regular path
+            file_path = self._file_uri_to_path(f.file_path)
+
             ref = FileRef(
-                path=f.file_path,
+                path=file_path,
                 file_size_bytes=f.file_size_in_bytes,
                 record_count=f.record_count,
                 source="iceberg",

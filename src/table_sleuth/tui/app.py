@@ -454,17 +454,49 @@ class TableSleuthApp(App):
     def _convert_to_docker_path(self, local_path: str) -> str:
         """Convert local file path to Docker container path.
 
-        GizmoSQL runs in Docker with /data mounted to ./data, so we need to
-        convert local paths to Docker paths for profiling to work.
+        GizmoSQL runs in Docker with a volume mount, so we need to convert
+        local paths to Docker paths for profiling to work.
 
         Args:
-            local_path: Local file path (e.g., "data/warehouse/...")
+            local_path: Local file path (e.g., "data/warehouse/..." or "/absolute/path/data/warehouse/...")
 
         Returns:
             Docker path (e.g., "/data/warehouse/...")
         """
-        if local_path.startswith("data/"):
-            return "/data/" + local_path[5:]  # Remove "data/" and add "/data/"
+        local_data = self.config.gizmosql.local_data_path
+        docker_data = self.config.gizmosql.docker_data_path
+
+        # Normalize paths for comparison using POSIX format for cross-platform compatibility
+        local_path_normalized = Path(local_path).resolve().as_posix()
+        local_data_normalized = Path(local_data).resolve().as_posix()
+
+        # Handle relative paths starting with local_data_path (using normalized paths)
+        if local_path_normalized.startswith(f"{local_data_normalized}/"):
+            # Remove local_data prefix and add docker_data prefix
+            relative_part = local_path_normalized[len(local_data_normalized) + 1 :]
+            # Already in POSIX format from normalization
+            return f"{docker_data}/{relative_part}"
+
+        # Handle absolute paths containing the local_data_path
+        # Use Path operations to ensure we match complete path components, not substrings
+        try:
+            local_path_obj = Path(local_path).resolve()
+            local_data_obj = Path(local_data).resolve()
+
+            # Check if local_path is relative to local_data_path
+            relative_path = local_path_obj.relative_to(local_data_obj)
+            # Convert to Docker path using POSIX format (forward slashes)
+            return f"{docker_data}/{relative_path.as_posix()}"
+        except ValueError:
+            # Path is not relative to local_data_path, fall through to warning
+            pass
+
+        # If path doesn't match expected patterns, return as-is
+        # (will likely fail, but at least we tried)
+        logger.warning(
+            f"Could not convert path '{local_path}' to Docker path. "
+            f"Expected path to contain '{local_data}' which maps to '{docker_data}'"
+        )
         return local_path
 
     def _profile_column(self, column_name: str) -> None:

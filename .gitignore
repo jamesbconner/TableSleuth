@@ -73,6 +73,7 @@ scripts/
 docs/archive/
 resources/debug/
 debug/
+.pyiceberg.yaml
 
 # Gradio
 gradio_cached_examples/
