@@ -116,16 +116,25 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         username: str,
         password: str,
         tls_skip_verify: bool = True,
-        local_data_path: str = "data",
-        docker_data_path: str = "/data",
+        local_data_path: str | None = None,
+        docker_data_path: str | None = None,
     ) -> None:
         self._uri = uri
         self._username = username
         self._password = password
         self._tls_skip_verify = tls_skip_verify
-        self._local_data_path = Path(local_data_path).resolve()
+        # If local_data_path is None, path conversion is disabled (for local GizmoSQL)
+        self._local_data_path = Path(local_data_path).resolve() if local_data_path else None
         self._docker_data_path = docker_data_path
         self._registered_catalogs: dict[str, str] = {}  # catalog_name -> catalog_path
+
+        # Log configuration mode
+        if self._local_data_path and self._docker_data_path:
+            logger.debug(
+                f"Docker path conversion enabled: {self._local_data_path} -> {self._docker_data_path}"
+            )
+        else:
+            logger.debug("Using local paths directly (Docker path conversion disabled)")
 
     def _connect(self):
         return flightsql.connect(
@@ -140,15 +149,25 @@ class GizmoDuckDbProfiler(ProfilingBackend):
     def _convert_to_docker_path(self, local_path: str) -> str:
         """Convert a local filesystem path to a Docker container path.
 
+        If local_data_path is None, path conversion is disabled and the path
+        is returned as-is (for local GizmoSQL instances).
+
         Args:
             local_path: Local filesystem path (may include file:// prefix)
 
         Returns:
-            Docker container path
+            Docker container path, or original path if conversion is disabled
 
         Raises:
-            ValueError: If path is not within the mounted data directory
+            ValueError: If path is not within the mounted data directory (when conversion enabled)
         """
+        # If path conversion is disabled, just clean the path and return it
+        if self._local_data_path is None or self._docker_data_path is None:
+            # Just remove file:// prefix if present
+            if local_path.startswith("file://"):
+                return local_path[7:]
+            return local_path
+
         # Remove file:// prefix if present
         if local_path.startswith("file://"):
             local_path = local_path[7:]
@@ -423,8 +442,7 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         """Register an Iceberg table for querying.
 
         Note: DuckDB's Iceberg extension reads tables directly from metadata files,
-        not through PyIceberg catalogs. This method creates a rewritten metadata
-        file with Docker paths and stores the mapping.
+        not through PyIceberg catalogs.
 
         Args:
             table_identifier: Full table identifier (e.g., "snapshot_tests.table_snap_123")
@@ -441,8 +459,7 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         """Register an Iceberg table with a specific snapshot for querying.
 
         Note: DuckDB's Iceberg extension reads tables directly from metadata files,
-        not through PyIceberg catalogs. This method creates a rewritten metadata
-        file with Docker paths and stores the mapping with snapshot information.
+        not through PyIceberg catalogs.
 
         Args:
             table_identifier: Full table identifier (e.g., "snapshot_tests.table_snap_123")
@@ -455,20 +472,18 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         if not table_identifier or not metadata_location:
             raise ValueError("table_identifier and metadata_location are required")
 
-        # Create a rewritten metadata file with Docker paths
-        try:
-            docker_metadata_location = self._rewrite_metadata_for_docker(metadata_location)
-        except Exception as e:
-            logger.error(f"Failed to rewrite metadata for Docker: {e}")
-            raise ValueError(f"Failed to prepare metadata for Docker: {e}") from e
+        # Remove file:// prefix if present for cleaner paths
+        clean_metadata_location = metadata_location
+        if clean_metadata_location.startswith("file://"):
+            clean_metadata_location = clean_metadata_location[7:]
 
         # Store the mapping with snapshot info
         if not hasattr(self, "_iceberg_tables"):
             self._iceberg_tables: dict[str, tuple[str, int | None]] = {}
 
-        self._iceberg_tables[table_identifier] = (docker_metadata_location, snapshot_id)
-        logger.info(
-            f"Registered Iceberg table {table_identifier} -> {docker_metadata_location}"
+        self._iceberg_tables[table_identifier] = (clean_metadata_location, snapshot_id)
+        logger.debug(
+            f"Registered Iceberg table {table_identifier} -> {clean_metadata_location}"
             + (f" (snapshot {snapshot_id})" if snapshot_id else "")
         )
 
@@ -487,6 +502,13 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         Raises:
             ValueError: If metadata cannot be read or rewritten
         """
+        # This method should only be called when Docker paths are configured
+        if self._local_data_path is None or self._docker_data_path is None:
+            raise ValueError(
+                "Docker path conversion is not configured. "
+                "This method requires local_data_path and docker_data_path to be set."
+            )
+
         import json
         import tempfile
 
@@ -550,11 +572,11 @@ class GizmoDuckDbProfiler(ProfilingBackend):
             with open(temp_file, "w") as f:
                 json.dump(rewritten_metadata, f, indent=2)
 
-            logger.info(f"Created rewritten metadata file: {temp_file}")
+            logger.debug(f"Created rewritten metadata file: {temp_file}")
 
             # Convert temp file path to Docker path
             docker_temp_path = self._convert_to_docker_path(str(temp_file))
-            logger.info(f"Docker path for metadata: {docker_temp_path}")
+            logger.debug(f"Docker path for metadata: {docker_temp_path}")
 
             return docker_temp_path
 

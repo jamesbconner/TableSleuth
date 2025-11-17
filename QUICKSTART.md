@@ -88,18 +88,30 @@ Navigate through the file list with arrow keys and press Enter to inspect each f
 
 ### Profile Column Data (Requires GizmoSQL)
 
-#### Setup GizmoSQL
+#### Install GizmoSQL
+
+**macOS (ARM64):**
+```bash
+curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.10/gizmosql_cli_macos_arm64.zip \
+  | sudo unzip -o -d /usr/local/bin -
+```
+
+**macOS (Intel):**
+```bash
+curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.10/gizmosql_cli_macos_amd64.zip \
+  | sudo unzip -o -d /usr/local/bin -
+```
+
+**Linux:**
+```bash
+curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.10/gizmosql_cli_linux_amd64.zip \
+  | sudo unzip -o -d /usr/local/bin -
+```
+
+#### Start GizmoSQL Server
 
 ```bash
-# Start GizmoSQL container
-docker run --name gizmosql --detach --rm --tty --init \
-  --publish 31337:31337 \
-  --env TLS_ENABLED="1" \
-  --env GIZMOSQL_PASSWORD="gizmo" \
-  --env PRINT_QUERIES="1" \
-  --volume "$(pwd)/data:/data" \
-  --pull always \
-  gizmodata/gizmosql:latest
+GIZMOSQL_PASSWORD="gizmosql_password" gizmosql_server --port 10501 --print-queries
 ```
 
 #### Configure Connection
@@ -108,15 +120,11 @@ Create `table_sleuth.toml`:
 
 ```toml
 [gizmosql]
-uri = "grpc+tls://localhost:31337"
-username = "gizmo"
-password = "gizmo"
-tls_skip_verify = true
-local_data_path = "data"  # Must match the local path in --volume
-docker_data_path = "/data"  # Must match the container path in --volume
+uri = "grpc://localhost:10501"
+username = "gizmosql_username"
+password = "gizmosql_password"
+tls_skip_verify = false
 ```
-
-**Note**: If your data files are in a different location (e.g., `/Users/you/data`), update both the Docker `--volume` argument and the `local_data_path` configuration to match.
 
 #### Profile a Column
 
@@ -258,12 +266,10 @@ Create `table_sleuth.toml`:
 default = "local"
 
 [gizmosql]
-uri = "grpc+tls://localhost:31337"
-username = "gizmo"
-password = "gizmo"
-tls_skip_verify = true
-local_data_path = "data"
-docker_data_path = "/data"
+uri = "grpc://localhost:10501"
+username = "gizmosql_username"
+password = "gizmosql_password"
+tls_skip_verify = false
 ```
 
 ### Environment Variables
@@ -272,11 +278,9 @@ Override configuration with environment variables:
 
 ```bash
 export TABLE_SLEUTH_CATALOG_NAME="local"
-export TABLE_SLEUTH_GIZMO_URI="grpc+tls://localhost:31337"
-export TABLE_SLEUTH_GIZMO_USERNAME="gizmo"
-export TABLE_SLEUTH_GIZMO_PASSWORD="gizmo"
-export TABLE_SLEUTH_LOCAL_DATA_PATH="data"
-export TABLE_SLEUTH_DOCKER_DATA_PATH="/data"
+export TABLE_SLEUTH_GIZMO_URI="grpc://localhost:10501"
+export TABLE_SLEUTH_GIZMO_USERNAME="gizmosql_username"
+export TABLE_SLEUTH_GIZMO_PASSWORD="gizmosql_password"
 ```
 
 ## Troubleshooting
@@ -304,14 +308,14 @@ ls -la data/warehouse/
 ### GizmoSQL Connection Failed
 
 ```bash
-# Check container is running
-docker ps | grep gizmosql
+# Check server is running
+curl http://localhost:10501/health
 
 # Check port is accessible
-nc -zv localhost 31337
+nc -zv localhost 10501
 
-# View container logs
-docker logs gizmosql
+# Restart server if needed
+GIZMOSQL_PASSWORD="gizmosql_password" gizmosql_server --port 10501 --print-queries
 ```
 
 ### Slow Performance

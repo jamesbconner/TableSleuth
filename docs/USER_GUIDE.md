@@ -2,14 +2,19 @@
 
 ## Overview
 
-Table Sleuth is a Parquet file forensics tool that helps you inspect and analyze Parquet files with a powerful terminal user interface (TUI). MVP 0 focuses on file-based inspection with optional Iceberg table support.
+Table Sleuth is a Parquet file forensics and Iceberg table analysis tool with a powerful terminal user interface (TUI). It provides:
+
+- **Parquet Inspection**: Deep metadata analysis, schema viewing, row group inspection
+- **Column Profiling**: Statistical analysis via local GizmoSQL
+- **Iceberg Support**: Table browsing, snapshot navigation, and comparison
+- **Performance Testing**: Measure merge-on-read overhead across snapshots
 
 ## Installation
 
 ### Prerequisites
 
 - Python 3.12 or higher
-- Poetry or uv for dependency management
+- uv for dependency management (recommended)
 
 ### Install from Source
 
@@ -18,14 +23,12 @@ Table Sleuth is a Parquet file forensics tool that helps you inspect and analyze
 git clone <repository-url>
 cd table-sleuth
 
-# Install dependencies with uv (recommended)
+# Install dependencies with uv
 uv sync
-
-# Or with poetry
-poetry install
 
 # Activate virtual environment
 source .venv/bin/activate  # On macOS/Linux
+.venv\Scripts\activate     # On Windows
 ```
 
 ### Verify Installation
@@ -45,10 +48,10 @@ Create a `table_sleuth.toml` file in your project directory or `~/.config/table_
 default = "local"
 
 [gizmosql]
-uri = "grpc+tls://localhost:31337"
+uri = "grpc://localhost:10501"
 username = "gizmosql_username"
 password = "gizmosql_password"
-tls_skip_verify = true
+tls_skip_verify = false
 ```
 
 ### Environment Variables
@@ -57,21 +60,24 @@ You can override configuration with environment variables:
 
 ```bash
 export TABLE_SLEUTH_CATALOG_NAME="local"
-export TABLE_SLEUTH_GIZMO_URI="grpc+tls://localhost:31337"
+export TABLE_SLEUTH_GIZMO_URI="grpc://localhost:10501"
 export TABLE_SLEUTH_GIZMO_USERNAME="gizmosql_username"
 export TABLE_SLEUTH_GIZMO_PASSWORD="gizmosql_password"
 ```
 
-### PyIceberg Configuration (Optional)
+### PyIceberg Configuration (Required for Iceberg Features)
 
 For Iceberg table support, configure PyIceberg in `~/.pyiceberg.yaml`:
 
 ```yaml
 catalog:
   local:
-    type: file
-    warehouse: "file:///path/to/warehouse"
+    type: sql
+    uri: sqlite:////absolute/path/to/warehouse/catalog.db
+    warehouse: file:///absolute/path/to/warehouse
 ```
+
+**Note**: Use absolute paths for both `uri` and `warehouse`. The SQL catalog type is required for snapshot management and performance testing.
 
 ## CLI Usage
 
@@ -227,34 +233,81 @@ table-sleuth inspect data/file.parquet --verbose
    table-sleuth inspect ratebeer.reviews --catalog local
    ```
 
-3. All data files from the table will be loaded
+3. Navigate to the **Iceberg** tab to see:
+   - Table metadata
+   - Current snapshot information
+   - Snapshot history
 
-4. Navigate and inspect files as usual
+4. Browse snapshots and view details
+
+5. All data files from the current snapshot are available in the File List
+
+### Workflow 6: Compare Iceberg Snapshots
+
+1. Open an Iceberg table
+
+2. Navigate to the **Iceberg** tab
+
+3. Press `c` to enter Compare mode
+
+4. Select two snapshots to compare:
+   - Use arrow keys to navigate
+   - Press `Enter` to select first snapshot
+   - Press `Enter` again to select second snapshot
+
+5. View comparison metrics:
+   - File count changes
+   - Data size changes
+   - Merge-on-read metrics (data files, delete files, positional deletes)
+
+6. Press `Escape` to exit Compare mode
+
+### Workflow 7: Test Snapshot Performance
+
+1. In Compare mode with two snapshots selected
+
+2. Press `t` to run a performance test
+
+3. Choose a query template or enter custom SQL
+
+4. View performance comparison:
+   - Execution time for each snapshot
+   - Files scanned
+   - Bytes read
+   - Performance difference percentage
+
+5. Analyze merge-on-read overhead
 
 ## GizmoSQL Setup for Profiling
 
-GizmoSQL is a DuckDB instance exposed via Arrow Flight SQL that enables fast column profiling. It's optional but recommended for advanced analytics.
+GizmoSQL is a DuckDB instance exposed via Arrow Flight SQL that enables fast column profiling and Iceberg performance testing. It runs as a local process with direct filesystem access.
 
-### Prerequisites
+### Installation
 
-- Docker installed and running
-- Network access to port 31337
+**macOS (ARM64):**
+```bash
+curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.10/gizmosql_cli_macos_arm64.zip \
+  | sudo unzip -o -d /usr/local/bin -
+```
 
-### Start GizmoSQL Container
+**macOS (Intel):**
+```bash
+curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.10/gizmosql_cli_macos_amd64.zip \
+  | sudo unzip -o -d /usr/local/bin -
+```
+
+**Linux:**
+```bash
+curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.10/gizmosql_cli_linux_amd64.zip \
+  | sudo unzip -o -d /usr/local/bin -
+```
+
+### Start GizmoSQL Server
+
+Run in a terminal window:
 
 ```bash
-# Start with data volume mount
-docker run -d \
-  --name gizmosql \
-  -p 31337:31337 \
-  --volume "$(pwd)/data:/data" \
-  gizmosql/gizmosql:latest
-
-# Verify container is running
-docker ps | grep gizmosql
-
-# Check logs
-docker logs gizmosql
+GIZMOSQL_PASSWORD="gizmosql_password" gizmosql_server --port 10501 --print-queries
 ```
 
 ### Configure Connection
@@ -263,18 +316,18 @@ Create or update `table_sleuth.toml`:
 
 ```toml
 [gizmosql]
-uri = "grpc+tls://localhost:31337"
-username = "gizmo"
-password = "gizmo"
-tls_skip_verify = true
+uri = "grpc://localhost:10501"
+username = "gizmosql_username"
+password = "gizmosql_password"
+tls_skip_verify = false
 ```
 
 Or use environment variables:
 
 ```bash
-export TABLE_SLEUTH_GIZMO_URI="grpc+tls://localhost:31337"
-export TABLE_SLEUTH_GIZMO_USERNAME="gizmo"
-export TABLE_SLEUTH_GIZMO_PASSWORD="gizmo"
+export TABLE_SLEUTH_GIZMO_URI="grpc://localhost:10501"
+export TABLE_SLEUTH_GIZMO_USERNAME="gizmosql_username"
+export TABLE_SLEUTH_GIZMO_PASSWORD="gizmosql_password"
 ```
 
 ### Test Connection
@@ -294,25 +347,22 @@ export TABLE_SLEUTH_GIZMO_PASSWORD="gizmo"
 
 ### Troubleshooting GizmoSQL
 
-**Container Not Running:**
+**Server Not Running:**
 ```bash
-# Check container status
-docker ps -a | grep gizmosql
+# Check if GizmoSQL is running
+curl http://localhost:10501/health
 
-# Restart container
-docker restart gizmosql
-
-# View logs for errors
-docker logs gizmosql --tail 50
+# If not running, start it:
+GIZMOSQL_PASSWORD="gizmosql_password" gizmosql_server --port 10501 --print-queries
 ```
 
 **Connection Refused:**
 ```bash
 # Check port is accessible
-nc -zv localhost 31337
+nc -zv localhost 10501
 
 # Check firewall settings
-# Ensure port 31337 is not blocked
+# Ensure port 10501 is not blocked
 ```
 
 **Authentication Failed:**
@@ -322,49 +372,116 @@ cat table_sleuth.toml
 
 # Check environment variables
 env | grep TABLE_SLEUTH_GIZMO
-```
 
-**TLS Errors:**
-```toml
-# Try disabling TLS verification
-[gizmosql]
-tls_skip_verify = true
+# Verify password matches in both places
+echo $GIZMOSQL_PASSWORD
 ```
 
 ### Advanced GizmoSQL Configuration
 
 **Custom Port:**
 ```bash
-docker run -d \
-  --name gizmosql \
-  -p 32000:31337 \
-  gizmosql/gizmosql:latest
+GIZMOSQL_PASSWORD="gizmosql_password" gizmosql_server --port 10502 --print-queries
 ```
 
 Update configuration:
 ```toml
 [gizmosql]
-uri = "grpc+tls://localhost:32000"
+uri = "grpc://localhost:10502"
 ```
 
 **Remote GizmoSQL:**
 ```toml
 [gizmosql]
-uri = "grpc+tls://gizmosql.example.com:31337"
+uri = "grpc://gizmosql.example.com:10501"
 username = "your_username"
 password = "your_password"
 tls_skip_verify = false
 ```
 
-**Multiple Data Volumes:**
-```bash
-docker run -d \
-  --name gizmosql \
-  -p 31337:31337 \
-  --volume "$(pwd)/data:/data" \
-  --volume "/mnt/warehouse:/warehouse" \
-  gizmosql/gizmosql:latest
-```
+## Iceberg Features
+
+### Snapshot Navigation
+
+**View Snapshot History:**
+1. Open an Iceberg table
+2. Navigate to the **Iceberg** tab
+3. View list of all snapshots with:
+   - Snapshot ID
+   - Timestamp
+   - Operation (append, delete, replace, overwrite)
+   - Summary statistics
+
+**View Snapshot Details:**
+1. Select a snapshot from the list
+2. Press `Enter` to view details:
+   - Manifest files
+   - Data files count
+   - Delete files count
+   - Total data size
+   - Schema information
+
+### Snapshot Comparison
+
+**Compare Two Snapshots:**
+1. Press `c` in the Iceberg tab to enter Compare mode
+2. Select two snapshots to compare
+3. View metrics:
+   - **File Changes**: Added/removed data files
+   - **Size Changes**: Data size difference
+   - **MOR Metrics**: Merge-on-read overhead
+     - Data files vs delete files ratio
+     - Positional delete count
+     - Equality delete count
+
+**Merge-on-Read Analysis:**
+- **Low MOR**: Few delete files, good query performance
+- **High MOR**: Many delete files, consider compaction
+- **Metrics Tracked**:
+  - Delete files percentage
+  - Positional deletes per data file
+  - Total delete file size
+
+### Performance Testing
+
+**Run Query Tests:**
+1. In Compare mode with two snapshots selected
+2. Press `t` to open performance test dialog
+3. Choose from predefined queries:
+   - `full_scan`: Full table scan
+   - `filtered_scan`: Filtered query
+   - `aggregation`: Aggregation query
+   - `sample_rows`: Sample data retrieval
+   - `table_stats`: Basic statistics
+4. Or enter custom SQL query
+5. View results:
+   - Execution time for each snapshot
+   - Files scanned
+   - Bytes read
+   - Rows returned
+   - Performance difference (%)
+
+**Query Templates:**
+- Templates use `{table}` placeholder
+- Automatically substituted with snapshot-specific table reference
+- Custom queries supported with same placeholder syntax
+
+**Use Cases:**
+- Measure compaction impact
+- Quantify merge-on-read overhead
+- Compare query performance before/after operations
+- Identify when compaction is needed
+
+### Iceberg Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `c` | Enter/exit Compare mode |
+| `t` | Run performance test (in Compare mode) |
+| `Enter` | Select snapshot or view details |
+| `Escape` | Exit Compare mode or close dialogs |
+| `↑/↓` | Navigate snapshot list |
+| `Tab` | Switch between panels |
 
 ## Troubleshooting
 
@@ -382,9 +499,10 @@ docker run -d \
 
 ### "Profiling backend not available" Error
 
-- GizmoSQL container is not running
+- GizmoSQL server is not running
 - Check connection settings in configuration
 - Verify network connectivity to GizmoSQL
+- Ensure password matches in both server and config
 
 ### No Files Found in Directory
 
@@ -406,13 +524,17 @@ docker run -d \
 4. **Profile Selectively**: Profiling queries can be slow for large files
 5. **Check Notifications**: Watch top of screen for status messages
 
-## Limitations (MVP 0)
+## Current Limitations
 
-- No write operations (read-only)
-- No data preview (metadata only)
-- Profiling requires GizmoSQL
-- Iceberg support limited to file discovery
-- No snapshot history navigation (coming in MVP 1)
+- **Read-only**: No write operations (safe for production)
+- **No data preview**: Metadata analysis only (no actual data displayed)
+- **Profiling requires GizmoSQL**: Column profiling needs local GizmoSQL server
+- **Iceberg features**:
+  - ✅ Snapshot navigation and comparison
+  - ✅ Performance testing across snapshots
+  - ✅ Merge-on-read analysis
+  - ❌ Schema evolution tracking (planned)
+  - ❌ Partition evolution analysis (planned)
 
 ## Real-World Examples
 

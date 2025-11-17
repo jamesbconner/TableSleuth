@@ -2,7 +2,7 @@
 
 ## Overview
 
-Table Sleuth is a Python-based Parquet file forensics tool built with a layered architecture that separates concerns between presentation, business logic, and data access. This document provides a comprehensive overview of the system architecture, design patterns, and key technical decisions.
+Table Sleuth is a Python-based Parquet file forensics and Iceberg table analysis tool built with a layered architecture that separates concerns between presentation, business logic, and data access. This document provides a comprehensive overview of the system architecture, design patterns, and key technical decisions.
 
 ## System Architecture
 
@@ -12,70 +12,86 @@ Table Sleuth is a Python-based Parquet file forensics tool built with a layered 
 ┌─────────────────────────────────────────────────────────────────┐
 │                     Presentation Layer                          │
 │                     (Textual TUI)                               │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
-│  │ File List    │  │ File Detail  │  │ Schema View  │          │
-│  │ View         │  │ View         │  │              │          │
-│  └──────────────┘  └──────────────┘  └──────────────┘          │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
-│  │ Row Groups   │  │ Column Stats │  │ Profile View │          │
-│  │ View         │  │ View         │  │              │          │
-│  └──────────────┘  └──────────────┘  └──────────────┘          │
-│  ┌──────────────────────────────────────────────────┐          │
-│  │ Widgets: Notifications, Loading Indicators       │          │
-│  └──────────────────────────────────────────────────┘          │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐           │
+│  │ File List    │  │ File Detail  │  │ Schema View  │           │
+│  │ View         │  │ View         │  │              │           │
+│  └──────────────┘  └──────────────┘  └──────────────┘           │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐           │
+│  │ Row Groups   │  │ Column Stats │  │ Profile View │           │
+│  │ View         │  │ View         │  │              │           │
+│  └──────────────┘  └──────────────┘  └──────────────┘           │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐           │
+│  │ Iceberg View │  │ Snapshot     │  │ Snapshot     │           │
+│  │              │  │ Detail View  │  │ Comparison   │           │
+│  └──────────────┘  └──────────────┘  └──────────────┘           │
+│  ┌──────────────────────────────────────────────────┐           │
+│  │ Widgets: Notifications, Loading Indicators       │           │
+│  └──────────────────────────────────────────────────┘           │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                      Service Layer                              │
-│  ┌──────────────────┐  ┌──────────────────┐                    │
-│  │ Parquet          │  │ File Discovery   │                    │
-│  │ Inspector        │  │ Service          │                    │
-│  │                  │  │                  │                    │
-│  │ - inspect_file() │  │ - discover_from  │                    │
-│  │ - get_schema()   │  │   _path()        │                    │
-│  │ - get_row_groups │  │ - discover_from  │                    │
-│  │ - get_column_    │  │   _table()       │                    │
-│  │   stats()        │  │                  │                    │
-│  └──────────────────┘  └──────────────────┘                    │
-│  ┌──────────────────┐  ┌──────────────────┐                    │
-│  │ Profiling        │  │ Iceberg Adapter  │                    │
-│  │ Backend          │  │                  │                    │
-│  │ (Protocol)       │  │ - get_data_files │                    │
-│  │                  │  │ - load_catalog() │                    │
-│  │ - register_file  │  │ - load_table()   │                    │
-│  │   _view()        │  │                  │                    │
-│  │ - profile_single │  │                  │                    │
-│  │   _column()      │  │                  │                    │
-│  │ - profile_       │  │                  │                    │
-│  │   columns()      │  │                  │                    │
-│  └──────────────────┘  └──────────────────┘                    │
+│  ┌──────────────────┐  ┌──────────────────┐                     │
+│  │ Parquet          │  │ File Discovery   │                     │
+│  │ Inspector        │  │ Service          │                     │
+│  │                  │  │                  │                     │
+│  │ - inspect_file() │  │ - discover_from  │                     │
+│  │ - get_schema()   │  │   _path()        │                     │
+│  │ - get_row_groups │  │ - discover_from  │                     │
+│  │ - get_column_    │  │   _table()       │                     │
+│  │   stats()        │  │                  │                     │
+│  └──────────────────┘  └──────────────────┘                     │
+│  ┌──────────────────┐  ┌──────────────────┐                     │
+│  │ Profiling        │  │ Iceberg Adapter  │                     │
+│  │ Backend          │  │                  │                     │
+│  │ (Protocol)       │  │ - get_data_files │                     │
+│  │                  │  │ - load_catalog() │                     │
+│  │ - register_file  │  │ - load_table()   │                     │
+│  │   _view()        │  │                  │                     │
+│  │ - profile_single │  │                  │                     │
+│  │   _column()      │  │                  │                     │
+│  └──────────────────┘  └──────────────────┘                     │
+│  ┌──────────────────┐  ┌──────────────────┐                     │
+│  │ Snapshot Test    │  │ Snapshot         │                     │
+│  │ Manager          │  │ Performance      │                     │
+│  │                  │  │ Analyzer         │                     │
+│  │ - register_      │  │ - run_query_test │                     │
+│  │   snapshots()    │  │ - compare_query  │                     │
+│  │ - cleanup()      │  │   _performance() │                     │
+│  └──────────────────┘  └──────────────────┘                     │
 │           │                                                     │
 │           ▼                                                     │
-│  ┌──────────────────┐                                          │
-│  │ GizmoDuckDb      │                                          │
-│  │ Profiler         │                                          │
-│  │ (Implementation) │                                          │
-│  └──────────────────┘                                          │
+│  ┌──────────────────┐                                           │
+│  │ GizmoDuckDb      │                                           │
+│  │ Profiler         │                                           │
+│  │ (Implementation) │                                           │
+│  │                  │                                           │
+│  │ - Local GizmoSQL │                                           │
+│  │ - Direct FS      │                                           │
+│  │   access         │                                           │
+│  │ - Iceberg        │                                           │
+│  │   support        │                                           │
+│  └──────────────────┘                                           │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                       Data Layer                                │
-│  ┌──────────────────┐  ┌──────────────────┐                    │
-│  │ PyArrow          │  │ ADBC Flight SQL  │                    │
-│  │                  │  │ Client           │                    │
-│  │ - ParquetFile    │  │                  │                    │
-│  │ - Schema         │  │ - Connection     │                    │
-│  │ - Metadata       │  │ - Cursor         │                    │
-│  └──────────────────┘  └──────────────────┘                    │
-│  ┌──────────────────┐                                          │
-│  │ PyIceberg        │                                          │
-│  │                  │                                          │
-│  │ - Catalog        │                                          │
-│  │ - Table          │                                          │
-│  │ - Snapshot       │                                          │
-│  └──────────────────┘                                          │
+│  ┌──────────────────┐  ┌──────────────────┐                     │
+│  │ PyArrow          │  │ ADBC Flight SQL  │                     │
+│  │                  │  │ Client           │                     │
+│  │ - ParquetFile    │  │                  │                     │
+│  │ - Schema         │  │ - Connection     │                     │
+│  │ - Metadata       │  │ - Cursor         │                     │
+│  └──────────────────┘  └──────────────────┘                     │
+│  ┌──────────────────┐                                           │
+│  │ PyIceberg        │                                           │
+│  │                  │                                           │
+│  │ - Catalog        │                                           │
+│  │ - Table          │                                           │
+│  │ - Snapshot       │                                           │
+│  └──────────────────┘                                           │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -96,6 +112,9 @@ Table Sleuth is a Python-based Parquet file forensics tool built with a layered 
   - `RowGroupsView`: Shows row group breakdown
   - `ColumnStatsView`: Displays column statistics
   - `ProfileView`: Shows profiling results
+  - `IcebergView`: Iceberg table browser with snapshot navigation
+  - `SnapshotDetailView`: Detailed snapshot information
+  - `SnapshotComparisonView`: Compare two snapshots with performance testing
 
 - **Widgets**: Reusable UI components
   - `Notification`: Toast-style notifications
@@ -168,19 +187,27 @@ def profile_columns(view_name: str, columns: Sequence[str], filters: str | None)
 
 #### GizmoDuckDbProfiler
 
-**Purpose**: DuckDB-based profiling implementation
+**Purpose**: DuckDB-based profiling implementation via local GizmoSQL
 
 **Key Features**:
-- Connects via ADBC Flight SQL
+- Connects to local GizmoSQL server via ADBC Flight SQL
+- Direct filesystem access (no path conversion needed)
 - Uses DuckDB's `read_parquet()` for file access
+- Supports Iceberg tables via DuckDB's Iceberg extension
 - Executes SQL queries for statistics
 - Handles connection pooling and retries
+
+**Iceberg Support**:
+- Registers Iceberg tables using `iceberg_scan()` function
+- Supports snapshot-specific queries
+- Enables performance testing across snapshots
 
 **Design Decisions**:
 - Lazy connection initialization
 - Connection reuse across queries
 - Graceful error handling
-- TLS support with optional skip-verify
+- Local deployment (no Docker complexity)
+- Optional path conversion for legacy Docker deployments
 
 #### IcebergAdapter
 
@@ -189,13 +216,61 @@ def profile_columns(view_name: str, columns: Sequence[str], filters: str | None)
 **Key Methods**:
 ```python
 def get_data_files(table_identifier: str, catalog_name: str | None) -> list[FileRef]
+def load_table(table_identifier: str, catalog_name: str) -> Table
+def get_snapshots(table: Table) -> list[Snapshot]
 ```
 
 **Design Decisions**:
 - Uses PyIceberg for catalog access
-- Loads current snapshot only (MVP 0)
-- Ignores delete files (MVP 0)
+- Supports snapshot navigation
+- Handles data and delete files
 - Returns FileRef objects for consistency
+
+#### SnapshotTestManager
+
+**Purpose**: Manage Iceberg snapshot registration for performance testing
+
+**Key Features**:
+- Registers snapshots in local PyIceberg catalog
+- Creates dedicated `snapshot_tests` namespace
+- Manages table lifecycle (create/cleanup)
+- Supports multiple snapshot comparisons
+
+**Key Methods**:
+```python
+def ensure_snapshot_namespace() -> None
+def register_snapshots(table_name: str, snapshot_a: Snapshot, snapshot_b: Snapshot) -> tuple[str, str]
+def cleanup_test_tables() -> None
+```
+
+**Design Decisions**:
+- Uses configured local catalog (no temporary catalogs)
+- Persists tables across sessions
+- Namespace-based isolation
+- Automatic cleanup of test tables
+
+#### SnapshotPerformanceAnalyzer
+
+**Purpose**: Execute and compare query performance across snapshots
+
+**Key Features**:
+- Runs queries against registered snapshot tables
+- Collects execution metrics (time, files scanned, bytes read)
+- Compares performance between snapshots
+- Provides predefined query templates
+
+**Key Methods**:
+```python
+def run_query_test(table_name: str, query: str) -> QueryPerformanceMetrics
+def compare_query_performance(table_a: str, table_b: str, query: str) -> PerformanceComparison
+def get_predefined_queries() -> dict[str, str]
+```
+
+**Design Decisions**:
+- Delegates query execution to profiler
+- Template-based queries for common scenarios
+- Captures comprehensive metrics
+- Supports custom SQL queries
 
 ### 3. Data Layer
 
@@ -372,10 +447,10 @@ Cache result                    │
 ### Column Profiling Flow
 
 ```
-User presses 'p' on column
+User clicks column in Profile view
        │
        ▼
-SchemaView.on_profile_triggered()
+ProfileView.on_click()
        │
        ▼
 TableSleuthApp.profile_column_async()
@@ -389,7 +464,7 @@ Check cache
 GizmoDuckDbProfiler.register_file_view()
        │                        │
        ▼                        │
-ADBC Connection                 │
+ADBC Connection to local GizmoSQL
        │                        │
        ▼                        │
 Execute SQL query               │
@@ -404,6 +479,42 @@ Cache result                    │
                                 │
                                 ▼
                     ProfileView.display_profile()
+```
+
+### Iceberg Snapshot Performance Testing Flow
+
+```
+User selects 2 snapshots in Compare mode
+       │
+       ▼
+SnapshotComparisonView.on_compare_triggered()
+       │
+       ▼
+SnapshotTestManager.register_snapshots()
+       │
+       ▼
+Create tables in snapshot_tests namespace
+       │
+       ▼
+GizmoDuckDbProfiler.register_iceberg_table_with_snapshot()
+       │
+       ▼
+User runs performance test with query
+       │
+       ▼
+SnapshotPerformanceAnalyzer.compare_query_performance()
+       │
+       ▼
+Execute query on both snapshot tables
+       │
+       ▼
+Collect metrics (time, files scanned, bytes read)
+       │
+       ▼
+Calculate performance difference
+       │
+       ▼
+Display comparison results
 ```
 
 ## Configuration Management
@@ -421,10 +532,10 @@ Cache result                    │
 default = "local"
 
 [gizmosql]
-uri = "grpc+tls://localhost:31337"
-username = "gizmo"
-password = "gizmo"
-tls_skip_verify = true
+uri = "grpc://localhost:10501"
+username = "gizmosql_username"
+password = "gizmosql_password"
+tls_skip_verify = false
 
 [cache]
 ttl = 300  # seconds
@@ -433,6 +544,18 @@ max_size = 1000  # entries
 [logging]
 level = "INFO"
 format = "json"
+```
+
+### PyIceberg Configuration
+
+Separate configuration in `~/.pyiceberg.yaml`:
+
+```yaml
+catalog:
+  local:
+    type: sql
+    uri: sqlite:////absolute/path/to/warehouse/catalog.db
+    warehouse: file:///absolute/path/to/warehouse
 ```
 
 ### Configuration Loading
@@ -452,6 +575,58 @@ class Config:
         config.update(cls._load_env())
 
         return config
+```
+
+## GizmoSQL Deployment
+
+### Local GizmoSQL Architecture
+
+```
+┌─────────────────────────────────────┐
+│      Table Sleuth TUI               │
+│                                     │
+│  ┌──────────────────────────────┐   │
+│  │  GizmoDuckDbProfiler         │   │
+│  │  - ADBC Flight SQL Client    │   │
+│  └──────────────────────────────┘   │
+└─────────────────────────────────────┘
+              │
+              │ gRPC (localhost:10501)
+              ▼
+┌─────────────────────────────────────┐
+│   Local GizmoSQL Server             │
+│   - DuckDB Engine                   │
+│   - Direct Filesystem Access        │
+│   - Iceberg Extension               │
+└─────────────────────────────────────┘
+              │
+              │ Direct file access
+              ▼
+┌─────────────────────────────────────┐
+│   Local Filesystem                  │
+│   - Parquet files                   │
+│   - Iceberg metadata                │
+│   - Catalog database                │
+└─────────────────────────────────────┘
+```
+
+### Key Benefits
+
+- **No Docker complexity**: Runs as a local process
+- **Direct filesystem access**: No path conversion needed
+- **Fast startup**: Instant availability
+- **Easy debugging**: Direct process access
+- **Low overhead**: No container layer
+
+### Deployment
+
+```bash
+# Install GizmoSQL
+curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.10/gizmosql_cli_macos_arm64.zip \
+  | sudo unzip -o -d /usr/local/bin -
+
+# Start server
+GIZMOSQL_PASSWORD="gizmosql_password" gizmosql_server --port 10501 --print-queries
 ```
 
 ## Error Handling Strategy
@@ -517,6 +692,7 @@ except Exception as e:
 - File metadata extraction: < 1 second per file
 - Directory scanning: < 2 seconds for 100 files
 - Column profiling: 2-10 seconds depending on data size
+- Snapshot performance test: 5-30 seconds per query
 - UI responsiveness: < 100ms for user interactions
 
 ## Security Considerations
@@ -525,8 +701,8 @@ except Exception as e:
 
 - Load from environment variables or config file
 - Never log passwords or sensitive credentials
-- Support TLS for GizmoSQL connections
-- Optional TLS verification skip for development
+- Support TLS for GizmoSQL connections (optional)
+- Local deployment reduces attack surface
 
 ### Input Validation
 
@@ -542,6 +718,13 @@ except Exception as e:
 - No data deletion or updates
 - Safe for production file inspection
 
+### Iceberg Catalog Access
+
+- Snapshot registration uses dedicated namespace
+- Cleanup only affects `snapshot_tests` namespace
+- No modification of production tables
+- Read-only access to table metadata
+
 ## Testing Architecture
 
 ### Test Pyramid
@@ -553,11 +736,11 @@ except Exception as e:
         └─────────────┘
       ┌───────────────────┐
       │ Integration Tests │  (Some, medium speed)
-      │    ~30 tests      │
+      │    ~40 tests      │
       └───────────────────┘
     ┌───────────────────────────┐
     │      Unit Tests           │  (Many, fast, focused)
-    │      ~100 tests           │
+    │      ~120 tests           │
     └───────────────────────────┘
 ```
 
@@ -565,12 +748,15 @@ except Exception as e:
 
 ```
 tests/
-├── conftest.py              # Shared fixtures
+├── conftest.py                          # Shared fixtures
 ├── test_parquet_inspector.py
 ├── test_file_discovery.py
 ├── test_profiling_backend.py
-├── test_gizmosql_integration.py  # Integration tests
-├── test_end_to_end.py            # E2E tests
+├── test_gizmo_profiler_config.py        # Configuration tests
+├── test_snapshot_test_manager.py        # Iceberg snapshot tests
+├── test_snapshot_performance_analyzer.py
+├── test_parquet_profiling_integration.py
+├── test_end_to_end.py                   # E2E tests
 └── fixtures/
     ├── test_data.parquet
     └── test_iceberg_table/
@@ -599,29 +785,47 @@ tests/
 3. Add CLI option
 4. Add tests
 
-## Future Architecture (MVP 1)
+## Current Features
 
-### Planned Changes
+### Parquet Inspection
+- File metadata extraction
+- Schema viewing with filtering
+- Row group analysis
+- Column statistics
+- Column profiling via GizmoSQL
 
-1. **Snapshot Navigation**
-   - Add snapshot history service
-   - Implement time-travel queries
-   - Add snapshot comparison views
+### Iceberg Support
+- Table browsing
+- Snapshot navigation
+- Snapshot comparison
+- Merge-on-read metrics
+- Performance testing across snapshots
+- Query template system
 
-2. **Delete File Support**
-   - Extend IcebergAdapter for delete files
-   - Add merge-on-read analysis
-   - Show delete file statistics
+## Future Architecture
 
-3. **Performance Profiling**
-   - Add performance tracking service
-   - Collect query metrics
-   - Generate optimization suggestions
+### Planned Enhancements
 
-4. **Export Capabilities**
-   - Add export service
-   - Support multiple formats (JSON, Markdown, HTML)
-   - Generate reports
+1. **Advanced Snapshot Analysis**
+   - Schema evolution tracking
+   - Partition evolution analysis
+   - Compaction recommendations
+
+2. **Performance Optimization**
+   - Query result caching
+   - Batch performance testing
+   - Historical performance tracking
+
+3. **Export Capabilities**
+   - JSON export
+   - Markdown reports
+   - HTML reports
+   - Performance dashboards
+
+4. **Advanced Filtering**
+   - Partition-aware filtering
+   - Time-travel queries
+   - Custom query builder
 
 ## References
 
@@ -631,10 +835,11 @@ tests/
 - [PyArrow Documentation](https://arrow.apache.org/docs/python/)
 - [PyIceberg Documentation](https://py.iceberg.apache.org/)
 - [ADBC Documentation](https://arrow.apache.org/docs/format/ADBC.html)
+- [GizmoSQL Documentation](https://docs.gizmodata.com/)
 
 ### Internal Documentation
 
 - [Developer Guide](DEVELOPER_GUIDE.md)
 - [User Guide](USER_GUIDE.md)
-- [Requirements](.kiro/specs/table-sleuth-mvp-0/requirements.md)
-- [Design](.kiro/specs/table-sleuth-mvp-0/design.md)
+- [GizmoSQL Deployment Guide](gizmosql-deployment.md)
+- [Iceberg Viewer Guide](iceberg-viewer-guide.md)

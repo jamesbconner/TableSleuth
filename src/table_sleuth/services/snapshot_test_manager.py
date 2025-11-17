@@ -44,7 +44,7 @@ class SnapshotTestManager:
                 # Load catalog from PyIceberg configuration
                 try:
                     self._catalog = load_catalog(self._catalog_name)
-                    logger.info(f"Loaded catalog '{self._catalog_name}' from configuration")
+                    logger.debug(f"Loaded catalog '{self._catalog_name}' from configuration")
                 except Exception as e:
                     logger.exception(f"Failed to load catalog '{self._catalog_name}'")
                     raise CatalogError(
@@ -55,7 +55,7 @@ class SnapshotTestManager:
                 # Create namespace if it doesn't exist
                 try:
                     self._catalog.create_namespace(self._namespace)
-                    logger.info(
+                    logger.debug(
                         f"Created namespace '{self._namespace}' in catalog '{self._catalog_name}'"
                     )
                 except Exception as e:
@@ -117,7 +117,7 @@ class SnapshotTestManager:
             try:
                 existing_table = self._catalog.load_table(full_identifier)
                 if existing_table:
-                    logger.info(f"Table {full_identifier} already exists, dropping it")
+                    logger.debug(f"Table {full_identifier} already exists, dropping it")
                     self._catalog.drop_table(full_identifier)
             except Exception as e:
                 # Table doesn't exist, which is fine
@@ -129,7 +129,7 @@ class SnapshotTestManager:
             )
 
             self._registered_tables.append(full_identifier)
-            logger.info(f"Registered snapshot {snapshot_id} as {full_identifier}")
+            logger.debug(f"Registered snapshot {snapshot_id} as {full_identifier}")
 
             return full_identifier
 
@@ -162,7 +162,7 @@ class SnapshotTestManager:
                 self._catalog.drop_table(table_name)
                 if table_name in self._registered_tables:
                     self._registered_tables.remove(table_name)
-                logger.info(f"Dropped table {table_name} from snapshot_tests namespace")
+                logger.debug(f"Dropped table {table_name} from snapshot_tests namespace")
             except Exception as e:
                 logger.warning(f"Failed to drop table {table_name}: {e}")
 

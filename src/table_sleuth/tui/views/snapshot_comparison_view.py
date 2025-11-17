@@ -206,6 +206,8 @@ class PerformanceTestView(Container):
             yield Select(
                 options=[
                     ("Full Scan", "full_scan"),
+                    ("Sample Rows", "sample_rows"),
+                    ("Table Stats", "table_stats"),
                     ("Filtered Scan", "filtered_scan"),
                     ("Aggregation", "aggregation"),
                     ("Point Lookup", "point_lookup"),

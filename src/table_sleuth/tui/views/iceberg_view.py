@@ -659,7 +659,7 @@ class IcebergView(Screen):
                         self._table_info.metadata_location,
                         snapshot_b.snapshot_id,
                     )
-                    logger.info("Registered Iceberg tables with snapshots for profiler")
+                    logger.debug("Registered Iceberg tables with snapshots for profiler")
                 elif hasattr(self._profiler, "register_iceberg_table"):
                     # Fallback for older API
                     self._profiler.register_iceberg_table(
@@ -668,7 +668,7 @@ class IcebergView(Screen):
                     self._profiler.register_iceberg_table(
                         self._registered_table_b, self._table_info.metadata_location
                     )
-                    logger.info("Registered Iceberg tables with profiler")
+                    logger.debug("Registered Iceberg tables with profiler")
 
             # Run comparison
             comparison = self._metadata_service.compare_snapshots(

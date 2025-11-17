@@ -5,21 +5,23 @@
 default = "local"
 
 [gizmosql]
-# GizmoSQL connection settings for column profiling
-# Update these with your actual GizmoSQL credentials
-#uri = "grpc+tls://localhost:31337"
+# GizmoSQL connection settings for column profiling and Iceberg performance testing
+# GizmoSQL runs as a local process with direct filesystem access
+
 uri = "grpc://localhost:10501"
 username = "gizmosql_username"
 password = "gizmosql_password"
-tls_skip_verify = true
+tls_skip_verify = false
 
-# Docker volume mount configuration
-# These paths must match the --volume argument in your docker run command
-local_data_path = "data"  # Local directory mounted to Docker
-docker_data_path = "/data"  # Path inside Docker container
+# Note: Do NOT configure local_data_path or docker_data_path
+# These are legacy settings for Docker deployments which are no longer recommended
 
-# Note: If you don't have GizmoSQL running, profiling features won't work
-# but all other features (file inspection, schema viewing, etc.) will still work.
-#
 # To start GizmoSQL:
-# docker run --name gizmosql --detach --rm --tty --init --publish 31337:31337 --env TLS_ENABLED="1" --env GIZMOSQL_PASSWORD="gizmosql_password" --env PRINT_QUERIES="1" --volume "$(pwd)/data:/data" --pull always gizmodata/gizmosql:latest
+# GIZMOSQL_PASSWORD="gizmosql_password" gizmosql_server --port 10501 --print-queries
+#
+# Installation:
+# macOS (ARM64): curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.10/gizmosql_cli_macos_arm64.zip | sudo unzip -o -d /usr/local/bin -
+# macOS (Intel):  curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.10/gizmosql_cli_macos_amd64.zip | sudo unzip -o -d /usr/local/bin -
+# Linux:          curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.10/gizmosql_cli_linux_amd64.zip | sudo unzip -o -d /usr/local/bin -
+#
+# See docs/gizmosql-deployment.md for detailed setup instructions
