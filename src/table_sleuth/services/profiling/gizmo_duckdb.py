@@ -235,33 +235,129 @@ class GizmoDuckDbProfiler(ProfilingBackend):
             # Fallback: assume view_name is a table/view name
             from_clause = safe_view_name
 
-        # safe_view_name and safe_column are sanitized via _sanitize_identifier()
-        # filters is validated via _validate_filter_expression()
-        sql = f"""
-        SELECT
-            COUNT(*) AS row_count,
-            COUNT({safe_column}) AS non_null_count,
-            COUNT(*) - COUNT({safe_column}) AS null_count,
-            COUNT(DISTINCT {safe_column}) AS distinct_count,
-            MIN({safe_column}) AS min_value,
-            MAX({safe_column}) AS max_value
+        # First, detect if column is numeric by checking its type
+        type_check_sql = f"""
+        SELECT typeof({safe_column}) AS col_type
         FROM {from_clause}
-        {where_clause}
+        WHERE {safe_column} IS NOT NULL
+        LIMIT 1
         """  # nosec B608
+
+        is_numeric = False
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(type_check_sql)
+            type_row = cur.fetchone()
+            if type_row:
+                col_type = type_row[0].upper()
+                is_numeric = col_type in (
+                    "TINYINT",
+                    "SMALLINT",
+                    "INTEGER",
+                    "BIGINT",
+                    "HUGEINT",
+                    "FLOAT",
+                    "DOUBLE",
+                    "DECIMAL",
+                )
+
+        # Build SQL query with conditional numeric statistics
+        if is_numeric:
+            # safe_view_name and safe_column are sanitized via _sanitize_identifier()
+            # filters is validated via _validate_filter_expression()
+            sql = f"""
+            SELECT
+                COUNT(*) AS row_count,
+                COUNT({safe_column}) AS non_null_count,
+                COUNT(*) - COUNT({safe_column}) AS null_count,
+                COUNT(DISTINCT {safe_column}) AS distinct_count,
+                MIN({safe_column}) AS min_value,
+                MAX({safe_column}) AS max_value,
+                AVG({safe_column}) AS average,
+                PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY {safe_column}) AS median,
+                PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY {safe_column}) AS q1,
+                PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY {safe_column}) AS q3,
+                STDDEV({safe_column}) AS std_dev,
+                VARIANCE({safe_column}) AS variance
+            FROM {from_clause}
+            {where_clause}
+            """  # nosec B608
+        else:
+            sql = f"""
+            SELECT
+                COUNT(*) AS row_count,
+                COUNT({safe_column}) AS non_null_count,
+                COUNT(*) - COUNT({safe_column}) AS null_count,
+                COUNT(DISTINCT {safe_column}) AS distinct_count,
+                MIN({safe_column}) AS min_value,
+                MAX({safe_column}) AS max_value
+            FROM {from_clause}
+            {where_clause}
+            """  # nosec B608
 
         with self._connect() as conn, conn.cursor() as cur:
             cur.execute(sql)
             row = cur.fetchone()
 
-        return ColumnProfile(
-            column=column,
-            row_count=row[0],
-            non_null_count=row[1],
-            null_count=row[2],
-            distinct_count=row[3],
-            min_value=row[4],
-            max_value=row[5],
-        )
+        # Get mode (most frequent value) with separate query
+        mode = None
+        mode_count = None
+        try:
+            mode_sql = f"""
+            SELECT {safe_column}, COUNT(*) AS frequency
+            FROM {from_clause}
+            WHERE {safe_column} IS NOT NULL
+            {where_clause.replace('WHERE', 'AND') if where_clause else ''}
+            GROUP BY {safe_column}
+            ORDER BY frequency DESC
+            LIMIT 1
+            """  # nosec B608
+
+            with self._connect() as conn, conn.cursor() as cur:
+                cur.execute(mode_sql)
+                mode_row = cur.fetchone()
+                if mode_row:
+                    mode = mode_row[0]
+                    mode_count = mode_row[1]
+        except Exception as e:
+            # Mode calculation failed, leave as None
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.debug(f"Could not calculate mode: {e}")
+
+        # Build ColumnProfile with extended fields
+        if is_numeric and len(row) > 6:
+            return ColumnProfile(
+                column=column,
+                row_count=row[0],
+                non_null_count=row[1],
+                null_count=row[2],
+                distinct_count=row[3],
+                min_value=row[4],
+                max_value=row[5],
+                is_numeric=True,
+                average=row[6],
+                median=row[7],
+                mode=mode,
+                mode_count=mode_count,
+                q1=row[8],
+                q3=row[9],
+                std_dev=row[10],
+                variance=row[11],
+            )
+        else:
+            return ColumnProfile(
+                column=column,
+                row_count=row[0],
+                non_null_count=row[1],
+                null_count=row[2],
+                distinct_count=row[3],
+                min_value=row[4],
+                max_value=row[5],
+                is_numeric=False,
+                mode=mode,
+                mode_count=mode_count,
+            )
 
     def profile_columns(
         self,
