@@ -48,6 +48,7 @@ class DataSampleView(Container):
 
     DataSampleView #sample-column-selector {
         width: 20%;
+        height: 100%;
         border-right: solid $accent;
         padding: 1;
     }
@@ -99,6 +100,14 @@ class DataSampleView(Container):
 
     DataSampleView #column-list-scroll {
         height: 1fr;
+        max-height: 100%;
+        overflow-y: scroll;
+        scrollbar-gutter: stable;
+    }
+
+    DataSampleView #column-list {
+        height: auto;
+        width: 100%;
     }
 
     DataSampleView .column-item {
@@ -146,7 +155,7 @@ class DataSampleView(Container):
 
         with Horizontal(id="sample-content"):
             # Left side: Column selector (20%)
-            with VerticalScroll(id="sample-column-selector"):
+            with Vertical(id="sample-column-selector"):
                 yield Static("Row Count:", classes="selector-label")
                 yield Select(
                     options=[
