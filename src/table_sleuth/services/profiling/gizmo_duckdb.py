@@ -537,8 +537,10 @@ class GizmoDuckDbProfiler(ProfilingBackend):
             escaped_metadata_loc = metadata_loc.replace("'", "''")
 
             # Build iceberg_scan() call with optional snapshot parameter
-            # snapshot_id is an integer, so no escaping needed
+            # Validate snapshot_id is actually an integer to prevent SQL injection
             if snapshot_id is not None:
+                if not isinstance(snapshot_id, int):
+                    raise ValueError(f"snapshot_id must be an integer, got {type(snapshot_id)}")
                 scan_call = f"iceberg_scan('{escaped_metadata_loc}', version => {snapshot_id})"
             else:
                 scan_call = f"iceberg_scan('{escaped_metadata_loc}')"
