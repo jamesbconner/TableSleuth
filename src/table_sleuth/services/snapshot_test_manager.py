@@ -121,7 +121,19 @@ class SnapshotTestManager:
                 self._catalog.drop_table(full_identifier)
             except Exception as e:
                 # Table doesn't exist, which is fine
-                logger.debug(f"Table {full_identifier} does not exist yet: {e}")
+                # Common error messages: "not found", "does not exist", "doesn't exist", "not exist"
+                error_msg = str(e).lower()
+                if (
+                    "not found" in error_msg
+                    or "not exist" in error_msg
+                    or "doesn't exist" in error_msg
+                    or "does not exist" in error_msg
+                ):
+                    logger.debug(f"Table {full_identifier} does not exist yet: {e}")
+                else:
+                    # This is a real error (e.g., permission denied, connection issue)
+                    logger.error(f"Failed to check/drop existing table {full_identifier}: {e}")
+                    raise
 
             self._catalog.register_table(
                 identifier=full_identifier,
