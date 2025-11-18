@@ -11,6 +11,28 @@ A powerful Parquet file forensics tool with a terminal user interface (TUI) for 
 - **Column Profiling**: Profile column data using GizmoSQL (DuckDB over Arrow Flight SQL)
 - **Performance Optimized**: Async operations, caching, and lazy loading for responsive UI
 
+## Screenshots
+
+### Iceberg Table Overview
+![Iceberg Overview](docs/images/iceberg_overview.png)
+*Navigate Iceberg table snapshots, view metadata, and explore table structure*
+
+### Iceberg Performance Testing
+![Iceberg Performance](docs/images/iceberg_table_perf_with_menu.png)
+*Compare snapshot performance and analyze table evolution*
+
+### Parquet File Schema
+![Parquet Schema](docs/images/parquet_table_schema.png)
+*Inspect column schemas with detailed type information and statistics*
+
+### Data Sample View
+![Data Sample](docs/images/parquet_table_data_sample.png)
+*Preview data with column selection and filtering capabilities*
+
+### Row Group Analysis
+![Row Groups](docs/images/parquet_table_groups.png)
+*Analyze row group distribution and compression statistics*
+
 ## Quick Start
 
 ```bash
