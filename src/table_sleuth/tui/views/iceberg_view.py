@@ -329,6 +329,10 @@ class IcebergView(Screen):
         self._compare_mode = False
         self._selected_snapshots: list[IcebergSnapshotInfo] = []
 
+        # Registered table names for performance testing
+        self._registered_table_a: str | None = None
+        self._registered_table_b: str | None = None
+
         # Cache for snapshot details
         self._details_cache: dict[int, IcebergSnapshotDetails] = {}
 
@@ -606,6 +610,10 @@ class IcebergView(Screen):
             compare_tab.disabled = True
             perf_tab.disabled = True
 
+            # Clear registered table names
+            self._registered_table_a = None
+            self._registered_table_b = None
+
     def _register_snapshots_for_comparison(self) -> None:
         """Register selected snapshots as tables for comparison."""
         if len(self._selected_snapshots) != 2:
@@ -617,18 +625,18 @@ class IcebergView(Screen):
         try:
             # Initialize test manager if needed
             if self._test_manager is None:
-                self._test_manager = SnapshotTestManager()
-                self._test_manager.ensure_test_catalog()
+                self._test_manager = SnapshotTestManager(catalog_name="local")
+                self._test_manager.ensure_snapshot_namespace()
 
             # Register both snapshots
             snapshot_a, snapshot_b = self._selected_snapshots
 
-            table_a = self._test_manager.register_snapshot(
+            self._registered_table_a = self._test_manager.register_snapshot(
                 self._table_info.metadata_location,
                 snapshot_a.snapshot_id,
             )
 
-            table_b = self._test_manager.register_snapshot(
+            self._registered_table_b = self._test_manager.register_snapshot(
                 self._table_info.metadata_location,
                 snapshot_b.snapshot_id,
             )
@@ -636,6 +644,31 @@ class IcebergView(Screen):
             # Initialize performance analyzer if needed
             if self._performance_analyzer is None and self._profiler:
                 self._performance_analyzer = SnapshotPerformanceAnalyzer(self._profiler)
+
+            # Register the Iceberg tables with the profiler for query execution
+            # Pass the metadata location along with snapshot IDs
+            if self._profiler is not None:
+                if hasattr(self._profiler, "register_iceberg_table_with_snapshot"):
+                    self._profiler.register_iceberg_table_with_snapshot(
+                        self._registered_table_a,
+                        self._table_info.metadata_location,
+                        snapshot_a.snapshot_id,
+                    )
+                    self._profiler.register_iceberg_table_with_snapshot(
+                        self._registered_table_b,
+                        self._table_info.metadata_location,
+                        snapshot_b.snapshot_id,
+                    )
+                    logger.debug("Registered Iceberg tables with snapshots for profiler")
+                elif hasattr(self._profiler, "register_iceberg_table"):
+                    # Fallback for older API
+                    self._profiler.register_iceberg_table(
+                        self._registered_table_a, self._table_info.metadata_location
+                    )
+                    self._profiler.register_iceberg_table(
+                        self._registered_table_b, self._table_info.metadata_location
+                    )
+                    logger.debug("Registered Iceberg tables with profiler")
 
             # Run comparison
             comparison = self._metadata_service.compare_snapshots(
@@ -651,7 +684,7 @@ class IcebergView(Screen):
             # Update performance test view with table names
             if self._performance_analyzer:
                 perf_view = self.query_one("#perf-test-view", PerformanceTestView)
-                perf_view.set_table_names(table_a, table_b)
+                perf_view.set_table_names(self._registered_table_a, self._registered_table_b)
 
             # Show success notification
             notification = self.query_one("#notification", Notification)
@@ -685,15 +718,16 @@ class IcebergView(Screen):
         loading.show("Running performance test...")
 
         try:
-            # Get registered table names
-            snapshot_a, snapshot_b = self._selected_snapshots
-            table_a = f"snapshot_tests.snap_{snapshot_a.snapshot_id}"
-            table_b = f"snapshot_tests.snap_{snapshot_b.snapshot_id}"
+            # Use the registered table names
+            if not self._registered_table_a or not self._registered_table_b:
+                notification = self.query_one("#notification", Notification)
+                notification.error("Snapshots not registered. Please re-enable compare mode.")
+                return
 
             # Run comparison
             comparison = self._performance_analyzer.compare_query_performance(
-                table_a,
-                table_b,
+                self._registered_table_a,
+                self._registered_table_b,
                 query,
             )
 

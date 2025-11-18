@@ -37,9 +37,9 @@ We are committed to providing a welcoming and inclusive environment for all cont
 ### Prerequisites
 
 - Python 3.12 or higher
-- `uv` or `poetry` for dependency management
+- `uv` for dependency management
 - Git for version control
-- Docker (optional, for integration tests)
+- Local GizmoSQL server (optional, for integration tests)
 
 ### Setting Up Development Environment
 
@@ -60,11 +60,8 @@ We are committed to providing a welcoming and inclusive environment for all cont
 3. **Install Dependencies**
 
    ```bash
-   # Using uv (recommended)
+   # Using uv
    uv sync
-
-   # Or using poetry
-   poetry install
    ```
 
 4. **Activate Virtual Environment**
@@ -132,7 +129,9 @@ pytest --cov=src/table_sleuth --cov-report=html
 # Run specific test file
 pytest tests/test_parquet_inspector.py
 
-# Run integration tests (requires Docker)
+# Run integration tests (requires local GizmoSQL server)
+# Set TEST_GIZMOSQL_URI environment variable first
+export TEST_GIZMOSQL_URI="grpc://localhost:10501"
 pytest -m integration
 ```
 
@@ -407,7 +406,8 @@ pytest tests/test_parquet_inspector.py
 # Run specific test
 pytest tests/test_parquet_inspector.py::test_inspect_file_basic_metadata
 
-# Run integration tests only
+# Run integration tests only (requires local GizmoSQL)
+export TEST_GIZMOSQL_URI="grpc://localhost:10501"
 pytest -m integration
 
 # Run with verbose output

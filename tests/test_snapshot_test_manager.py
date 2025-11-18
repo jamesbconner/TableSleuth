@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import tempfile
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -14,101 +14,158 @@ from table_sleuth.services.snapshot_test_manager import SnapshotTestManager
 class TestSnapshotTestManager:
     """Tests for SnapshotTestManager."""
 
-    def test_ensure_test_catalog_creates_catalog(self):
-        """Test that ensure_test_catalog creates a catalog."""
-        manager = SnapshotTestManager()
-        catalog_path = manager.ensure_test_catalog()
+    @patch("table_sleuth.services.snapshot_test_manager.load_catalog")
+    def test_ensure_snapshot_namespace_loads_catalog(self, mock_load_catalog):
+        """Test that ensure_snapshot_namespace loads the catalog from config."""
+        mock_catalog = MagicMock()
+        mock_load_catalog.return_value = mock_catalog
 
-        assert catalog_path is not None
-        assert Path(catalog_path).exists()
+        manager = SnapshotTestManager(catalog_name="local")
+        namespace = manager.ensure_snapshot_namespace()
 
-        # Cleanup
-        manager.cleanup_catalog()
+        assert namespace == "snapshot_tests"
+        mock_load_catalog.assert_called_once_with("local")
+        mock_catalog.create_namespace.assert_called_once_with("snapshot_tests")
 
-    def test_ensure_test_catalog_custom_path(self):
-        """Test creating catalog with custom path."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            custom_path = str(Path(tmpdir) / "custom_catalog.db")
-            manager = SnapshotTestManager(test_catalog_path=custom_path)
+    @patch("table_sleuth.services.snapshot_test_manager.load_catalog")
+    def test_ensure_snapshot_namespace_handles_existing_namespace(self, mock_load_catalog):
+        """Test that ensure_snapshot_namespace handles existing namespace gracefully."""
+        mock_catalog = MagicMock()
+        mock_catalog.create_namespace.side_effect = Exception("Namespace already exists")
+        mock_load_catalog.return_value = mock_catalog
 
-            catalog_path = manager.ensure_test_catalog()
+        manager = SnapshotTestManager(catalog_name="local")
+        namespace = manager.ensure_snapshot_namespace()
 
-            assert catalog_path == custom_path
-            assert Path(catalog_path).exists()
+        # Should not raise, just log
+        assert namespace == "snapshot_tests"
 
-            # Cleanup
-            manager.cleanup_catalog()
+    @patch("table_sleuth.services.snapshot_test_manager.load_catalog")
+    def test_ensure_snapshot_namespace_idempotent(self, mock_load_catalog):
+        """Test that calling ensure_snapshot_namespace multiple times is safe."""
+        mock_catalog = MagicMock()
+        mock_load_catalog.return_value = mock_catalog
 
-    def test_ensure_test_catalog_idempotent(self):
-        """Test that calling ensure_test_catalog multiple times is safe."""
-        manager = SnapshotTestManager()
+        manager = SnapshotTestManager(catalog_name="local")
 
-        path1 = manager.ensure_test_catalog()
-        path2 = manager.ensure_test_catalog()
+        namespace1 = manager.ensure_snapshot_namespace()
+        namespace2 = manager.ensure_snapshot_namespace()
 
-        assert path1 == path2
+        assert namespace1 == namespace2
+        # Should only load catalog once
+        assert mock_load_catalog.call_count == 1
 
-        # Cleanup
-        manager.cleanup_catalog()
+    @patch("table_sleuth.services.snapshot_test_manager.load_catalog")
+    def test_get_catalog_path_from_sqlite_uri(self, mock_load_catalog):
+        """Test getting catalog path from SQLite URI."""
+        mock_catalog = MagicMock()
+        mock_catalog.properties = {"uri": "sqlite:////path/to/catalog.db"}
+        mock_load_catalog.return_value = mock_catalog
 
-    def test_get_catalog_path(self):
-        """Test getting catalog path."""
-        manager = SnapshotTestManager()
-        manager.ensure_test_catalog()
-
+        manager = SnapshotTestManager(catalog_name="local")
         catalog_path = manager.get_catalog_path()
-        assert catalog_path is not None
-        assert Path(catalog_path).exists()
 
-        # Cleanup
-        manager.cleanup_catalog()
+        assert catalog_path == "/path/to/catalog.db"
 
-    def test_get_registered_tables_empty(self):
+    @patch("table_sleuth.services.snapshot_test_manager.load_catalog")
+    def test_get_catalog_path_raises_on_missing_uri(self, mock_load_catalog):
+        """Test that get_catalog_path raises error when URI is not available."""
+        mock_catalog = MagicMock()
+        mock_catalog.properties = {}
+        mock_load_catalog.return_value = mock_catalog
+
+        manager = SnapshotTestManager(catalog_name="local")
+
+        with pytest.raises(CatalogError, match="Could not determine catalog database path"):
+            manager.get_catalog_path()
+
+    @patch("table_sleuth.services.snapshot_test_manager.load_catalog")
+    def test_get_registered_tables_empty(self, mock_load_catalog):
         """Test getting registered tables when none exist."""
-        manager = SnapshotTestManager()
-        manager.ensure_test_catalog()
+        mock_catalog = MagicMock()
+        mock_load_catalog.return_value = mock_catalog
+
+        manager = SnapshotTestManager(catalog_name="local")
+        manager.ensure_snapshot_namespace()
 
         tables = manager.get_registered_tables()
         assert isinstance(tables, list)
         assert len(tables) == 0
 
-        # Cleanup
-        manager.cleanup_catalog()
-
-    def test_cleanup_catalog_removes_file(self):
-        """Test that cleanup_catalog removes the catalog file."""
-        manager = SnapshotTestManager()
-        catalog_path = manager.ensure_test_catalog()
-
-        assert Path(catalog_path).exists()
-
-        manager.cleanup_catalog()
-
-        # Note: The file might still exist if SQLite has locks
-        # This is expected behavior and handled gracefully
-
-    def test_cleanup_tables_with_no_tables(self):
+    @patch("table_sleuth.services.snapshot_test_manager.load_catalog")
+    def test_cleanup_tables_with_no_tables(self, mock_load_catalog):
         """Test cleanup_tables when no tables exist."""
-        manager = SnapshotTestManager()
-        manager.ensure_test_catalog()
+        mock_catalog = MagicMock()
+        mock_load_catalog.return_value = mock_catalog
+
+        manager = SnapshotTestManager(catalog_name="local")
+        manager.ensure_snapshot_namespace()
 
         # Should not raise an error
         manager.cleanup_tables()
 
-        # Cleanup
-        manager.cleanup_catalog()
+    @patch("table_sleuth.services.snapshot_test_manager.load_catalog")
+    def test_cleanup_tables_drops_registered_tables(self, mock_load_catalog):
+        """Test that cleanup_tables drops all registered tables."""
+        mock_catalog = MagicMock()
+        mock_load_catalog.return_value = mock_catalog
 
-    # Integration tests requiring real Iceberg table
+        manager = SnapshotTestManager(catalog_name="local")
+        manager.ensure_snapshot_namespace()
+
+        # Simulate registered tables
+        manager._registered_tables = {"snapshot_tests.table1", "snapshot_tests.table2"}
+
+        manager.cleanup_tables()
+
+        # Should drop both tables
+        assert mock_catalog.drop_table.call_count == 2
+        assert len(manager._registered_tables) == 0
+
+    @patch("table_sleuth.services.snapshot_test_manager.load_catalog")
+    def test_register_snapshot_prevents_duplicates(self, mock_load_catalog):
+        """Test that registering the same snapshot multiple times doesn't create duplicates.
+
+        This verifies the fix for the duplicate registration bug where re-registering
+        a snapshot (e.g., by toggling compare mode) would add duplicate entries.
+        """
+        mock_catalog = MagicMock()
+        mock_catalog.load_table.side_effect = Exception("Table doesn't exist")
+        mock_load_catalog.return_value = mock_catalog
+
+        manager = SnapshotTestManager(catalog_name="local")
+        manager.ensure_snapshot_namespace()
+
+        # Register the same snapshot twice
+        metadata_path = "/path/to/metadata/v1.metadata.json"
+        table1 = manager.register_snapshot(metadata_path, snapshot_id=123)
+        table2 = manager.register_snapshot(metadata_path, snapshot_id=123)
+
+        # Both should return the same identifier
+        assert table1 == table2
+
+        # Should only have one entry in registered tables
+        registered = manager.get_registered_tables()
+        assert len(registered) == 1
+        assert table1 in registered
+
+        # Cleanup should only try to drop once
+        manager.cleanup_tables()
+        assert mock_catalog.drop_table.call_count == 1
+
+    # Integration tests requiring real Iceberg table and configured local catalog
 
     @pytest.mark.integration
     def test_register_snapshot(self, iceberg_table_metadata_path):
         """Test registering a snapshot as a table.
 
+        Note: Requires .pyiceberg.yaml with 'local' catalog configured.
+
         Args:
             iceberg_table_metadata_path: Path to test table metadata
         """
-        manager = SnapshotTestManager()
-        manager.ensure_test_catalog()
+        manager = SnapshotTestManager(catalog_name="local")
+        manager.ensure_snapshot_namespace()
 
         try:
             # Register snapshot
@@ -126,18 +183,20 @@ class TestSnapshotTestManager:
             assert table_name in tables
 
         finally:
-            # Cleanup
-            manager.cleanup_catalog()
+            # Cleanup only the registered tables, not the catalog
+            manager.cleanup_tables()
 
     @pytest.mark.integration
     def test_register_snapshot_with_alias(self, iceberg_table_metadata_path):
         """Test registering a snapshot with custom alias.
 
+        Note: Requires .pyiceberg.yaml with 'local' catalog configured.
+
         Args:
             iceberg_table_metadata_path: Path to test table metadata
         """
-        manager = SnapshotTestManager()
-        manager.ensure_test_catalog()
+        manager = SnapshotTestManager(catalog_name="local")
+        manager.ensure_snapshot_namespace()
 
         try:
             # Register with alias
@@ -151,18 +210,20 @@ class TestSnapshotTestManager:
             assert "test_snapshot" in table_name
 
         finally:
-            # Cleanup
-            manager.cleanup_catalog()
+            # Cleanup only the registered tables
+            manager.cleanup_tables()
 
     @pytest.mark.integration
     def test_cleanup_specific_tables(self, iceberg_table_metadata_path):
         """Test cleaning up specific tables.
 
+        Note: Requires .pyiceberg.yaml with 'local' catalog configured.
+
         Args:
             iceberg_table_metadata_path: Path to test table metadata
         """
-        manager = SnapshotTestManager()
-        manager.ensure_test_catalog()
+        manager = SnapshotTestManager(catalog_name="local")
+        manager.ensure_snapshot_namespace()
 
         try:
             # Register two snapshots
@@ -184,8 +245,8 @@ class TestSnapshotTestManager:
             assert table2 in tables
 
         finally:
-            # Cleanup
-            manager.cleanup_catalog()
+            # Cleanup all registered tables
+            manager.cleanup_tables()
 
 
 # Fixtures

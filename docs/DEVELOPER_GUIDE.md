@@ -469,17 +469,18 @@ def test_inspect_file_missing_statistics(parquet_file_no_stats):
 
 **Purpose**: Test component interactions
 
-**Requirements**: Docker for GizmoSQL tests
+**Requirements**: Local GizmoSQL server for profiling tests
 
 **Example**:
 ```python
-# tests/test_gizmosql_integration.py
-@pytest.mark.integration
-def test_gizmosql_profiling_workflow(gizmosql_container, test_parquet_file):
+# tests/test_parquet_profiling_integration.py
+@pytest.mark.skipif(not GIZMOSQL_AVAILABLE, reason="TEST_GIZMOSQL_URI not set")
+def test_gizmosql_profiling_workflow(test_parquet_file):
     profiler = GizmoDuckDbProfiler(
-        connection_uri="grpc+tls://localhost:31337",
-        username="gizmo",
-        password="gizmo",
+        uri="grpc://localhost:10501",
+        username="gizmosql_username",
+        password="gizmosql_password",
+        tls_skip_verify=False,
     )
 
     # Register view
@@ -564,24 +565,22 @@ def test_parquet_directory(tmp_path: Path) -> Path:
     return dir_path
 
 @pytest.fixture
-def gizmosql_container():
-    """Start GizmoSQL container for integration tests."""
-    import docker
-    client = docker.from_env()
-
-    container = client.containers.run(
-        "gizmosql/gizmosql:latest",
-        ports={"31337/tcp": 31337},
-        detach=True,
-        remove=True,
-    )
-
-    # Wait for container to be ready
-    time.sleep(5)
-
-    yield container
-
-    container.stop()
+def gizmosql_server():
+    """Fixture for local GizmoSQL server (assumes already running)."""
+    # Check if GizmoSQL is available
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["curl", "-s", "http://localhost:10501/health"],
+            capture_output=True,
+            timeout=2
+        )
+        if result.returncode == 0:
+            yield "grpc://localhost:10501"
+        else:
+            pytest.skip("GizmoSQL server not running")
+    except Exception:
+        pytest.skip("GizmoSQL server not available")
 ```
 
 ## Code Quality Standards

@@ -93,10 +93,10 @@ class SnapshotPerformanceAnalyzer:
         query_b = query_template.replace("{table}", table_b)
 
         # Run queries and collect metrics
-        logger.info(f"Running performance test on {table_a}")
+        logger.debug(f"Running performance test on {table_a}")
         metrics_a = self.run_query_test(table_a, query_a)
 
-        logger.info(f"Running performance test on {table_b}")
+        logger.debug(f"Running performance test on {table_b}")
         metrics_b = self.run_query_test(table_b, query_b)
 
         # Create comparison
@@ -111,14 +111,23 @@ class SnapshotPerformanceAnalyzer:
     def get_predefined_queries(self) -> dict[str, str]:
         """Get predefined query templates for common test scenarios.
 
+        Note: Templates use placeholders that users can customize:
+        - {table}: Table name (automatically replaced)
+        - {column}: Column name to filter/aggregate on
+        - {value}: Value to filter by
+        - {numeric_column}: Numeric column for statistics
+        - {id_column}: ID column for point lookups
+
         Returns:
             Dictionary mapping template name to query string
         """
         return {
             "full_scan": "SELECT COUNT(*) FROM {table}",
-            "filtered_scan": "SELECT * FROM {table} WHERE year_month >= 202401 LIMIT 1000",
-            "aggregation": "SELECT year_month, COUNT(*) as count FROM {table} GROUP BY year_month ORDER BY year_month",
-            "point_lookup": "SELECT * FROM {table} WHERE beer_id = 1234 LIMIT 10",
-            "column_stats": "SELECT MIN(abv), MAX(abv), AVG(abv) FROM {table}",
-            "distinct_count": "SELECT COUNT(DISTINCT brewery_id) FROM {table}",
+            "sample_rows": "SELECT * FROM {table} LIMIT 1000",
+            "table_stats": "SELECT COUNT(*) as row_count FROM {table}",
+            "filtered_scan": "SELECT * FROM {table} WHERE {column} >= {value} LIMIT 1000",
+            "aggregation": "SELECT {column}, COUNT(*) as count FROM {table} GROUP BY {column} ORDER BY {column}",
+            "point_lookup": "SELECT * FROM {table} WHERE {id_column} = {value} LIMIT 10",
+            "column_stats": "SELECT MIN({numeric_column}), MAX({numeric_column}), AVG({numeric_column}) FROM {table}",
+            "distinct_count": "SELECT COUNT(DISTINCT {column}) FROM {table}",
         }

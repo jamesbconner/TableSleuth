@@ -32,8 +32,8 @@ def test_gizmo_config_defaults() -> None:
     """Test GizmoConfig default values."""
     config = GizmoConfig()
     assert config.uri == "grpc+tls://localhost:31337"
-    assert config.username == "gizmo"
-    assert config.password == "gizmo"
+    assert config.username == "gizmosql_username"
+    assert config.password == "gizmosql_password"
     assert config.tls_skip_verify is True
 
 
@@ -69,8 +69,8 @@ def test_load_config_with_defaults() -> None:
 
             assert config.catalog.default is None
             assert config.gizmosql.uri == "grpc+tls://localhost:31337"
-            assert config.gizmosql.username == "gizmo"
-            assert config.gizmosql.password == "gizmo"
+            assert config.gizmosql.username == "gizmosql_username"
+            assert config.gizmosql.password == "gizmosql_password"
             assert config.gizmosql.tls_skip_verify is True
 
 
@@ -159,7 +159,7 @@ def test_load_config_partial_toml() -> None:
 
             # GizmoSQL should use defaults
             assert config.gizmosql.uri == "grpc+tls://localhost:31337"
-            assert config.gizmosql.username == "gizmo"
+            assert config.gizmosql.username == "gizmosql_username"
 
 
 def test_load_config_empty_toml() -> None:

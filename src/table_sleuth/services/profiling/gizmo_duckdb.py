@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import logging
 import re
 from collections.abc import Sequence
-from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from adbc_driver_flightsql import DatabaseOptions
 from adbc_driver_flightsql import dbapi as flightsql
@@ -12,6 +12,8 @@ from table_sleuth.models import ColumnProfile, SnapshotInfo
 from table_sleuth.models.iceberg import QueryPerformanceMetrics
 
 from .backend_base import ProfilingBackend
+
+logger = logging.getLogger(__name__)
 
 
 def _sanitize_identifier(identifier: str) -> str:
@@ -106,6 +108,20 @@ def _validate_filter_expression(filters: str) -> None:
         )
 
 
+def _clean_file_path(path: str) -> str:
+    """Remove file:// prefix from paths if present.
+
+    Args:
+        path: File path that may include file:// prefix
+
+    Returns:
+        Cleaned path without file:// prefix
+    """
+    if path.startswith("file://"):
+        return path[7:]
+    return path
+
+
 class GizmoDuckDbProfiler(ProfilingBackend):
     def __init__(
         self,
@@ -197,10 +213,13 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         # Sanitize view name to prevent SQL injection
         safe_view_name = _sanitize_identifier(view_name)
 
-        # Store the file paths mapping for this view name
+        # Clean file paths (remove file:// prefix if present)
+        cleaned_paths = [_clean_file_path(path) for path in file_paths]
+
+        # Store the cleaned file paths mapping for this view name
         if not hasattr(self, "_view_paths"):
             self._view_paths = {}
-        self._view_paths[safe_view_name] = file_paths
+        self._view_paths[safe_view_name] = cleaned_paths
 
         return safe_view_name
 
@@ -323,9 +342,6 @@ class GizmoDuckDbProfiler(ProfilingBackend):
                     mode_count = mode_row[1]
         except Exception as e:
             # Mode calculation failed, leave as None
-            import logging
-
-            logger = logging.getLogger(__name__)
             logger.debug(f"Could not calculate mode: {e}")
 
         # Build ColumnProfile with extended fields
@@ -379,47 +395,78 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         if hasattr(self, "_view_paths"):
             self._view_paths.clear()
 
+    def register_iceberg_table(self, table_identifier: str, metadata_location: str) -> None:
+        """Register an Iceberg table for querying.
+
+        Note: DuckDB's Iceberg extension reads tables directly from metadata files,
+        not through PyIceberg catalogs.
+
+        Args:
+            table_identifier: Full table identifier (e.g., "snapshot_tests.table_snap_123")
+            metadata_location: Path to the Iceberg metadata JSON file
+
+        Raises:
+            ValueError: If table_identifier or metadata_location is invalid
+        """
+        self.register_iceberg_table_with_snapshot(table_identifier, metadata_location, None)
+
+    def register_iceberg_table_with_snapshot(
+        self, table_identifier: str, metadata_location: str, snapshot_id: int | None = None
+    ) -> None:
+        """Register an Iceberg table with a specific snapshot for querying.
+
+        Note: DuckDB's Iceberg extension reads tables directly from metadata files,
+        not through PyIceberg catalogs.
+
+        Args:
+            table_identifier: Full table identifier (e.g., "snapshot_tests.table_snap_123")
+            metadata_location: Path to the Iceberg metadata JSON file
+            snapshot_id: Optional snapshot ID to query (None for current snapshot)
+
+        Raises:
+            ValueError: If table_identifier or metadata_location is invalid
+        """
+        if not table_identifier or not metadata_location:
+            raise ValueError("table_identifier and metadata_location are required")
+
+        # Clean metadata location (remove file:// prefix if present)
+        clean_metadata_location = _clean_file_path(metadata_location)
+
+        # Store the mapping with snapshot info
+        if not hasattr(self, "_iceberg_tables"):
+            self._iceberg_tables: dict[str, tuple[str, int | None]] = {}
+
+        self._iceberg_tables[table_identifier] = (clean_metadata_location, snapshot_id)
+        logger.debug(
+            f"Registered Iceberg table {table_identifier} -> {clean_metadata_location}"
+            + (f" (snapshot {snapshot_id})" if snapshot_id else "")
+        )
+
     def register_catalog(self, catalog_path: str, catalog_name: str = "test_catalog") -> None:
         """Register an Iceberg catalog with DuckDB.
+
+        DEPRECATED: This method doesn't work as intended because DuckDB's Iceberg
+        extension doesn't support attaching PyIceberg SQLite catalogs. Use
+        register_iceberg_table() instead to register individual tables.
 
         Args:
             catalog_path: Path to the SQLite catalog database file
             catalog_name: Name to use for the catalog in DuckDB
 
         Raises:
-            RuntimeError: If catalog registration fails
+            RuntimeError: Always raises with deprecation message
         """
-        # Sanitize catalog name
-        safe_catalog_name = _sanitize_identifier(catalog_name)
-
-        # Convert path for Docker if needed
-        # Note: This assumes the profiler has access to a path conversion method
-        # In production, this would need to be injected or configured
-        docker_catalog_path = catalog_path  # TODO: Add Docker path conversion
-
-        # Store catalog registration
-        self._registered_catalogs[safe_catalog_name] = docker_catalog_path
-
-        # Install and load Iceberg extension, then attach catalog
-        # Note: These commands need to be executed in the same connection
-        # that will be used for queries
-        try:
-            with self._connect() as conn, conn.cursor() as cur:
-                # Install Iceberg extension if not already installed
-                cur.execute("INSTALL iceberg")
-                cur.execute("LOAD iceberg")
-
-                # Attach the catalog
-                # Note: DuckDB's Iceberg extension syntax may vary
-                # This is a placeholder for the actual attachment command
-                attach_sql = f"ATTACH '{docker_catalog_path}' AS {safe_catalog_name} (TYPE ICEBERG)"
-                cur.execute(attach_sql)
-
-        except Exception as e:
-            raise RuntimeError(f"Failed to register catalog {catalog_name}: {e}") from e
+        raise RuntimeError(
+            "register_catalog() is deprecated. DuckDB's Iceberg extension cannot "
+            "attach PyIceberg SQLite catalogs. Use register_iceberg_table() to "
+            "register individual Iceberg tables by their metadata locations instead."
+        )
 
     def execute_query_with_metrics(self, query: str) -> tuple[Any, QueryPerformanceMetrics]:
         """Execute query and return results plus detailed metrics.
+
+        For Iceberg tables, this method replaces table references with iceberg_scan()
+        function calls using the registered metadata locations.
 
         Args:
             query: SQL query to execute
@@ -433,15 +480,25 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         import time
 
         try:
+            # Replace Iceberg table references with iceberg_scan() calls
+            modified_query = self._replace_iceberg_tables(query)
+
             with self._connect() as conn, conn.cursor() as cur:
+                # Install and load Iceberg extension
+                try:
+                    cur.execute("INSTALL iceberg")
+                    cur.execute("LOAD iceberg")
+                except Exception as e:
+                    logger.warning(f"Failed to install/load Iceberg extension: {e}")
+
                 # Execute query and measure time
                 start_time = time.time()
-                cur.execute(query)
+                cur.execute(modified_query)
                 results = cur.fetchall()
                 execution_time_ms = (time.time() - start_time) * 1000
 
                 # Get EXPLAIN ANALYZE output for detailed metrics
-                explain_query = f"EXPLAIN ANALYZE {query}"
+                explain_query = f"EXPLAIN ANALYZE {modified_query}"
                 cur.execute(explain_query)
                 explain_output = cur.fetchall()
 
@@ -453,6 +510,58 @@ class GizmoDuckDbProfiler(ProfilingBackend):
 
         except Exception as e:
             raise RuntimeError(f"Query execution failed: {e}") from e
+
+    def _replace_iceberg_tables(self, query: str) -> str:
+        """Replace Iceberg table references with iceberg_scan() calls.
+
+        Args:
+            query: Original SQL query
+
+        Returns:
+            Modified query with iceberg_scan() calls
+        """
+        if not hasattr(self, "_iceberg_tables") or not self._iceberg_tables:
+            return query
+
+        modified_query = query
+        for table_id, table_info in self._iceberg_tables.items():
+            # Unpack table info (could be tuple or string for backwards compatibility)
+            if isinstance(table_info, tuple):
+                metadata_loc, snapshot_id = table_info
+            else:
+                metadata_loc = table_info
+                snapshot_id = None
+
+            # Escape single quotes in metadata location to prevent SQL injection
+            # SQL standard: escape single quotes by doubling them
+            escaped_metadata_loc = metadata_loc.replace("'", "''")
+
+            # Build iceberg_scan() call with optional snapshot parameter
+            # Validate snapshot_id is actually an integer to prevent SQL injection
+            if snapshot_id is not None:
+                if not isinstance(snapshot_id, int):
+                    raise ValueError(f"snapshot_id must be an integer, got {type(snapshot_id)}")
+                scan_call = f"iceberg_scan('{escaped_metadata_loc}', version => {snapshot_id})"
+            else:
+                scan_call = f"iceberg_scan('{escaped_metadata_loc}')"
+
+            # Replace table references with iceberg_scan()
+            # Handle both quoted and unquoted table names
+            patterns = [
+                rf"\b{re.escape(table_id)}\b",  # Unquoted
+                rf'"{re.escape(table_id)}"',  # Double quoted
+                rf"'{re.escape(table_id)}'",  # Single quoted
+            ]
+
+            for pattern in patterns:
+                modified_query = re.sub(pattern, scan_call, modified_query, flags=re.IGNORECASE)
+
+        if modified_query != query:
+            logger.debug(
+                f"Replaced Iceberg tables in query:\nOriginal: {query}\nModified: {modified_query}"
+            )
+
+        return modified_query
 
     def explain_analyze(self, query: str) -> str:
         """Get query execution plan with timing information.

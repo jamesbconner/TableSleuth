@@ -188,7 +188,7 @@ class DataSampleView(Container):
             event: Select changed event
         """
         if event.select.id == "row-count-select":
-            self._row_count = event.value
+            self._row_count = int(event.value) if isinstance(event.value, int | str) else 10
 
             # Update header
             header = self.query_one("#sample-header", Static)
@@ -503,13 +503,14 @@ class DataSampleView(Container):
         for item in self.query(".column-item"):
             # Extract column name from current label
             try:
-                rendered = item.render()
-                label = str(rendered.plain) if hasattr(rendered, "plain") else str(rendered)
-                col_name = label[2:] if label.startswith("✓ ") else label.strip()
+                if hasattr(item, "update"):
+                    rendered = item.render()
+                    label = str(rendered.plain) if hasattr(rendered, "plain") else str(rendered)
+                    col_name = label[2:] if label.startswith("✓ ") else label.strip()
 
-                # Update to show selected
-                item.update(f"✓ {col_name}")
-                item.add_class("selected")
+                    # Update to show selected
+                    item.update(f"✓ {col_name}")
+                    item.add_class("selected")
             except Exception as e:
                 logger.warning(f"Could not update column item: {e}")
 
@@ -525,13 +526,14 @@ class DataSampleView(Container):
         for item in self.query(".column-item"):
             # Extract column name from current label
             try:
-                rendered = item.render()
-                label = str(rendered.plain) if hasattr(rendered, "plain") else str(rendered)
-                col_name = label[2:] if label.startswith("✓ ") else label.strip()
+                if hasattr(item, "update"):
+                    rendered = item.render()
+                    label = str(rendered.plain) if hasattr(rendered, "plain") else str(rendered)
+                    col_name = label[2:] if label.startswith("✓ ") else label.strip()
 
-                # Update to show deselected
-                item.update(f"  {col_name}")
-                item.remove_class("selected")
+                    # Update to show deselected
+                    item.update(f"  {col_name}")
+                    item.remove_class("selected")
             except Exception as e:
                 logger.warning(f"Could not update column item: {e}")
 

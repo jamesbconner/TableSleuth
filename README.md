@@ -66,13 +66,10 @@ Create `table_sleuth.toml` in your project directory or `~/.config/table_sleuth.
 default = "local"
 
 [gizmosql]
-uri = "grpc+tls://localhost:31337"
+uri = "grpc://localhost:10501"
 username = "gizmosql_username"
 password = "gizmosql_password"
-tls_skip_verify = true
-# Docker volume mount configuration (must match your docker run --volume argument)
-local_data_path = "data"  # Local directory mounted to Docker
-docker_data_path = "/data"  # Path inside Docker container
+tls_skip_verify = false
 ```
 
 For Iceberg support, configure PyIceberg in `~/.pyiceberg.yaml`:
@@ -125,30 +122,46 @@ table-sleuth inspect db.table --catalog local
 
 ## GizmoSQL Setup (Optional)
 
-For column profiling capabilities:
+For column profiling and Iceberg performance testing:
 
+### Installation
+
+**macOS (ARM64):**
 ```bash
-# Start GizmoSQL container
-docker run --name gizmosql --detach --rm --tty --init \
-  --publish 31337:31337 \
-  --env TLS_ENABLED="1" \
-  --env GIZMOSQL_PASSWORD="gizmo" \
-  --env PRINT_QUERIES="1" \
-  --volume "$(pwd)/data:/data" \
-  --pull always \
-  gizmodata/gizmosql:latest
-
-# Configure in table_sleuth.toml
-[gizmosql]
-uri = "grpc+tls://localhost:31337"
-username = "gizmo"
-password = "gizmo"
-tls_skip_verify = true
-local_data_path = "data"  # Must match the local path in --volume
-docker_data_path = "/data"  # Must match the container path in --volume
+curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.10/gizmosql_cli_macos_arm64.zip \
+  | sudo unzip -o -d /usr/local/bin -
 ```
 
-**Important**: The `local_data_path` and `docker_data_path` must match your Docker volume mount. If your files are in a different location, adjust both the `--volume` argument and the configuration accordingly.
+**macOS (Intel):**
+```bash
+curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.10/gizmosql_cli_macos_amd64.zip \
+  | sudo unzip -o -d /usr/local/bin -
+```
+
+**Linux:**
+```bash
+curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.10/gizmosql_cli_linux_amd64.zip \
+  | sudo unzip -o -d /usr/local/bin -
+```
+
+### Start Server
+
+```bash
+GIZMOSQL_PASSWORD="gizmosql_password" gizmosql_server --port 10501 --print-queries
+```
+
+### Configure
+
+Update `table_sleuth.toml`:
+```toml
+[gizmosql]
+uri = "grpc://localhost:10501"
+username = "gizmosql_username"
+password = "gizmosql_password"
+tls_skip_verify = false
+```
+
+See [docs/gizmosql-deployment.md](docs/gizmosql-deployment.md) for detailed setup instructions.
 
 ## Architecture
 

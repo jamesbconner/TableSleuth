@@ -11,6 +11,7 @@ from table_sleuth.config import AppConfig
 from table_sleuth.models import TableHandle
 from table_sleuth.models.file_ref import FileRef
 from table_sleuth.models.parquet import ParquetFileInfo
+from table_sleuth.models.profiling import ColumnProfile
 from table_sleuth.services.formats.base import TableFormatAdapter
 from table_sleuth.services.parquet_service import ParquetInspector
 from table_sleuth.services.profiling.backend_base import ProfilingBackend
@@ -43,8 +44,8 @@ class TableSleuthApp(App):
       - Profile results
     """
 
-    TITLE = "Table Sleuth - Parquet File Inspector"
-    SUB_TITLE = "MVP 0: File-Based Inspection"
+    TITLE = "Table Sleuth - Parquet Inspector"
+    SUB_TITLE = "MVP 0: Parquet Data Profiler"
 
     CSS = """
     Screen {
@@ -120,7 +121,7 @@ class TableSleuthApp(App):
         # Initialize caching
         self._file_metadata_cache: dict[str, ParquetFileInfo] = {}
         self._profile_cache: dict[
-            tuple[str, str], object
+            tuple[str, str], ColumnProfile
         ] = {}  # (file_path, column) -> ColumnProfile
 
         # Initialize profiling backend
@@ -451,54 +452,6 @@ class TableSleuthApp(App):
         # Trigger profiling for the requested column
         self._profile_column(message.column_name)
 
-    def _convert_to_docker_path(self, local_path: str) -> str:
-        """Convert local file path to Docker container path.
-
-        GizmoSQL runs in Docker with a volume mount, so we need to convert
-        local paths to Docker paths for profiling to work.
-
-        Args:
-            local_path: Local file path (e.g., "data/warehouse/..." or "/absolute/path/data/warehouse/...")
-
-        Returns:
-            Docker path (e.g., "/data/warehouse/...")
-        """
-        local_data = self.config.gizmosql.local_data_path
-        docker_data = self.config.gizmosql.docker_data_path
-
-        # Normalize paths for comparison using POSIX format for cross-platform compatibility
-        local_path_normalized = Path(local_path).resolve().as_posix()
-        local_data_normalized = Path(local_data).resolve().as_posix()
-
-        # Handle relative paths starting with local_data_path (using normalized paths)
-        if local_path_normalized.startswith(f"{local_data_normalized}/"):
-            # Remove local_data prefix and add docker_data prefix
-            relative_part = local_path_normalized[len(local_data_normalized) + 1 :]
-            # Already in POSIX format from normalization
-            return f"{docker_data}/{relative_part}"
-
-        # Handle absolute paths containing the local_data_path
-        # Use Path operations to ensure we match complete path components, not substrings
-        try:
-            local_path_obj = Path(local_path).resolve()
-            local_data_obj = Path(local_data).resolve()
-
-            # Check if local_path is relative to local_data_path
-            relative_path = local_path_obj.relative_to(local_data_obj)
-            # Convert to Docker path using POSIX format (forward slashes)
-            return f"{docker_data}/{relative_path.as_posix()}"
-        except ValueError:
-            # Path is not relative to local_data_path, fall through to warning
-            pass
-
-        # If path doesn't match expected patterns, return as-is
-        # (will likely fail, but at least we tried)
-        logger.warning(
-            f"Could not convert path '{local_path}' to Docker path. "
-            f"Expected path to contain '{local_data}' which maps to '{docker_data}'"
-        )
-        return local_path
-
     def _profile_column(self, column_name: str) -> None:
         """Profile a column using the profiling backend.
 
@@ -519,10 +472,11 @@ class TableSleuthApp(App):
             else:
                 # Register file view if not already registered
                 if self._current_view_name is None:
-                    # Convert local path to Docker path for GizmoSQL
-                    docker_path = self._convert_to_docker_path(self._current_file_info.path)
-                    logger.debug(f"Registering file view: {docker_path}")
-                    self._current_view_name = self._profiler.register_file_view([docker_path])
+                    # Pass local path directly - profiler handles Docker conversion if needed
+                    logger.debug(f"Registering file view: {self._current_file_info.path}")
+                    self._current_view_name = self._profiler.register_file_view(
+                        [self._current_file_info.path]
+                    )
 
                 # Profile the column
                 profile_result = self._profiler.profile_single_column(
@@ -541,7 +495,32 @@ class TableSleuthApp(App):
         except ValueError as e:
             logger.error(f"Profiling error: {e}")
             profile = self.query_one("#profile", ProfileView)
-            profile.show_error(str(e))
+
+            # Provide helpful error message for path validation failures
+            error_msg = str(e)
+            if "not within the mounted data directory" in error_msg:
+                error_msg += (
+                    "\n\nThis error occurs when using Docker GizmoSQL. "
+                    "Please ensure:\n"
+                    "1. The file is within your configured data directory\n"
+                    "2. Docker volume mount matches your configuration\n"
+                    "3. Check local_data_path and docker_data_path in table_sleuth.toml"
+                )
+
+            profile.show_error(error_msg)
+        except ConnectionError as e:
+            logger.error(f"GizmoSQL connection error: {e}")
+            profile = self.query_one("#profile", ProfileView)
+
+            # Provide deployment-specific guidance
+            error_msg = (
+                "GizmoSQL connection failed. Please ensure GizmoSQL is running.\n\n"
+                "Local GizmoSQL:\n"
+                "gizmosql --port 10501\n\n"
+                "Or install via: pip install gizmosql"
+            )
+
+            profile.show_error(error_msg)
         except Exception as e:
             logger.exception("Error profiling column")
             profile = self.query_one("#profile", ProfileView)
