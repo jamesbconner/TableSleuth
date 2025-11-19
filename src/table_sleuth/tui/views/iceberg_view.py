@@ -32,6 +32,7 @@ from table_sleuth.services.snapshot_performance_analyzer import (
     SnapshotPerformanceAnalyzer,
 )
 from table_sleuth.services.snapshot_test_manager import SnapshotTestManager
+from table_sleuth.tui.views.data_sample_view import DataSampleView
 from table_sleuth.tui.views.snapshot_comparison_view import (
     PerformanceTestView,
     SnapshotComparisonView,
@@ -377,6 +378,9 @@ class IcebergView(Screen):
                     with TabPane("Properties", id="properties-tab"):
                         yield SnapshotPropertiesView(id="properties-view")
 
+                    with TabPane("Data Sample", id="data-sample-tab"):
+                        yield DataSampleView(id="data-sample-view")
+
                     with TabPane("Compare", id="compare-tab", disabled=True):
                         yield SnapshotComparisonView(id="comparison-view")
 
@@ -562,6 +566,34 @@ class IcebergView(Screen):
         # Update properties
         properties = self.query_one("#properties-view", SnapshotPropertiesView)
         properties.update_snapshot(self._selected_snapshot)
+
+        # Update data sample view with first data file
+        data_sample = self.query_one("#data-sample-view", DataSampleView)
+        if self._selected_details.data_files:
+            # Get the first data file for sampling
+            first_file = self._selected_details.data_files[0]
+            file_path = first_file["file_path"]
+
+            # Load the file info using the parquet inspector
+            try:
+                from pathlib import Path
+
+                from table_sleuth.services.parquet_service import ParquetInspector
+
+                # Ensure the file exists
+                if not Path(file_path).exists():
+                    logger.warning(f"Data file not found: {file_path}")
+                    data_sample.clear()
+                    return
+
+                parquet_inspector = ParquetInspector()
+                file_info = parquet_inspector.inspect_file(file_path)
+                data_sample.update_file_info(file_info)
+            except Exception as e:
+                logger.error(f"Failed to load data sample from {file_path}: {e}", exc_info=True)
+                data_sample.clear()
+        else:
+            data_sample.clear()
 
     def action_refresh(self) -> None:
         """Refresh the snapshot list."""
