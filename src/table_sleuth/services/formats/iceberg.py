@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable
 from typing import Optional
 from urllib.parse import unquote, urlparse
@@ -13,10 +14,41 @@ from .base import TableFormatAdapter
 
 
 class IcebergAdapter(TableFormatAdapter):
-    """Apache Iceberg adapter using PyIceberg."""
+    """Apache Iceberg adapter using PyIceberg.
+
+    Supports multiple catalog types:
+    - Local SQL catalogs
+    - AWS S3 Tables via Glue catalog
+    - Direct metadata file paths
+    """
+
+    # S3 Tables ARN pattern: arn:aws:s3tables:region:account:bucket/bucket-name/table/namespace.table
+    S3_TABLES_ARN_PATTERN = re.compile(
+        r"arn:aws:s3tables:(?P<region>[^:]+):(?P<account>\d+):"
+        r"bucket/(?P<bucket>[^/]+)/table/(?P<table>.+)"
+    )
 
     def __init__(self, default_catalog: Optional[str] = None) -> None:
         self._default_catalog = default_catalog
+
+    def _parse_s3_tables_arn(self, arn: str) -> tuple[str, str] | None:
+        """Parse S3 Tables ARN into catalog name and table identifier.
+
+        Args:
+            arn: S3 Tables ARN (e.g., arn:aws:s3tables:us-east-2:123456:bucket/my-bucket/table/db.table)
+
+        Returns:
+            Tuple of (catalog_name, table_identifier) or None if not an S3 Tables ARN
+        """
+        match = self.S3_TABLES_ARN_PATTERN.match(arn)
+        if not match:
+            return None
+
+        # Extract table identifier (namespace.table)
+        table_identifier = match.group("table")
+
+        # Use s3tables catalog (configured in .pyiceberg.yaml)
+        return ("s3tables", table_identifier)
 
     def _file_uri_to_path(self, uri: str) -> str:
         """Convert file:// URI to local file path.
@@ -53,7 +85,24 @@ class IcebergAdapter(TableFormatAdapter):
         return StaticTable.from_metadata(identifier)
 
     def open_table(self, identifier: str, catalog_name: Optional[str] = None) -> TableHandle:
-        if catalog_name:
+        """Open an Iceberg table from various sources.
+
+        Args:
+            identifier: Can be:
+                - Table identifier (e.g., "db.table") when using catalog_name
+                - S3 Tables ARN (e.g., "arn:aws:s3tables:region:account:bucket/name/table/db.table")
+                - Path to metadata.json file
+            catalog_name: Optional catalog name to use
+
+        Returns:
+            TableHandle wrapping the PyIceberg Table
+        """
+        # Check if identifier is an S3 Tables ARN
+        s3_tables_info = self._parse_s3_tables_arn(identifier)
+        if s3_tables_info:
+            catalog_name, table_identifier = s3_tables_info
+            table = self._open_via_catalog(table_identifier, catalog_name)
+        elif catalog_name:
             table = self._open_via_catalog(identifier, catalog_name)
         elif self._default_catalog:
             table = self._open_via_catalog(identifier, self._default_catalog)

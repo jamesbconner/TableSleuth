@@ -154,6 +154,18 @@ def delete_vpc(ec2, vpc_id):
 
 
 def cleanup_iam(iam):
+    # Delete inline S3Tables policy from role
+    try:
+        iam.delete_role_policy(
+            RoleName=IAM_ROLE_NAME,
+            PolicyName="tablesleuth-s3tables-access",
+        )
+        print(f"Deleted inline S3Tables policy from role {IAM_ROLE_NAME}")
+    except ClientError as e:
+        code = e.response["Error"]["Code"]
+        if code != "NoSuchEntity":
+            print(f"Warning: delete_role_policy failed: {e}")
+
     # Detach S3 policy from role
     try:
         iam.detach_role_policy(
