@@ -6,7 +6,8 @@ A powerful Parquet file forensics tool with a terminal user interface (TUI) for 
 
 - **File Inspection**: Extract and display comprehensive Parquet file metadata using PyArrow
 - **Directory Scanning**: Recursively discover and inspect all Parquet files in a directory
-- **Iceberg Support**: Discover data files from Iceberg tables via local catalog
+- **Iceberg Support**: Discover data files from Iceberg tables via local catalog or AWS S3 Tables
+- **AWS S3 Tables**: Direct ARN-based access to Iceberg tables in AWS S3 Tables service
 - **Interactive TUI**: Navigate files, schemas, row groups, and column statistics with keyboard shortcuts
 - **Column Profiling**: Profile column data using GizmoSQL (DuckDB over Arrow Flight SQL)
 - **Performance Optimized**: Async operations, caching, and lazy loading for responsive UI
@@ -45,8 +46,14 @@ table-sleuth inspect data/file.parquet
 # Inspect a directory
 table-sleuth inspect data/warehouse/
 
-# Inspect an Iceberg table
+# Inspect an Iceberg table (local catalog)
 table-sleuth inspect ratebeer.reviews --catalog local
+
+# Inspect an AWS S3 Tables Iceberg table (using ARN)
+table-sleuth inspect "arn:aws:s3tables:us-east-2:123456789012:bucket/my-bucket/table/db.table"
+
+# Or use catalog name
+table-sleuth inspect db.table --catalog s3tables
 ```
 
 See [QUICKSTART.md](QUICKSTART.md) for detailed examples and [docs/USER_GUIDE.md](docs/USER_GUIDE.md) for comprehensive documentation.
@@ -91,6 +98,29 @@ default = "local"
 uri = "grpc://localhost:10501"
 username = "gizmosql_username"
 password = "gizmosql_password"
+```
+
+### AWS S3 Tables Setup
+
+For AWS S3 Tables support, configure AWS credentials:
+
+```bash
+# Using AWS CLI
+aws configure
+
+# Or set environment variables
+export AWS_ACCESS_KEY_ID=your_key
+export AWS_SECRET_ACCESS_KEY=your_secret
+export AWS_REGION=us-east-2
+```
+
+Install PyIceberg with AWS extras:
+
+```bash
+pip install "pyiceberg[glue,s3fs]"
+```
+
+See [docs/s3_tables_guide.md](docs/s3_tables_guide.md) for detailed AWS S3 Tables configuration
 tls_skip_verify = false
 ```
 

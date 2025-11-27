@@ -1,5 +1,7 @@
 {
   "ssh_allowed_cidr": "YOUR_IP_ADDRESS/32",
   "s3tables_bucket_arn": "arn:aws:s3tables:REGION:ACCOUNT_ID:bucket/BUCKET_NAME",
-  "s3tables_table_arn": "arn:aws:s3tables:REGION:ACCOUNT_ID:bucket/BUCKET_NAME/table/*"
+  "s3tables_table_arn": "arn:aws:s3tables:REGION:ACCOUNT_ID:bucket/BUCKET_NAME/table/*",
+  "gizmosql_username": "gizmosql_username",
+  "gizmosql_password": "gizmosql_password"
 }

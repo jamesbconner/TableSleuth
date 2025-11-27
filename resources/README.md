@@ -16,13 +16,17 @@ Before using the deployment scripts, create a configuration file:
    {
      "ssh_allowed_cidr": "YOUR_IP_ADDRESS/32",
      "s3tables_bucket_arn": "arn:aws:s3tables:REGION:ACCOUNT_ID:bucket/BUCKET_NAME",
-     "s3tables_table_arn": "arn:aws:s3tables:REGION:ACCOUNT_ID:bucket/BUCKET_NAME/table/*"
+     "s3tables_table_arn": "arn:aws:s3tables:REGION:ACCOUNT_ID:bucket/BUCKET_NAME/table/*",
+     "gizmosql_username": "gizmosql_username",
+     "gizmosql_password": "gizmosql_password"
    }
    ```
 
    - `ssh_allowed_cidr`: Your public IP address with /32 suffix for SSH access
    - `s3tables_bucket_arn`: ARN of your S3 Tables bucket for Iceberg data
    - `s3tables_table_arn`: ARN pattern for tables in your S3 Tables bucket
+   - `gizmosql_username`: Username for GizmoSQL server authentication
+   - `gizmosql_password`: Password for GizmoSQL server authentication
 
 ## Usage
 
@@ -32,12 +36,26 @@ Before using the deployment scripts, create a configuration file:
 # Dry run to see what would be created
 python tablesleuth_create_env.py --dry-run
 
-# Create the environment
+# Create the environment (On-Demand instance - stable, recommended)
 python tablesleuth_create_env.py
+
+# Create with different instance type
+python tablesleuth_create_env.py --instance-type m4.xlarge
+
+# Create with Spot instance (cheaper but may be interrupted)
+python tablesleuth_create_env.py --use-spot
 
 # Use custom config file
 python tablesleuth_create_env.py --config /path/to/config.json
+
+# Multiple instances with different sizes (will create separate instances)
+python tablesleuth_create_env.py --instance-type m4.large
+python tablesleuth_create_env.py --instance-type m4.xlarge
 ```
+
+**Instance Types:**
+- **On-Demand (default)**: Stable, won't be interrupted, recommended for testing
+- **Spot (--use-spot)**: Cheaper but may be interrupted by AWS, use for short-term tasks
 
 ### Teardown Environment
 

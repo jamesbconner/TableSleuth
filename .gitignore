@@ -73,6 +73,7 @@ data/
 scripts/
 docs/archive/
 resources/debug/
+resources/docs/*
 debug/
 .pyiceberg.yaml
 
