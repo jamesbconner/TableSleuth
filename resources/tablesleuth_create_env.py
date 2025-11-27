@@ -48,7 +48,13 @@ def load_config(config_path: str | None = None) -> dict[str, Any]:
         sys.exit(1)
 
     # Validate required fields
-    required_fields = ["ssh_allowed_cidr", "s3tables_bucket_arn", "s3tables_table_arn"]
+    required_fields = [
+        "ssh_allowed_cidr",
+        "s3tables_bucket_arn",
+        "s3tables_table_arn",
+        "gizmosql_username",
+        "gizmosql_password",
+    ]
     missing_fields = [field for field in required_fields if field not in config]
 
     if missing_fields:
@@ -71,7 +77,7 @@ SUBNET_CIDR = "10.10.1.0/24"
 KEY_PAIR_NAME = "tablesleuth-ssh-key"
 KEY_PAIR_PRIVATE_KEY_PATH = "./tablesleuth-ssh-key.pem"
 
-INSTANCE_TYPE = "m4.large"
+INSTANCE_TYPE = "m4.xlarge"
 SPOT_MAX_PRICE = None  # None lets AWS pick the current spot price
 
 VPC_NAME = "tablesleuth-vpc"
@@ -476,16 +482,37 @@ def get_latest_amazon_linux_ami() -> str:
 # -----------------------------
 
 
-def launch_spot_instance(
+def launch_instance(
     subnet_id: str,
     sg_id: str,
     instance_profile_name: str,
     ami_id: str,
+    config: dict[str, Any],
+    region: str,
+    instance_type: str,
+    use_spot: bool = False,
 ) -> dict[str, Any]:
+    """Launch an EC2 instance (on-demand or spot).
+
+    Args:
+        subnet_id: Subnet ID for the instance
+        sg_id: Security group ID
+        instance_profile_name: IAM instance profile name
+        ami_id: AMI ID to use
+        config: Configuration dictionary with S3 Tables ARNs
+        region: AWS region
+        instance_type: EC2 instance type (e.g., m4.large, m4.xlarge)
+        use_spot: If True, launch as spot instance; otherwise on-demand
+
+    Returns:
+        Instance information dictionary
+    """
     # User data writes and runs a Python 3.13.9 installer script plus git, awscli,
     # GizmoSQL CLI, and clones + bootstraps TableSleuth for ec2-user.
-    user_data = """#!/bin/bash
+    user_data = f"""#!/bin/bash
 set -euxo pipefail
+
+echo "alias lf='ls -AFlh'" >> /home/ec2-user/.bashrc
 
 cat << 'EOF' >/usr/local/bin/install_python_3_13_9.sh
 #!/usr/bin/env bash
@@ -493,9 +520,9 @@ set -euo pipefail
 
 PY_VERSION="3.13.9"
 PY_SHORT="3.13"
-PY_TARBALL="Python-${PY_VERSION}.tgz"
-PY_SRC_DIR="Python-${PY_VERSION}"
-PY_DOWNLOAD_URL="https://www.python.org/ftp/python/${PY_VERSION}/${PY_TARBALL}"
+PY_TARBALL="Python-${{PY_VERSION}}.tgz"
+PY_SRC_DIR="Python-${{PY_VERSION}}"
+PY_DOWNLOAD_URL="https://www.python.org/ftp/python/${{PY_VERSION}}/${{PY_TARBALL}}"
 
 echo "Installing build dependencies and libraries..."
 dnf groupinstall -y "Development Tools"
@@ -519,73 +546,73 @@ dnf install -y \\
 
 cd /tmp
 
-if [ ! -f "${PY_TARBALL}" ]; then
-  echo "Downloading Python ${PY_VERSION} source..."
-  wget "${PY_DOWNLOAD_URL}"
+if [ ! -f "${{PY_TARBALL}}" ]; then
+  echo "Downloading Python ${{PY_VERSION}} source..."
+  wget "${{PY_DOWNLOAD_URL}}"
 else
-  echo "Python tarball ${PY_TARBALL} already present, reusing."
+  echo "Python tarball ${{PY_TARBALL}} already present, reusing."
 fi
 
-if [ -d "${PY_SRC_DIR}" ]; then
-  echo "Removing existing source directory ${PY_SRC_DIR}..."
-  rm -rf "${PY_SRC_DIR}"
+if [ -d "${{PY_SRC_DIR}}" ]; then
+  echo "Removing existing source directory ${{PY_SRC_DIR}}..."
+  rm -rf "${{PY_SRC_DIR}}"
 fi
 
-echo "Extracting Python ${PY_VERSION} source..."
-tar -xzf "${PY_TARBALL}"
+echo "Extracting Python ${{PY_VERSION}} source..."
+tar -xzf "${{PY_TARBALL}}"
 
-cd "${PY_SRC_DIR}"
+cd "${{PY_SRC_DIR}}"
 
-echo "Configuring Python ${PY_VERSION} build..."
+echo "Configuring Python ${{PY_VERSION}} build..."
 ./configure --enable-optimizations --with-ensurepip=install
 
-echo "Building Python ${PY_VERSION}..."
+echo "Building Python ${{PY_VERSION}}..."
 make -j "$(nproc)"
 
-echo "Installing Python ${PY_VERSION} with altinstall..."
+echo "Installing Python ${{PY_VERSION}} with altinstall..."
 make altinstall
 
-PY_BIN="/usr/local/bin/python${PY_SHORT}"
-PIP_BIN="/usr/local/bin/pip${PY_SHORT}"
+PY_BIN="/usr/local/bin/python${{PY_SHORT}}"
+PIP_BIN="/usr/local/bin/pip${{PY_SHORT}}"
 
-if [ ! -x "${PY_BIN}" ]; then
-  echo "Error: ${PY_BIN} not found after install."
+if [ ! -x "${{PY_BIN}}" ]; then
+  echo "Error: ${{PY_BIN}} not found after install."
   exit 1
 fi
 
-echo "Python installed at ${PY_BIN}"
-"${PY_BIN}" --version
+echo "Python installed at ${{PY_BIN}}"
+"${{PY_BIN}}" --version
 
 echo "Ensuring pip is available and up to date..."
-"${PY_BIN}" -m ensurepip --upgrade || true
-"${PY_BIN}" -m pip install --upgrade pip
+"${{PY_BIN}}" -m ensurepip --upgrade || true
+"${{PY_BIN}}" -m pip install --upgrade pip
 
-if [ ! -x "${PIP_BIN}" ]; then
-  echo "pip for Python ${PY_SHORT} not found as ${PIP_BIN}, using python -m pip directly."
-  PIP_BIN="${PY_BIN} -m pip"
+if [ ! -x "${{PIP_BIN}}" ]; then
+  echo "pip for Python ${{PY_SHORT}} not found as ${{PIP_BIN}}, using python -m pip directly."
+  PIP_BIN="${{PY_BIN}} -m pip"
 fi
 
 echo "Registering python3 with alternatives..."
-alternatives --install /usr/bin/python3 python3 "${PY_BIN}" 1 || true
-alternatives --set python3 "${PY_BIN}" || true
+alternatives --install /usr/bin/python3 python3 "${{PY_BIN}}" 1 || true
+alternatives --set python3 "${{PY_BIN}}" || true
 
 echo "Linking python -> python3.13 ..."
-ln -sf "${PY_BIN}" /usr/bin/python
+ln -sf "${{PY_BIN}}" /usr/bin/python
 
 echo "Linking pip and pip3 to pip3.13 ..."
 rm -f /usr/bin/pip /usr/bin/pip3 || true
-if [ -x "/usr/local/bin/pip${PY_SHORT}" ]; then
-  ln -s "/usr/local/bin/pip${PY_SHORT}" /usr/bin/pip
-  ln -s "/usr/local/bin/pip${PY_SHORT}" /usr/bin/pip3
+if [ -x "/usr/local/bin/pip${{PY_SHORT}}" ]; then
+  ln -s "/usr/local/bin/pip${{PY_SHORT}}" /usr/bin/pip
+  ln -s "/usr/local/bin/pip${{PY_SHORT}}" /usr/bin/pip3
 else
   echo "pip3.13 binary not found, leaving pip links untouched."
 fi
 
 echo "Installing virtualenv..."
-eval "${PIP_BIN} install --upgrade virtualenv"
+eval "${{PIP_BIN}} install --upgrade virtualenv"
 
 echo "Creating venv at /home/ec2-user/py313-venv..."
-"${PY_BIN}" -m venv /home/ec2-user/py313-venv
+"${{PY_BIN}}" -m venv /home/ec2-user/py313-venv
 chown -R ec2-user:ec2-user /home/ec2-user/py313-venv
 
 echo "Installing GizmoSQL CLI..."
@@ -600,7 +627,7 @@ su - ec2-user -c 'mkdir -p ~/Code && git clone https://github.com/jamesbconner/T
 echo "Creating .venv in ~/Code/TableSleuth and installing uv + project dependencies..."
 su - ec2-user -c 'cd ~/Code/TableSleuth && python -m venv .venv && . .venv/bin/activate && pip install uv && uv sync'
 
-echo "Python ${PY_VERSION}, pip, venv, virtualenv, git, awscli, GizmoSQL, and TableSleuth are installed and bootstrapped."
+echo "Python ${{PY_VERSION}}, pip, venv, virtualenv, git, awscli, GizmoSQL, and TableSleuth are installed and bootstrapped."
 EOF
 
 chmod +x /usr/local/bin/install_python_3_13_9.sh
@@ -617,7 +644,7 @@ if ! command -v openssl &> /dev/null; then
     exit 1
 fi
 
-CERT_DIR="${1:-$HOME/.certs}"
+CERT_DIR="${{1:-$HOME/.certs}}"
 mkdir -p "$CERT_DIR"
 cd "$CERT_DIR"
 
@@ -634,31 +661,31 @@ openssl req -x509 -new -nodes \
 
 # Generate user certificates
 for i in 0 1; do
-    openssl genrsa -out cert${i}.key 4096
-    chmod 600 cert${i}.key
+    openssl genrsa -out cert${{i}}.key 4096
+    chmod 600 cert${{i}}.key
 
-    openssl req -new -sha256 -key cert${i}.key \
+    openssl req -new -sha256 -key cert${{i}}.key \
         -subj "/C=US/ST=CA/O=MyOrg, Inc./CN=localhost" \
         -config <(echo "[req]
 distinguished_name=req_distinguished_name
 [req_distinguished_name]
 [SAN]
-subjectAltName=${SUBJECT_ALT_NAME}") \
-        -out cert${i}.csr
+subjectAltName=${{SUBJECT_ALT_NAME}}") \
+        -out cert${{i}}.csr
 
     cat > v3_usr.cnf <<EOF
 [ v3_usr_extensions ]
 basicConstraints = CA:FALSE
 keyUsage = digitalSignature, keyEncipherment
 extendedKeyUsage = serverAuth, clientAuth
-subjectAltName = ${SUBJECT_ALT_NAME}
+subjectAltName = ${{SUBJECT_ALT_NAME}}
 EOF
 
-    openssl x509 -req -in cert${i}.csr -CA root-ca.pem -CAkey root-ca.key -CAcreateserial \
-        -out cert${i}.pem -days 10000 -sha256 -extfile v3_usr.cnf -extensions v3_usr_extensions
+    openssl x509 -req -in cert${{i}}.csr -CA root-ca.pem -CAkey root-ca.key -CAcreateserial \
+        -out cert${{i}}.pem -days 10000 -sha256 -extfile v3_usr.cnf -extensions v3_usr_extensions
 
     # Convert to PKCS#1 for Java
-    openssl pkcs8 -in cert${i}.key -topk8 -nocrypt > cert${i}.pkcs1
+    openssl pkcs8 -in cert${{i}}.key -topk8 -nocrypt > cert${{i}}.pkcs1
 done
 
 # Clean up intermediate files
@@ -673,27 +700,36 @@ chmod +x /usr/local/bin/gen-certs.sh
 echo "Generating TLS certificates for DuckDB server..."
 su - ec2-user -c '/usr/local/bin/gen-certs.sh /home/ec2-user/.certs' > /var/log/gen-certs.log 2>&1
 
-echo "Setup complete: Python, GizmoSQL, TableSleuth, and TLS certificates are ready."
+echo "Configuring environment variables and aliases..."
+cat >> /home/ec2-user/.bashrc <<'ENVEOF'
+
+# S3 Tables configuration
+export S3TABLES_BUCKET_ARN="{config['s3tables_bucket_arn']}"
+export S3TABLES_TABLE_ARN="{config['s3tables_table_arn']}"
+export AWS_REGION="{region}"
+
+# GizmoSQL configuration
+export GIZMOSQL_USERNAME="{config['gizmosql_username']}"
+export GIZMOSQL_PASSWORD="{config['gizmosql_password']}"
+
+# GizmoSQL aliases
+alias gizmosvr='gizmosql_server -P "${{GIZMOSQL_PASSWORD}}" -Q -I "install aws; install httpfs; install iceberg; load aws; load httpfs; load iceberg; CREATE SECRET (TYPE s3, PROVIDER credential_chain); ATTACH '"'"'${{S3TABLES_BUCKET_ARN}}'"'"' AS tpch (TYPE iceberg, ENDPOINT_TYPE s3_tables);" -T ~/.certs/cert0.pem ~/.certs/cert0.key'
+alias gizmo='gizmosql_client --command Execute --use-tls --tls-skip-verify --username "${{GIZMOSQL_USERNAME}}" --password "${{GIZMOSQL_PASSWORD}}"'
+ENVEOF
+
+chown ec2-user:ec2-user /home/ec2-user/.bashrc
+
+echo "Setup complete: Python, GizmoSQL, TableSleuth, TLS certificates, and environment variables are ready."
 """
 
-    instance_market_options = {
-        "MarketType": "spot",
-        "SpotOptions": {
-            "SpotInstanceType": "one-time",
-            "InstanceInterruptionBehavior": "terminate",
-        },
-    }
-
-    if SPOT_MAX_PRICE is not None:
-        instance_market_options["SpotOptions"]["MaxPrice"] = str(SPOT_MAX_PRICE)
-
-    resp = ec2.run_instances(
-        ImageId=ami_id,
-        InstanceType=INSTANCE_TYPE,
-        MinCount=1,
-        MaxCount=1,
-        KeyName=KEY_PAIR_NAME,
-        NetworkInterfaces=[
+    # Build run_instances parameters
+    run_params = {
+        "ImageId": ami_id,
+        "InstanceType": instance_type,
+        "MinCount": 1,
+        "MaxCount": 1,
+        "KeyName": KEY_PAIR_NAME,
+        "NetworkInterfaces": [
             {
                 "AssociatePublicIpAddress": True,
                 "DeviceIndex": 0,
@@ -701,20 +737,41 @@ echo "Setup complete: Python, GizmoSQL, TableSleuth, and TLS certificates are re
                 "Groups": [sg_id],
             }
         ],
-        IamInstanceProfile={"Name": instance_profile_name},
-        InstanceMarketOptions=instance_market_options,
-        UserData=user_data,
-        TagSpecifications=[
+        "IamInstanceProfile": {"Name": instance_profile_name},
+        "UserData": user_data,
+        "TagSpecifications": [
             {
                 "ResourceType": "instance",
-                "Tags": TAGS + [{"Key": "Name", "Value": "tablesleuth-spot-instance"}],
+                "Tags": TAGS
+                + [
+                    {
+                        "Key": "Name",
+                        "Value": f"tablesleuth-{'spot-' if use_spot else ''}instance-{instance_type}",
+                    }
+                ],
             }
         ],
-    )
+    }
+
+    # Add spot market options if requested
+    if use_spot:
+        instance_market_options = {
+            "MarketType": "spot",
+            "SpotOptions": {
+                "SpotInstanceType": "one-time",
+                "InstanceInterruptionBehavior": "terminate",
+            },
+        }
+        if SPOT_MAX_PRICE is not None:
+            instance_market_options["SpotOptions"]["MaxPrice"] = str(SPOT_MAX_PRICE)
+        run_params["InstanceMarketOptions"] = instance_market_options
+
+    resp = ec2.run_instances(**run_params)
 
     instance = resp["Instances"][0]
     instance_id = instance["InstanceId"]
-    print(f"Launched Spot instance: {instance_id}")
+    instance_type = "Spot" if use_spot else "On-Demand"
+    print(f"Launched {instance_type} instance: {instance_id}")
     return instance
 
 
@@ -733,10 +790,14 @@ def wait_for_instance_running(instance_id: str) -> dict[str, Any]:
 # -----------------------------
 
 
-def print_plan(region: str, config: dict[str, Any]) -> None:
+def print_plan(
+    region: str, config: dict[str, Any], instance_type: str, use_spot: bool = False
+) -> None:
     print("Dry run plan")
     print("============")
     print(f"Region: {region}")
+    print(f"Instance Type: {'Spot (may be interrupted)' if use_spot else 'On-Demand (stable)'}")
+    print(f"Instance Size: {instance_type}")
     print("")
     print("Resources that would be created or reused:")
     print(f"- VPC: {VPC_NAME} ({VPC_CIDR})")
@@ -749,7 +810,10 @@ def print_plan(region: str, config: dict[str, Any]) -> None:
     print(f"- IAM role: {IAM_ROLE_NAME} with AmazonS3FullAccess")
     print(f"- Inline S3Tables policy for bucket: {config['s3tables_bucket_arn']}")
     print(f"- Instance profile: {INSTANCE_PROFILE_NAME}")
-    print(f"- EC2 Spot instance: type {INSTANCE_TYPE}, Amazon Linux 2023 AMI, public IP,")
+    instance_type_str = "Spot" if use_spot else "On-Demand"
+    print(
+        f"- EC2 {instance_type_str} instance: type {instance_type}, Amazon Linux 2023 AMI, public IP,"
+    )
     print("  with user data that installs Python 3.13.9, git, awscli, GizmoSQL,")
     print("  and bootstraps TableSleuth including .venv and uv sync.")
     print(
@@ -765,6 +829,9 @@ def print_plan(region: str, config: dict[str, Any]) -> None:
     print("- Global python, python3, pip, pip3 mapped to the 3.13 toolchain")
     print("- /home/ec2-user/py313-venv ready to go")
     print("- TableSleuth repo at ~/Code/TableSleuth with .venv and uv dependencies installed")
+    print("- Environment variables: S3TABLES_BUCKET_ARN, S3TABLES_TABLE_ARN, AWS_REGION")
+    print("- GizmoSQL configuration: GIZMOSQL_USERNAME, GIZMOSQL_PASSWORD")
+    print("- GizmoSQL aliases: gizmosvr (start server), gizmo (client)")
 
 
 # -----------------------------
@@ -773,7 +840,7 @@ def print_plan(region: str, config: dict[str, Any]) -> None:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Create tablesleuth EC2 Spot environment")
+    parser = argparse.ArgumentParser(description="Create tablesleuth EC2 environment")
     parser.add_argument(
         "--region",
         default=DEFAULT_REGION,
@@ -782,6 +849,16 @@ def main():
     parser.add_argument(
         "--config",
         help="Path to configuration JSON file (default: config.json in script directory)",
+    )
+    parser.add_argument(
+        "--instance-type",
+        default=INSTANCE_TYPE,
+        help=f"EC2 instance type (default: {INSTANCE_TYPE})",
+    )
+    parser.add_argument(
+        "--use-spot",
+        action="store_true",
+        help="Use Spot instance instead of On-Demand (may be interrupted)",
     )
     parser.add_argument(
         "--dry-run",
@@ -795,7 +872,7 @@ def main():
     config = load_config(args.config)
 
     if args.dry_run:
-        print_plan(args.region, config)
+        print_plan(args.region, config, args.instance_type, args.use_spot)
         return
 
     global ec2, iam, ssm
@@ -827,8 +904,18 @@ def main():
     print("Looking up latest Amazon Linux AMI...")
     ami_id = get_latest_amazon_linux_ami()
 
-    print("Launching Spot instance...")
-    instance = launch_spot_instance(subnet_id, sg_id, instance_profile_name, ami_id)
+    instance_type_str = "Spot instance" if args.use_spot else "On-Demand instance"
+    print(f"Launching {instance_type_str} ({args.instance_type})...")
+    instance = launch_instance(
+        subnet_id,
+        sg_id,
+        instance_profile_name,
+        ami_id,
+        config,
+        args.region,
+        args.instance_type,
+        args.use_spot,
+    )
     instance_id = instance["InstanceId"]
 
     instance_desc = wait_for_instance_running(instance_id)
@@ -836,16 +923,55 @@ def main():
     public_ip = instance_desc.get("PublicIpAddress")
     public_dns = instance_desc.get("PublicDnsName")
 
-    print("\nInstance ready")
+    print("\n" + "=" * 80)
+    print("Instance ready")
+    print("=" * 80)
     print(f"Instance ID: {instance_id}")
+    print(f"Instance Type: {instance_type_str} ({args.instance_type})")
     print(f"Public IP: {public_ip}")
     print(f"Public DNS: {public_dns}")
-    print("\nSSH command example:")
-    print(f"  ssh -i {KEY_PAIR_PRIVATE_KEY_PATH} ec2-user@{public_dns}")
-    print("\nOn the instance you can then do:")
-    print("  cd ~/Code/TableSleuth")
-    print("  source .venv/bin/activate")
-    print("  python --version  # should show 3.13.9")
+    print(f"Region: {args.region}")
+
+    print("\n" + "=" * 80)
+    print("SSH Access")
+    print("=" * 80)
+    print(f"ssh -i {KEY_PAIR_PRIVATE_KEY_PATH} ec2-user@{public_dns}")
+
+    print("\n" + "=" * 80)
+    print("On the instance")
+    print("=" * 80)
+    print("cd ~/Code/TableSleuth")
+    print("source .venv/bin/activate")
+    print("python --version  # should show 3.13.9")
+    print("\n# Start GizmoSQL server with S3 Tables attached:")
+    print("gizmosvr")
+    print("\n# In another terminal, connect with GizmoSQL client:")
+    print("gizmo")
+
+    print("\n" + "=" * 80)
+    print("Instance Management Commands")
+    print("=" * 80)
+    print("# Stop instance (saves costs, can restart later):")
+    print(f"aws ec2 stop-instances --instance-ids {instance_id} --region {args.region}")
+    print("\n# Start instance (after stopping):")
+    print(f"aws ec2 start-instances --instance-ids {instance_id} --region {args.region}")
+    print("\n# Terminate instance (permanent deletion):")
+    print(f"aws ec2 terminate-instances --instance-ids {instance_id} --region {args.region}")
+    print("\n# Check instance status:")
+    print(
+        f"aws ec2 describe-instances --instance-ids {instance_id} --region {args.region} --query 'Reservations[0].Instances[0].State.Name' --output text"
+    )
+
+    if not args.use_spot:
+        print("\n" + "=" * 80)
+        print("⚠️  COST WARNING - On-Demand Instance")
+        print("=" * 80)
+        print("This is an On-Demand instance that will continue running (and charging)")
+        print("until you stop or terminate it. Remember to stop/terminate when done!")
+        print("\nQuick stop command:")
+        print(f"  aws ec2 stop-instances --instance-ids {instance_id} --region {args.region}")
+
+    print("\n" + "=" * 80)
 
 
 if __name__ == "__main__":
