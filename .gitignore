@@ -61,7 +61,8 @@ dmypy.json
 Thumbs.db
 
 # Project specific
-#resources/config.json
+resources/config.json
+*.pem
 input/
 .kiro/
 .chroma/
