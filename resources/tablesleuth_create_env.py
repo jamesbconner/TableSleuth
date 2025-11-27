@@ -615,6 +615,13 @@ echo "Creating venv at /home/ec2-user/py313-venv..."
 "${{PY_BIN}}" -m venv /home/ec2-user/py313-venv
 chown -R ec2-user:ec2-user /home/ec2-user/py313-venv
 
+echo "Installing AWS CLI v2..."
+cd /tmp
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscliv2.zip
+unzip -o awscliv2.zip
+./aws/install
+rm -rf aws awscliv2.zip
+
 echo "Installing GizmoSQL CLI..."
 cd /tmp
 wget https://github.com/gizmodata/gizmosql/releases/download/v1.12.13/gizmosql_cli_linux_amd64.zip
@@ -625,7 +632,16 @@ echo "Cloning TableSleuth repo for ec2-user..."
 su - ec2-user -c 'mkdir -p ~/Code && git clone https://github.com/jamesbconner/TableSleuth.git ~/Code/TableSleuth || true'
 
 echo "Creating .venv in ~/Code/TableSleuth and installing uv + project dependencies..."
-su - ec2-user -c 'cd ~/Code/TableSleuth && python -m venv .venv && . .venv/bin/activate && pip install uv && uv sync'
+su - ec2-user -c 'cd ~/Code/TableSleuth && python -m venv .venv && . .venv/bin/activate && pip install uv && uv sync --all-extras'
+
+echo "Configuring PyIceberg for S3 Tables..."
+cat > /home/ec2-user/.pyiceberg.yaml <<PYICEEOF
+catalog:
+  s3tables:
+    type: glue
+PYICEEOF
+
+chown ec2-user:ec2-user /home/ec2-user/.pyiceberg.yaml
 
 echo "Python ${{PY_VERSION}}, pip, venv, virtualenv, git, awscli, GizmoSQL, and TableSleuth are installed and bootstrapped."
 EOF
