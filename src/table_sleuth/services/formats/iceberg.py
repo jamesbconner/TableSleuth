@@ -23,6 +23,7 @@ class IcebergAdapter(TableFormatAdapter):
     """
 
     # S3 Tables ARN pattern: arn:aws:s3tables:region:account:bucket/bucket-name/table/namespace.table
+    # Also supports UUID format: arn:aws:s3tables:region:account:bucket/bucket-name/table/uuid
     S3_TABLES_ARN_PATTERN = re.compile(
         r"arn:aws:s3tables:(?P<region>[^:]+):(?P<account>\d+):"
         r"bucket/(?P<bucket>[^/]+)/table/(?P<table>.+)"

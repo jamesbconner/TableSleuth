@@ -87,7 +87,27 @@ def inspect(path: str, catalog_name: str | None, verbose: bool) -> None:
     table_handle: TableHandle | None = None
 
     try:
-        if catalog_name:
+        # Check if it's an S3 Tables ARN first
+        if path.startswith("arn:aws:s3tables:"):
+            click.echo(f"Loading S3 Tables Iceberg table: {path}")
+
+            # Open table using ARN (adapter will parse it)
+            table_handle = adapter.open_table(path)
+
+            # Discover files from table
+            discovery = FileDiscoveryService(iceberg_adapter=adapter)
+            # Extract table identifier from ARN for discovery
+            arn_info = adapter._parse_s3_tables_arn(path)
+            if arn_info:
+                catalog, table_id = arn_info
+                files = discovery.discover_from_table(table_id, catalog)
+            else:
+                click.echo(f"Error: Invalid S3 Tables ARN format: {path}", err=True)
+                sys.exit(1)
+
+            click.echo(f"Found {len(files)} data files in table")
+
+        elif catalog_name:
             # Treat as Iceberg table identifier
             click.echo(f"Loading Iceberg table: {path} (catalog: {catalog_name})")
 
