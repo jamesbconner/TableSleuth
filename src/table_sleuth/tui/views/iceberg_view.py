@@ -299,6 +299,7 @@ class IcebergView(Screen):
         table_info: IcebergTableInfo,
         metadata_service: IcebergMetadataService,
         profiler: ProfilingBackend | None = None,
+        catalog_name: str | None = None,
         *,
         name: str | None = None,
         id: str | None = None,
@@ -310,6 +311,7 @@ class IcebergView(Screen):
             table_info: Iceberg table information
             metadata_service: Service for loading metadata
             profiler: Optional profiling backend for performance testing
+            catalog_name: Catalog name for snapshot registration (defaults to "local")
             name: Screen name
             id: Screen ID
             classes: CSS classes
@@ -318,6 +320,7 @@ class IcebergView(Screen):
         self._table_info = table_info
         self._metadata_service = metadata_service
         self._profiler = profiler
+        self._catalog_name = catalog_name or "local"
 
         # Initialize managers
         self._test_manager: SnapshotTestManager | None = None
@@ -657,7 +660,7 @@ class IcebergView(Screen):
         try:
             # Initialize test manager if needed
             if self._test_manager is None:
-                self._test_manager = SnapshotTestManager(catalog_name="local")
+                self._test_manager = SnapshotTestManager(catalog_name=self._catalog_name)
                 self._test_manager.ensure_snapshot_namespace()
 
             # Register both snapshots
