@@ -580,13 +580,13 @@ class IcebergView(Screen):
                 from table_sleuth.services.parquet_service import ParquetInspector
 
                 # Ensure the file exists (supports both local and S3 paths)
-                fs = FileSystem()
+                fs = FileSystem()  # Uses AWS_REGION env var or defaults
                 if not fs.exists(file_path):
                     logger.warning(f"Data file not found: {file_path}")
                     data_sample.clear()
                     return
 
-                parquet_inspector = ParquetInspector(region="us-east-2")
+                parquet_inspector = ParquetInspector()  # Uses AWS_REGION env var or defaults
                 file_info = parquet_inspector.inspect_file(file_path)
                 data_sample.update_file_info(file_info)
             except Exception as e:

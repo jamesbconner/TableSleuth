@@ -114,7 +114,7 @@ class TableSleuthApp(App):
         self.adapter = adapter
         self.config = config
         self._files = files or []
-        self._inspector = ParquetInspector()
+        self._inspector = ParquetInspector()  # Uses AWS_REGION env var or defaults
         self._current_file_info: ParquetFileInfo | None = None
         self._current_view_name: str | None = None
 

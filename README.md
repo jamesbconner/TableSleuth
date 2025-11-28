@@ -100,9 +100,9 @@ username = "gizmosql_username"
 password = "gizmosql_password"
 ```
 
-### AWS S3 Tables Setup
+### AWS S3 Configuration
 
-For AWS S3 Tables support, configure AWS credentials:
+For S3 file access and AWS S3 Tables support, configure AWS credentials and region:
 
 ```bash
 # Using AWS CLI
@@ -111,8 +111,14 @@ aws configure
 # Or set environment variables
 export AWS_ACCESS_KEY_ID=your_key
 export AWS_SECRET_ACCESS_KEY=your_secret
-export AWS_REGION=us-east-2
+export AWS_REGION=us-east-2  # Or your preferred region
+export AWS_DEFAULT_REGION=us-east-2  # Fallback if AWS_REGION not set
 ```
+
+**Note**: TableSleuth automatically detects the AWS region from:
+1. `AWS_REGION` environment variable (highest priority)
+2. `AWS_DEFAULT_REGION` environment variable
+3. Defaults to `us-east-2` if neither is set
 
 Install PyIceberg with AWS extras:
 

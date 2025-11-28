@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from typing import BinaryIO, Union
 
@@ -14,14 +15,26 @@ logger = logging.getLogger(__name__)
 class FileSystem:
     """Unified filesystem interface for local and S3 files."""
 
-    def __init__(self, region: str = "us-east-2"):
+    def __init__(self, region: str | None = None):
         """Initialize filesystem with S3 support.
 
         Args:
-            region: AWS region for S3 access
+            region: AWS region for S3 access. If None, uses AWS_REGION or AWS_DEFAULT_REGION
+                   environment variable, or defaults to "us-east-2"
         """
+        if region is None:
+            region = (
+                os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION") or "us-east-2"
+            )
+
+        self._region = region
         self._s3_fs = pafs.S3FileSystem(region=region)
         self._local_fs = pafs.LocalFileSystem()
+
+    @property
+    def region(self) -> str:
+        """Get the configured AWS region."""
+        return self._region
 
     def is_s3_path(self, path: str) -> bool:
         """Check if path is an S3 path.
