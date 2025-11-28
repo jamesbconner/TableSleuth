@@ -624,16 +624,15 @@ class GizmoDuckDbProfiler(ProfilingBackend):
 
         # DuckDB EXPLAIN ANALYZE patterns
         # Look for PARQUET_SCAN or ICEBERG_SCAN with file counts
-        parquet_scan_match = re.search(
-            r"PARQUET_SCAN.*?(\d+)\s+Files", explain_text, re.IGNORECASE | re.DOTALL
-        )
-        if parquet_scan_match:
-            files_scanned = int(parquet_scan_match.group(1))
-
-        # Alternative pattern: "Scanning X files"
-        scanning_match = re.search(r"Scanning\s+(\d+)\s+files?", explain_text, re.IGNORECASE)
-        if scanning_match:
-            files_scanned = max(files_scanned, int(scanning_match.group(1)))
+        scan_patterns = [
+            r"PARQUET_SCAN.*?(\d+)\s+Files",
+            r"ICEBERG_SCAN.*?(\d+)\s+Files",
+            r"Scanning\s+(\d+)\s+files?",
+        ]
+        for pattern in scan_patterns:
+            match = re.search(pattern, explain_text, re.IGNORECASE | re.DOTALL)
+            if match:
+                files_scanned = max(files_scanned, int(match.group(1)))
 
         # Look for row counts in various formats
         # Pattern: "X Rows" or "Cardinality: X"
@@ -649,17 +648,24 @@ class GizmoDuckDbProfiler(ProfilingBackend):
                 rows_returned = max(rows_returned, count)
                 rows_scanned = max(rows_scanned, count)
 
-        # Look for bytes scanned
-        bytes_match = re.search(r"(\d+(?:\.\d+)?)\s*(MB|GB|KB)", explain_text, re.IGNORECASE)
-        if bytes_match:
-            value = float(bytes_match.group(1))
-            unit = bytes_match.group(2).upper()
-            if unit == "KB":
-                bytes_scanned = int(value * 1024)
-            elif unit == "MB":
-                bytes_scanned = int(value * 1024 * 1024)
-            elif unit == "GB":
-                bytes_scanned = int(value * 1024 * 1024 * 1024)
+        # Look for bytes scanned - aggregate all occurrences using max
+        bytes_patterns = [
+            r"(\d+(?:\.\d+)?)\s*(MB|GB|KB|Bytes)",
+        ]
+        for pattern in bytes_patterns:
+            for match in re.finditer(pattern, explain_text, re.IGNORECASE):
+                value = float(match.group(1))
+                unit = match.group(2).upper()
+                current_bytes = 0
+                if unit == "BYTES":
+                    current_bytes = int(value)
+                elif unit == "KB":
+                    current_bytes = int(value * 1024)
+                elif unit == "MB":
+                    current_bytes = int(value * 1024 * 1024)
+                elif unit == "GB":
+                    current_bytes = int(value * 1024 * 1024 * 1024)
+                bytes_scanned = max(bytes_scanned, current_bytes)
 
         return QueryPerformanceMetrics(
             execution_time_ms=execution_time_ms,
