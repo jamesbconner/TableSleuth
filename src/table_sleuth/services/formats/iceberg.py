@@ -52,16 +52,22 @@ class IcebergAdapter(TableFormatAdapter):
         return ("s3tables", table_identifier)
 
     def _file_uri_to_path(self, uri: str) -> str:
-        """Convert file:// URI to local file path.
+        """Convert file:// URI to local file path, preserve S3 URIs.
 
         Handles both Unix (file:///path) and Windows (file:///C:/path) URIs correctly.
+        S3 URIs (s3://bucket/path) are returned unchanged.
 
         Args:
             uri: File URI string
 
         Returns:
-            Local file path
+            Local file path or S3 URI
         """
+        # Preserve S3 URIs unchanged
+        if uri.startswith("s3://") or uri.startswith("s3a://"):
+            return uri
+
+        # Only convert file:// URIs
         if not uri.startswith("file://"):
             return uri
 
