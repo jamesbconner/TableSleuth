@@ -330,6 +330,7 @@ def iceberg_viewer(
                         table_info=table_info,
                         metadata_service=metadata_service,
                         profiler=profiler,
+                        catalog_name=catalog_name,
                     )
                 )
 
