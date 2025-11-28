@@ -163,9 +163,17 @@ class SchemaView(Container):
         """
         self._file_info = file_info
 
-        # Load PyArrow ParquetFile for detailed metadata access
+        # Load PyArrow ParquetFile for detailed metadata access (with S3 support)
         try:
-            self._parquet_file = ParquetFile(file_info.path)
+            from table_sleuth.services.filesystem import FileSystem
+
+            fs = FileSystem()
+            if fs.is_s3_path(file_info.path):
+                filesystem = fs.get_filesystem(file_info.path)
+                normalized_path = fs.normalize_s3_path(file_info.path)
+                self._parquet_file = ParquetFile(normalized_path, filesystem=filesystem)
+            else:
+                self._parquet_file = ParquetFile(file_info.path)
         except Exception as e:
             logger.debug(f"Could not load ParquetFile for detailed metadata: {e}")
             self._parquet_file = None

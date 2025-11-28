@@ -3,9 +3,11 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+import pyarrow.fs as pafs
 from pyarrow.parquet import ParquetFile
 
 from table_sleuth.models.parquet import ColumnStats, ParquetFileInfo, RowGroupInfo
+from table_sleuth.services.filesystem import FileSystem
 
 logger = logging.getLogger(__name__)
 
@@ -15,13 +17,22 @@ class ParquetInspector:
 
     This service provides methods to inspect Parquet files and extract
     detailed metadata including schema, row groups, and column statistics.
+    Supports both local and S3 file paths.
     """
+
+    def __init__(self, region: str = "us-east-2"):
+        """Initialize ParquetInspector with filesystem support.
+
+        Args:
+            region: AWS region for S3 access
+        """
+        self._fs = FileSystem(region=region)
 
     def inspect_file(self, file_path: str | Path) -> ParquetFileInfo:
         """Extract complete metadata from a Parquet file.
 
         Args:
-            file_path: Path to Parquet file
+            file_path: Path to Parquet file (local or S3)
 
         Returns:
             ParquetFileInfo with schema, row groups, and column stats
@@ -30,13 +41,19 @@ class ParquetInspector:
             FileNotFoundError: If file doesn't exist
             ValueError: If file is not a valid Parquet file
         """
-        path = Path(file_path)
+        file_path_str = str(file_path)
 
-        if not path.exists():
-            raise FileNotFoundError(f"File not found: {file_path}")
+        if not self._fs.exists(file_path_str):
+            raise FileNotFoundError(f"File not found: {file_path_str}")
 
         try:
-            pf = ParquetFile(str(path))
+            # Open file with appropriate filesystem
+            if self._fs.is_s3_path(file_path_str):
+                filesystem = self._fs.get_filesystem(file_path_str)
+                normalized_path = self._fs.normalize_s3_path(file_path_str)
+                pf = ParquetFile(normalized_path, filesystem=filesystem)
+            else:
+                pf = ParquetFile(file_path_str)
         except Exception as e:
             raise ValueError(f"Invalid Parquet file: {e}") from e
 
@@ -44,7 +61,7 @@ class ParquetInspector:
         schema = pf.schema_arrow
 
         # Get file size
-        file_size_bytes = path.stat().st_size
+        file_size_bytes = self._fs.get_size(file_path_str)
 
         # Extract schema information
         schema_dict = self._extract_schema(schema)
@@ -60,7 +77,7 @@ class ParquetInspector:
         format_version = md.format_version if hasattr(md, "format_version") else "unknown"
 
         return ParquetFileInfo(
-            path=str(path),
+            path=file_path_str,
             file_size_bytes=file_size_bytes,
             num_rows=md.num_rows,
             num_row_groups=md.num_row_groups,
@@ -76,24 +93,36 @@ class ParquetInspector:
         """Extract schema information from Parquet file.
 
         Args:
-            file_path: Path to Parquet file
+            file_path: Path to Parquet file (local or S3)
 
         Returns:
             Dictionary mapping column names to type information
         """
-        pf = ParquetFile(str(file_path))
+        file_path_str = str(file_path)
+        if self._fs.is_s3_path(file_path_str):
+            filesystem = self._fs.get_filesystem(file_path_str)
+            normalized_path = self._fs.normalize_s3_path(file_path_str)
+            pf = ParquetFile(normalized_path, filesystem=filesystem)
+        else:
+            pf = ParquetFile(file_path_str)
         return self._extract_schema(pf.schema_arrow)
 
     def get_row_groups(self, file_path: str | Path) -> list[RowGroupInfo]:
         """Extract row group information from Parquet file.
 
         Args:
-            file_path: Path to Parquet file
+            file_path: Path to Parquet file (local or S3)
 
         Returns:
             List of RowGroupInfo objects
         """
-        pf = ParquetFile(str(file_path))
+        file_path_str = str(file_path)
+        if self._fs.is_s3_path(file_path_str):
+            filesystem = self._fs.get_filesystem(file_path_str)
+            normalized_path = self._fs.normalize_s3_path(file_path_str)
+            pf = ParquetFile(normalized_path, filesystem=filesystem)
+        else:
+            pf = ParquetFile(file_path_str)
         md = pf.metadata
         schema = pf.schema_arrow
 
@@ -149,7 +178,13 @@ class ParquetInspector:
         Raises:
             ValueError: If column doesn't exist
         """
-        pf = ParquetFile(str(file_path))
+        file_path_str = str(file_path)
+        if self._fs.is_s3_path(file_path_str):
+            filesystem = self._fs.get_filesystem(file_path_str)
+            normalized_path = self._fs.normalize_s3_path(file_path_str)
+            pf = ParquetFile(normalized_path, filesystem=filesystem)
+        else:
+            pf = ParquetFile(file_path_str)
         md = pf.metadata
         schema = pf.schema_arrow
 
