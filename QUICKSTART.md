@@ -111,8 +111,10 @@ curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.10/gizmosq
 #### Start GizmoSQL Server
 
 ```bash
-GIZMOSQL_PASSWORD="gizmosql_password" gizmosql_server --port 10501 --print-queries
+gizmosql_server -P gizmosql_password -Q -T ~/.certs/cert0.pem ~/.certs/cert0.key
 ```
+
+(Default port is 31337, -Q enables query printing, -T enables TLS)
 
 #### Configure Connection
 
@@ -120,10 +122,10 @@ Create `table_sleuth.toml`:
 
 ```toml
 [gizmosql]
-uri = "grpc://localhost:10501"
+uri = "grpc+tls://localhost:31337"
 username = "gizmosql_username"
 password = "gizmosql_password"
-tls_skip_verify = false
+tls_skip_verify = true
 ```
 
 #### Profile a Column
@@ -266,10 +268,10 @@ Create `table_sleuth.toml`:
 default = "local"
 
 [gizmosql]
-uri = "grpc://localhost:10501"
+uri = "grpc+tls://localhost:31337"
 username = "gizmosql_username"
 password = "gizmosql_password"
-tls_skip_verify = false
+tls_skip_verify = true
 ```
 
 ### Environment Variables
@@ -278,7 +280,7 @@ Override configuration with environment variables:
 
 ```bash
 export TABLE_SLEUTH_CATALOG_NAME="local"
-export TABLE_SLEUTH_GIZMO_URI="grpc://localhost:10501"
+export TABLE_SLEUTH_GIZMO_URI="grpc+tls://localhost:31337"
 export TABLE_SLEUTH_GIZMO_USERNAME="gizmosql_username"
 export TABLE_SLEUTH_GIZMO_PASSWORD="gizmosql_password"
 ```
@@ -309,13 +311,13 @@ ls -la data/warehouse/
 
 ```bash
 # Check server is running
-curl http://localhost:10501/health
+curl http://localhost:31337/health
 
 # Check port is accessible
-nc -zv localhost 10501
+nc -zv localhost 31337
 
 # Restart server if needed
-GIZMOSQL_PASSWORD="gizmosql_password" gizmosql_server --port 10501 --print-queries
+gizmosql_server -P gizmosql_password -Q -T ~/.certs/cert0.pem ~/.certs/cert0.key
 ```
 
 ### Slow Performance

@@ -95,7 +95,7 @@ Create `table_sleuth.toml` in your project directory or `~/.config/table_sleuth.
 default = "local"
 
 [gizmosql]
-uri = "grpc://localhost:10501"
+uri = "grpc+tls://localhost:31337"
 username = "gizmosql_username"
 password = "gizmosql_password"
 ```
@@ -205,18 +205,20 @@ curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.10/gizmosq
 ### Start Server
 
 ```bash
-GIZMOSQL_PASSWORD="gizmosql_password" gizmosql_server --port 10501 --print-queries
+gizmosql_server -P gizmosql_password -Q -T ~/.certs/cert0.pem ~/.certs/cert0.key
 ```
+
+(Default port is 31337, -Q enables query printing, -T enables TLS with self-signed certs)
 
 ### Configure
 
 Update `table_sleuth.toml`:
 ```toml
 [gizmosql]
-uri = "grpc://localhost:10501"
+uri = "grpc+tls://localhost:31337"
 username = "gizmosql_username"
 password = "gizmosql_password"
-tls_skip_verify = false
+tls_skip_verify = true
 ```
 
 See [docs/gizmosql-deployment.md](docs/gizmosql-deployment.md) for detailed setup instructions.

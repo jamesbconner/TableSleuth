@@ -48,7 +48,7 @@ Create a `table_sleuth.toml` file in your project directory or `~/.config/table_
 default = "local"
 
 [gizmosql]
-uri = "grpc://localhost:10501"
+uri = "grpc+tls://localhost:31337"
 username = "gizmosql_username"
 password = "gizmosql_password"
 tls_skip_verify = false
@@ -60,7 +60,7 @@ You can override configuration with environment variables:
 
 ```bash
 export TABLE_SLEUTH_CATALOG_NAME="local"
-export TABLE_SLEUTH_GIZMO_URI="grpc://localhost:10501"
+export TABLE_SLEUTH_GIZMO_URI="grpc+tls://localhost:31337"
 export TABLE_SLEUTH_GIZMO_USERNAME="gizmosql_username"
 export TABLE_SLEUTH_GIZMO_PASSWORD="gizmosql_password"
 ```
@@ -307,7 +307,7 @@ curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.10/gizmosq
 Run in a terminal window:
 
 ```bash
-GIZMOSQL_PASSWORD="gizmosql_password" gizmosql_server --port 10501 --print-queries
+GIZMOSQL_PASSWORD="gizmosql_password" gizmosql_server --port 31337 --print-queries
 ```
 
 ### Configure Connection
@@ -316,7 +316,7 @@ Create or update `table_sleuth.toml`:
 
 ```toml
 [gizmosql]
-uri = "grpc://localhost:10501"
+uri = "grpc+tls://localhost:31337"
 username = "gizmosql_username"
 password = "gizmosql_password"
 tls_skip_verify = false
@@ -325,7 +325,7 @@ tls_skip_verify = false
 Or use environment variables:
 
 ```bash
-export TABLE_SLEUTH_GIZMO_URI="grpc://localhost:10501"
+export TABLE_SLEUTH_GIZMO_URI="grpc+tls://localhost:31337"
 export TABLE_SLEUTH_GIZMO_USERNAME="gizmosql_username"
 export TABLE_SLEUTH_GIZMO_PASSWORD="gizmosql_password"
 ```
@@ -350,19 +350,19 @@ export TABLE_SLEUTH_GIZMO_PASSWORD="gizmosql_password"
 **Server Not Running:**
 ```bash
 # Check if GizmoSQL is running
-curl http://localhost:10501/health
+curl http://localhost:31337/health
 
 # If not running, start it:
-GIZMOSQL_PASSWORD="gizmosql_password" gizmosql_server --port 10501 --print-queries
+GIZMOSQL_PASSWORD="gizmosql_password" gizmosql_server --port 31337 --print-queries
 ```
 
 **Connection Refused:**
 ```bash
 # Check port is accessible
-nc -zv localhost 10501
+nc -zv localhost 31337
 
 # Check firewall settings
-# Ensure port 10501 is not blocked
+# Ensure port 31337 is not blocked
 ```
 
 **Authentication Failed:**
@@ -393,7 +393,7 @@ uri = "grpc://localhost:10502"
 **Remote GizmoSQL:**
 ```toml
 [gizmosql]
-uri = "grpc://gizmosql.example.com:10501"
+uri = "grpc://gizmosql.example.com:31337"
 username = "your_username"
 password = "your_password"
 tls_skip_verify = false
