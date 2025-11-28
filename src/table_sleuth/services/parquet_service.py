@@ -20,11 +20,12 @@ class ParquetInspector:
     Supports both local and S3 file paths.
     """
 
-    def __init__(self, region: str = "us-east-2"):
+    def __init__(self, region: str | None = None):
         """Initialize ParquetInspector with filesystem support.
 
         Args:
-            region: AWS region for S3 access
+            region: AWS region for S3 access. If None, uses AWS_REGION or AWS_DEFAULT_REGION
+                   environment variable, or defaults to "us-east-2"
         """
         self._fs = FileSystem(region=region)
 
