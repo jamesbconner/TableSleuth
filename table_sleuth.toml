@@ -8,16 +8,17 @@ default = "local"
 # GizmoSQL connection settings for column profiling and Iceberg performance testing
 # GizmoSQL runs as a local process with direct filesystem access
 
-uri = "grpc://localhost:10501"
+uri = "grpc+tls://localhost:31337"
 username = "gizmosql_username"
 password = "gizmosql_password"
-tls_skip_verify = false
+tls_skip_verify = true
 
 # Note: Do NOT configure local_data_path or docker_data_path
 # These are legacy settings for Docker deployments which are no longer recommended
 
 # To start GizmoSQL:
-# GIZMOSQL_PASSWORD="gizmosql_password" gizmosql_server --port 10501 --print-queries
+# gizmosql_server -P gizmosql_password -Q -T ~/.certs/cert0.pem ~/.certs/cert0.key
+# (Default port is 31337, -Q enables query printing, -T enables TLS with self-signed certs)
 #
 # Installation:
 # macOS (ARM64): curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.10/gizmosql_cli_macos_arm64.zip | sudo unzip -o -d /usr/local/bin -

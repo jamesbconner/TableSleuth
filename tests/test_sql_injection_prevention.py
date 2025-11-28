@@ -11,7 +11,7 @@ class TestSQLInjectionPrevention:
     def test_metadata_location_with_single_quotes_escaped(self):
         """Test that single quotes in metadata locations are properly escaped."""
         profiler = GizmoDuckDbProfiler(
-            uri="grpc://localhost:10501",
+            uri="grpc+tls://localhost:31337",
             username="test",
             password="test",
         )
@@ -40,7 +40,7 @@ class TestSQLInjectionPrevention:
     def test_metadata_location_without_quotes_unchanged(self):
         """Test that normal metadata locations work correctly."""
         profiler = GizmoDuckDbProfiler(
-            uri="grpc://localhost:10501",
+            uri="grpc+tls://localhost:31337",
             username="test",
             password="test",
         )
@@ -63,7 +63,7 @@ class TestSQLInjectionPrevention:
     def test_multiple_single_quotes_escaped(self):
         """Test that multiple single quotes are all properly escaped."""
         profiler = GizmoDuckDbProfiler(
-            uri="grpc://localhost:10501",
+            uri="grpc+tls://localhost:31337",
             username="test",
             password="test",
         )
@@ -86,7 +86,7 @@ class TestSQLInjectionPrevention:
     def test_snapshot_id_not_escaped(self):
         """Test that snapshot_id (integer) is not escaped."""
         profiler = GizmoDuckDbProfiler(
-            uri="grpc://localhost:10501",
+            uri="grpc+tls://localhost:31337",
             username="test",
             password="test",
         )
@@ -108,7 +108,7 @@ class TestSQLInjectionPrevention:
     def test_no_snapshot_id_escaping(self):
         """Test metadata escaping when no snapshot ID is provided."""
         profiler = GizmoDuckDbProfiler(
-            uri="grpc://localhost:10501",
+            uri="grpc+tls://localhost:31337",
             username="test",
             password="test",
         )
@@ -131,7 +131,7 @@ class TestSQLInjectionPrevention:
     def test_empty_metadata_location(self):
         """Test that empty metadata location raises ValueError."""
         profiler = GizmoDuckDbProfiler(
-            uri="grpc://localhost:10501",
+            uri="grpc+tls://localhost:31337",
             username="test",
             password="test",
         )

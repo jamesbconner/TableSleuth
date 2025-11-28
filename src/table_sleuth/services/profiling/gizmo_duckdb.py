@@ -137,13 +137,24 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         self._registered_catalogs: dict[str, str] = {}  # catalog_name -> catalog_path
 
     def _connect(self):
+        # Determine if we should use TLS based on URI scheme
+        # grpc:// = plain (no TLS), grpc+tls:// = TLS
+        use_tls = self._uri.startswith("grpc+tls://")
+
+        db_kwargs = {
+            "username": self._username,
+            "password": self._password,
+        }
+
+        # Only add TLS options if using TLS
+        if use_tls:
+            db_kwargs[DatabaseOptions.TLS_SKIP_VERIFY.value] = (
+                "true" if self._tls_skip_verify else "false"
+            )
+
         return flightsql.connect(
             uri=self._uri,
-            db_kwargs={
-                "username": self._username,
-                "password": self._password,
-                DatabaseOptions.TLS_SKIP_VERIFY.value: "true" if self._tls_skip_verify else "false",
-            },
+            db_kwargs=db_kwargs,
         )
 
     def register_snapshot_view(self, snapshot: SnapshotInfo) -> str:

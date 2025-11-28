@@ -66,7 +66,7 @@ class TestGizmoProfilerConfiguration:
     def test_register_file_view_without_prefix(self):
         """Test that register_file_view handles paths without file:// prefix."""
         profiler = GizmoDuckDbProfiler(
-            uri="grpc://localhost:10501",
+            uri="grpc+tls://localhost:31337",
             username="test_user",
             password="test_pass",
         )
@@ -87,7 +87,7 @@ class TestGizmoProfilerConfiguration:
     def test_register_file_view_auto_generates_name(self):
         """Test that register_file_view auto-generates view name when not provided."""
         profiler = GizmoDuckDbProfiler(
-            uri="grpc://localhost:10501",
+            uri="grpc+tls://localhost:31337",
             username="test_user",
             password="test_pass",
         )
@@ -102,7 +102,7 @@ class TestGizmoProfilerConfiguration:
     def test_register_file_view_empty_paths_raises(self):
         """Test that register_file_view raises ValueError for empty paths."""
         profiler = GizmoDuckDbProfiler(
-            uri="grpc://localhost:10501",
+            uri="grpc+tls://localhost:31337",
             username="test_user",
             password="test_pass",
         )
@@ -113,7 +113,7 @@ class TestGizmoProfilerConfiguration:
     def test_clear_views(self):
         """Test that clear_views removes all registered views."""
         profiler = GizmoDuckDbProfiler(
-            uri="grpc://localhost:10501",
+            uri="grpc+tls://localhost:31337",
             username="test_user",
             password="test_pass",
         )

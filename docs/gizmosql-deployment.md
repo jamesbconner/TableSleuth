@@ -46,10 +46,10 @@ Edit `table_sleuth.toml`:
 
 ```toml
 [gizmosql]
-uri = "grpc://localhost:10501"
+uri = "grpc+tls://localhost:31337"
 username = "gizmosql_username"
 password = "gizmosql_password"
-tls_skip_verify = false
+tls_skip_verify = true
 ```
 
 **Important**: Do not configure `local_data_path` or `docker_data_path`. These are legacy settings for Docker deployments which are no longer recommended.
@@ -59,19 +59,20 @@ tls_skip_verify = false
 Run GizmoSQL in a terminal window:
 
 ```bash
-GIZMOSQL_PASSWORD="gizmosql_password" gizmosql_server --port 10501 --print-queries
+gizmosql_server -P gizmosql_password -Q -T ~/.certs/cert0.pem ~/.certs/cert0.key
 ```
 
 **Options**:
-- `--port 10501`: Port to listen on (default: 10501)
-- `--print-queries`: Log all queries for debugging (optional)
-- `GIZMOSQL_PASSWORD`: Password for authentication (must match config)
+- Default port is 31337
+- `-P`: Password for authentication (must match config)
+- `-Q`: Print queries for debugging
+- `-T`: Enable TLS with certificate and key files
 
 ### 3. Verify Connection
 
 ```bash
 # Check if GizmoSQL is running
-curl http://localhost:10501/health
+curl http://localhost:31337/health
 
 # Or use Table Sleuth to test profiling
 table-sleuth inspect data/your-file.parquet
@@ -143,7 +144,7 @@ curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.10/gizmosq
 **Solution**:
 1. Verify GizmoSQL is running:
    ```bash
-   curl http://localhost:10501/health
+   curl http://localhost:31337/health
    ```
 
 2. Check the password matches in both places:
@@ -151,14 +152,14 @@ curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.10/gizmosq
    - Config file: `password = "gizmosql_password"`
 
 3. Verify the port matches:
-   - GizmoSQL: `--port 10501`
-   - Config: `uri = "grpc://localhost:10501"`
+   - GizmoSQL: `--port 31337`
+   - Config: `uri = "grpc+tls://localhost:31337"`
 
 **Problem**: "Profiling backend not available"
 
 **Solution**: This means GizmoSQL isn't running or isn't reachable. Check:
 1. GizmoSQL server is running (check terminal window)
-2. No firewall blocking port 10501
+2. No firewall blocking port 31337
 3. Configuration in `table_sleuth.toml` is correct
 
 ### Profiling Issues
@@ -218,7 +219,7 @@ You can override configuration via environment variables:
 
 ```bash
 # Connection settings
-export TABLE_SLEUTH_GIZMO_URI="grpc://localhost:10501"
+export TABLE_SLEUTH_GIZMO_URI="grpc+tls://localhost:31337"
 export TABLE_SLEUTH_GIZMO_USERNAME="gizmosql_username"
 export TABLE_SLEUTH_GIZMO_PASSWORD="gizmosql_password"
 
@@ -241,7 +242,7 @@ After=network.target
 Type=simple
 User=your-username
 Environment="GIZMOSQL_PASSWORD=gizmosql_password"
-ExecStart=/usr/local/bin/gizmosql_server --port 10501 --print-queries
+ExecStart=/usr/local/bin/gizmosql_server --port 31337 --print-queries
 Restart=on-failure
 
 [Install]
@@ -270,7 +271,7 @@ Create `~/Library/LaunchAgents/com.gizmodata.gizmosql.plist`:
     <array>
         <string>/usr/local/bin/gizmosql_server</string>
         <string>--port</string>
-        <string>10501</string>
+        <string>31337</string>
         <string>--print-queries</string>
     </array>
     <key>EnvironmentVariables</key>
@@ -302,12 +303,12 @@ launchctl start com.gizmodata.gizmosql
 
 ### Start GizmoSQL
 ```bash
-GIZMOSQL_PASSWORD="gizmosql_password" gizmosql_server --port 10501 --print-queries
+GIZMOSQL_PASSWORD="gizmosql_password" gizmosql_server --port 31337 --print-queries
 ```
 
 ### Check Status
 ```bash
-curl http://localhost:10501/health
+curl http://localhost:31337/health
 ```
 
 ### Stop GizmoSQL
@@ -321,5 +322,5 @@ pkill gizmosql_server
 ```bash
 # Logs are printed to stdout when using --print-queries
 # Redirect to file if needed:
-GIZMOSQL_PASSWORD="gizmosql_password" gizmosql_server --port 10501 --print-queries > gizmosql.log 2>&1
+GIZMOSQL_PASSWORD="gizmosql_password" gizmosql_server --port 31337 --print-queries > gizmosql.log 2>&1
 ```

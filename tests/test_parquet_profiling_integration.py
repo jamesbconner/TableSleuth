@@ -114,7 +114,7 @@ To run these integration tests, you need:
 1. A running GizmoSQL instance
 2. Set environment variables:
 
-export TEST_GIZMOSQL_URI="grpc://localhost:10501"
+export TEST_GIZMOSQL_URI="grpc+tls://localhost:31337"
 export TEST_GIZMOSQL_USERNAME="test_user"
 export TEST_GIZMOSQL_PASSWORD="test_pass"
 

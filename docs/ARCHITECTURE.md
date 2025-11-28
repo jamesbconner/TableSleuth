@@ -532,7 +532,7 @@ Display comparison results
 default = "local"
 
 [gizmosql]
-uri = "grpc://localhost:10501"
+uri = "grpc+tls://localhost:31337"
 username = "gizmosql_username"
 password = "gizmosql_password"
 tls_skip_verify = false
@@ -591,7 +591,7 @@ class Config:
 │  └──────────────────────────────┘   │
 └─────────────────────────────────────┘
               │
-              │ gRPC (localhost:10501)
+              │ gRPC (localhost:31337)
               ▼
 ┌─────────────────────────────────────┐
 │   Local GizmoSQL Server             │
@@ -626,7 +626,7 @@ curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.10/gizmosq
   | sudo unzip -o -d /usr/local/bin -
 
 # Start server
-GIZMOSQL_PASSWORD="gizmosql_password" gizmosql_server --port 10501 --print-queries
+GIZMOSQL_PASSWORD="gizmosql_password" gizmosql_server --port 31337 --print-queries
 ```
 
 ## Error Handling Strategy

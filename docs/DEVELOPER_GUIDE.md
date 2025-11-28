@@ -477,7 +477,7 @@ def test_inspect_file_missing_statistics(parquet_file_no_stats):
 @pytest.mark.skipif(not GIZMOSQL_AVAILABLE, reason="TEST_GIZMOSQL_URI not set")
 def test_gizmosql_profiling_workflow(test_parquet_file):
     profiler = GizmoDuckDbProfiler(
-        uri="grpc://localhost:10501",
+        uri="grpc+tls://localhost:31337",
         username="gizmosql_username",
         password="gizmosql_password",
         tls_skip_verify=False,
@@ -571,12 +571,12 @@ def gizmosql_server():
     import subprocess
     try:
         result = subprocess.run(
-            ["curl", "-s", "http://localhost:10501/health"],
+            ["curl", "-s", "http://localhost:31337/health"],
             capture_output=True,
             timeout=2
         )
         if result.returncode == 0:
-            yield "grpc://localhost:10501"
+            yield "grpc+tls://localhost:31337"
         else:
             pytest.skip("GizmoSQL server not running")
     except Exception:

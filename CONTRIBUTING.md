@@ -131,7 +131,7 @@ pytest tests/test_parquet_inspector.py
 
 # Run integration tests (requires local GizmoSQL server)
 # Set TEST_GIZMOSQL_URI environment variable first
-export TEST_GIZMOSQL_URI="grpc://localhost:10501"
+export TEST_GIZMOSQL_URI="grpc+tls://localhost:31337"
 pytest -m integration
 ```
 
@@ -407,7 +407,7 @@ pytest tests/test_parquet_inspector.py
 pytest tests/test_parquet_inspector.py::test_inspect_file_basic_metadata
 
 # Run integration tests only (requires local GizmoSQL)
-export TEST_GIZMOSQL_URI="grpc://localhost:10501"
+export TEST_GIZMOSQL_URI="grpc+tls://localhost:31337"
 pytest -m integration
 
 # Run with verbose output
