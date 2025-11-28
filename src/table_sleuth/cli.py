@@ -78,6 +78,11 @@ def inspect(path: str, catalog_name: str | None, verbose: bool) -> None:
     else:
         logging.basicConfig(level=logging.INFO)
 
+    # Suppress noisy AWS SDK logs
+    logging.getLogger("botocore").setLevel(logging.WARNING)
+    logging.getLogger("boto3").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+
     # Load configuration
     config = load_config()
     adapter = IcebergAdapter(default_catalog=config.catalog.default)
@@ -265,6 +270,11 @@ def iceberg_viewer(
         logging.basicConfig(level=logging.DEBUG)
     else:
         logging.basicConfig(level=logging.INFO)
+
+    # Suppress noisy AWS SDK logs
+    logging.getLogger("botocore").setLevel(logging.WARNING)
+    logging.getLogger("boto3").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
 
     # Load configuration
     config = load_config()
