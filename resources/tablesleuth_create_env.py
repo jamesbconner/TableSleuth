@@ -365,12 +365,19 @@ def create_iam_role_and_instance_profile(config: dict[str, Any]) -> str:
         else:
             raise
 
-    # Broad S3 access (you may scope this later if you want)
+    # Attach AWS managed policies
     iam.attach_role_policy(
         RoleName=IAM_ROLE_NAME,
         PolicyArn="arn:aws:iam::aws:policy/AmazonS3FullAccess",
     )
     print("Attached AmazonS3FullAccess to role")
+
+    # Attach Glue read-only access for Iceberg catalog
+    iam.attach_role_policy(
+        RoleName=IAM_ROLE_NAME,
+        PolicyArn="arn:aws:iam::aws:policy/AWSGlueConsoleFullAccess",
+    )
+    print("Attached AWSGlueConsoleFullAccess to role")
 
     # Inline policy for S3 Tables access
     s3tables_policy = {
@@ -542,7 +549,8 @@ dnf install -y \\
   wget \\
   git \\
   awscli \\
-  unzip
+  unzip \\
+  tmux
 
 cd /tmp
 
@@ -637,8 +645,13 @@ su - ec2-user -c 'cd ~/Code/TableSleuth && python -m venv .venv && . .venv/bin/a
 echo "Configuring PyIceberg for S3 Tables..."
 cat > /home/ec2-user/.pyiceberg.yaml <<PYICEEOF
 catalog:
-  s3tables:
-    type: glue
+  tpch:
+    type: rest
+    warehouse: {config['s3tables_bucket_arn']}
+    uri: https://s3tables.{region}.amazonaws.com/iceberg
+    rest.sigv4-enabled: "true"
+    rest.signing-name: s3tables
+    rest.signing-region: {region}
 PYICEEOF
 
 chown ec2-user:ec2-user /home/ec2-user/.pyiceberg.yaml
@@ -723,6 +736,11 @@ cat >> /home/ec2-user/.bashrc <<'ENVEOF'
 export S3TABLES_BUCKET_ARN="{config['s3tables_bucket_arn']}"
 export S3TABLES_TABLE_ARN="{config['s3tables_table_arn']}"
 export AWS_REGION="{region}"
+export AWS_DEFAULT_REGION="{region}"
+
+# PyIceberg Glue catalog configuration
+export PYICEBERG_CATALOG__TPCH__REGION="{region}"
+export PYICEBERG_CATALOG__RATEBEER__REGION="{region}"
 
 # GizmoSQL configuration
 export GIZMOSQL_USERNAME="{config['gizmosql_username']}"

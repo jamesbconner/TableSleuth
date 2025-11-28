@@ -166,7 +166,7 @@ def cleanup_iam(iam):
         if code != "NoSuchEntity":
             print(f"Warning: delete_role_policy failed: {e}")
 
-    # Detach S3 policy from role
+    # Detach managed policies from role
     try:
         iam.detach_role_policy(
             RoleName=IAM_ROLE_NAME,
@@ -176,7 +176,18 @@ def cleanup_iam(iam):
     except ClientError as e:
         code = e.response["Error"]["Code"]
         if code != "NoSuchEntity":
-            print(f"Warning: detach_role_policy failed: {e}")
+            print(f"Warning: detach_role_policy (S3) failed: {e}")
+
+    try:
+        iam.detach_role_policy(
+            RoleName=IAM_ROLE_NAME,
+            PolicyArn="arn:aws:iam::aws:policy/AWSGlueConsoleFullAccess",
+        )
+        print(f"Detached AWSGlueConsoleFullAccess from role {IAM_ROLE_NAME}")
+    except ClientError as e:
+        code = e.response["Error"]["Code"]
+        if code != "NoSuchEntity":
+            print(f"Warning: detach_role_policy (Glue) failed: {e}")
 
     # Remove role from instance profile
     try:
