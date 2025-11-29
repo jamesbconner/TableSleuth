@@ -732,8 +732,8 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         fs = FileSystem()
 
         if fs.is_s3_path(metadata_location):
-            file_obj = fs.open_file(metadata_location, "rb")
-            metadata = json.load(file_obj)
+            with fs.open_file(metadata_location, "rb") as file_obj:
+                metadata = json.load(file_obj)
         else:
             with open(metadata_location) as f:
                 metadata = json.load(f)
