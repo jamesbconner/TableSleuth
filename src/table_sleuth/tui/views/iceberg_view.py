@@ -232,7 +232,7 @@ class IcebergView(Screen):
     - Performance testing capabilities
     """
 
-    TITLE = "Iceberg Metadata Viewer"
+    TITLE = "Table Sleuth - Iceberg Analysis"
 
     CSS = """
     IcebergView {

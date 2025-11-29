@@ -119,13 +119,13 @@ class RowGroupsView(Container):
 
             # Build rows of column panels
             cols_per_row = 3
-            max_cols_to_show = min(len(rg.columns), 15)  # Limit display
+            num_cols = len(rg.columns)
 
-            for row_idx in range(0, max_cols_to_show, cols_per_row):
+            for row_idx in range(0, num_cols, cols_per_row):
                 row_panels: list[Panel | Text] = []
                 for col_offset in range(cols_per_row):
                     col_idx = row_idx + col_offset
-                    if col_idx < max_cols_to_show:
+                    if col_idx < num_cols:
                         col = rg.columns[col_idx]
                         col_panel = self._create_column_panel(col)
                         row_panels.append(col_panel)
@@ -134,15 +134,6 @@ class RowGroupsView(Container):
                         row_panels.append(Text(""))
 
                 col_table.add_row(*row_panels)
-
-            # If too many columns, add note
-            if len(rg.columns) > max_cols_to_show:
-                remaining_text = Text()
-                remaining_text.append(
-                    f"... and {len(rg.columns) - max_cols_to_show} more columns",
-                    style="dim italic",
-                )
-                col_table.add_row(Panel(remaining_text, border_style="dim"), Text(""), Text(""))
 
             # Create collapsible widget
             collapsible = Collapsible(
