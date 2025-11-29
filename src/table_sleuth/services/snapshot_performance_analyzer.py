@@ -72,6 +72,43 @@ class SnapshotPerformanceAnalyzer:
             logger.error(f"Query test failed for {table_name}: {e}")
             raise RuntimeError(f"Query test failed: {e}") from e
 
+    def _run_query_direct(self, query: str) -> QueryPerformanceMetrics:
+        """Run a query directly without placeholder substitution.
+
+        Args:
+            query: SQL query to execute (already substituted)
+
+        Returns:
+            QueryPerformanceMetrics object
+
+        Raises:
+            RuntimeError: If query execution fails
+        """
+        try:
+            # Execute query with metrics collection
+            if hasattr(self._profiler, "execute_query_with_metrics"):
+                _, metrics = self._profiler.execute_query_with_metrics(query)
+                return metrics
+            else:
+                # Fallback: execute query and create basic metrics
+                import time
+
+                start_time = time.time()
+                execution_time_ms = (time.time() - start_time) * 1000
+
+                return QueryPerformanceMetrics(
+                    execution_time_ms=execution_time_ms,
+                    files_scanned=0,
+                    bytes_scanned=0,
+                    rows_scanned=0,
+                    rows_returned=0,
+                    memory_peak_mb=0.0,
+                )
+
+        except Exception as e:
+            logger.error(f"Query execution failed: {e}")
+            raise RuntimeError(f"Query execution failed: {e}") from e
+
     def compare_query_performance(
         self,
         table_a: str,
@@ -95,12 +132,12 @@ class SnapshotPerformanceAnalyzer:
         query_a = query_template.replace("{table}", table_a)
         query_b = query_template.replace("{table}", table_b)
 
-        # Run queries and collect metrics
+        # Run queries and collect metrics (pass None for table_name to skip double substitution)
         logger.debug(f"Running performance test on {table_a}")
-        metrics_a = self.run_query_test(table_a, query_a)
+        metrics_a = self._run_query_direct(query_a)
 
         logger.debug(f"Running performance test on {table_b}")
-        metrics_b = self.run_query_test(table_b, query_b)
+        metrics_b = self._run_query_direct(query_b)
 
         # Create comparison
         return PerformanceComparison(
