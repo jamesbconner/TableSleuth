@@ -524,7 +524,7 @@ We follow [Semantic Versioning](https://semver.org/):
 
 - [Developer Guide](docs/DEVELOPER_GUIDE.md) - Architecture and design
 - [User Guide](docs/USER_GUIDE.md) - Usage documentation
-- [Technical Specification](docs/technical_specification.md) - Technical details
+- [Architecture](docs/ARCHITECTURE.md) - System architecture and technical details
 - [GitHub Issues](https://github.com/OWNER/table-sleuth/issues) - Bug reports and features
 
 ### Communication

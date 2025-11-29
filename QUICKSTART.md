@@ -1,389 +1,429 @@
 # Table Sleuth Quick Start Guide
 
-Get up and running with Table Sleuth in 5 minutes.
+Get up and running with Table Sleuth for Parquet forensics and Iceberg snapshot analysis.
 
-## Installation
+## Table of Contents
+- [Local Installation](#local-installation)
+- [AWS EC2 Deployment](#aws-ec2-deployment)
+- [Basic Usage](#basic-usage)
+- [Iceberg Snapshot Analysis](#iceberg-snapshot-analysis)
+- [Troubleshooting](#troubleshooting)
+
+---
+
+## Local Installation
+
+### Prerequisites
+- Python 3.13+
+- `uv` package manager
+- AWS credentials (if accessing S3 data)
+
+### Install
 
 ```bash
-# Clone and install
-git clone <repository-url>
-cd table-sleuth
-uv sync
-source .venv/bin/activate
+# Clone repository
+git clone https://github.com/jamesbconner/TableSleuth.git
+cd TableSleuth
+
+# Install dependencies
+uv sync --all-extras
+
+# Activate virtual environment
+source .venv/bin/activate  # macOS/Linux
 ```
+
+### Configure AWS Credentials (if using S3)
+
+```bash
+# Set AWS credentials
+export AWS_ACCESS_KEY_ID=your_key
+export AWS_SECRET_ACCESS_KEY=your_secret
+export AWS_REGION=us-east-2  # Or your preferred region
+```
+
+Or use AWS CLI:
+```bash
+aws configure
+```
+
+### Configure Iceberg Catalogs
+
+Create `~/.pyiceberg.yaml` for Iceberg table access:
+
+```yaml
+catalog:
+  # Glue catalog for regular S3 + Iceberg
+  dataset1-glue:
+    type: glue
+    region: us-east-2
+
+  # S3 Tables catalog (managed Iceberg)
+  dataset2-s3tables:
+    type: rest
+    warehouse: arn:aws:s3tables:us-east-2:ACCOUNT:bucket/BUCKET_NAME
+    uri: https://s3tables.us-east-2.amazonaws.com/iceberg
+    rest.sigv4-enabled: "true"
+    rest.signing-name: s3tables
+    rest.signing-region: us-east-2
+```
+
+---
+
+## AWS EC2 Deployment
+
+For production use with large datasets in S3, deploy to EC2 with pre-configured environment.
+
+### Prerequisites
+
+1. **AWS Account** with permissions to create:
+   - EC2 instances
+   - VPC, Subnets, Internet Gateway
+   - Security Groups
+   - IAM Roles and Instance Profiles
+   - Key Pairs
+
+2. **AWS Credentials** configured locally:
+   ```bash
+   aws sts get-caller-identity  # Verify your account
+   ```
+
+3. **Your Public IP** for SSH access:
+   ```bash
+   curl -4 ifconfig.me
+   ```
+
+### Configuration
+
+1. **Clone repository locally**:
+   ```bash
+   git clone https://github.com/jamesbconner/TableSleuth.git
+   cd TableSleuth/resources
+   ```
+
+2. **Create deployment config**:
+   ```bash
+   cp config.json.template config.json
+   ```
+
+3. **Edit `config.json`**:
+   ```json
+   {
+     "ssh_allowed_cidr": "YOUR_IP/32", // Limits access to the EC2 Instance
+     "gizmosql_username": "gizmosql_username", // Used for creating aliases
+     "gizmosql_password": "gizmosql_password", // Used for creating aliases
+     "s3tables_bucket_arn": null,  // Optional: only for S3 Tables
+     "s3tables_table_arn": null    // Optional: only for S3 Tables
+   }
+   ```
+
+4. **Update `table_sleuth.toml`** (project root):
+   ```toml
+   [gizmosql]
+   # This config us used by the Table Sleuth service when tasked with performing
+   #   a performance test or comparison between snapshots.
+   uri = "grpc+tls://localhost:31337"
+   username = "gizmosql_username"  # Must match config.json
+   password = "gizmosql_password"  # Must match config.json
+   tls_skip_verify = true
+   ```
+
+### Deploy to EC2
+
+```bash
+# Dry run to preview
+python tablesleuth_create_env.py --dry-run
+
+# Create environment with default instance (m4.large, On-Demand)
+python tablesleuth_create_env.py --region us-east-2
+
+# Create with larger instance for big datasets
+python tablesleuth_create_env.py --region us-east-2 --instance-type m4.xlarge
+
+# Use Spot instance (cheaper, may be interrupted)
+python tablesleuth_create_env.py --region us-east-2 --use-spot
+
+# Spot instance with specific type
+python tablesleuth_create_env.py --region us-east-2 --instance-type m4.2xlarge --use-spot
+```
+
+**Instance Type Recommendations:**
+- **m4.large** (2 vCPU, 8 GB RAM) - Default, good for small-medium datasets
+- **m4.xlarge** (4 vCPU, 16 GB RAM) - Better for larger datasets and complex queries
+- **m4.2xlarge** (8 vCPU, 32 GB RAM) - Large datasets with heavy profiling
+- **m4.4xlarge** (16 vCPU, 64 GB RAM) - Very large datasets or multiple concurrent analyses
+
+The script will:
+- Create VPC, subnet, security group
+- Create IAM role with S3 and Glue permissions
+- Launch EC2 instance with Python 3.13, GizmoSQL, and TableSleuth
+- Generate TLS certificates for GizmoSQL
+- Clone and configure TableSleuth
+
+### Connect to EC2
+
+```bash
+# SSH into instance (IP shown in script output)
+ssh -i ~/.ssh/tablesleuth-key.pem ec2-user@<INSTANCE_IP>
+```
+
+### Configure Iceberg Catalogs on EC2
+
+Edit `~/.pyiceberg.yaml` on the EC2 instance:
+
+```yaml
+catalog:
+  # Glue catalog for regular S3 + Iceberg tables
+  dataset1-glue:
+    type: glue
+    region: us-east-2
+
+  dataset2-glue:
+    type: glue
+    region: us-east-2
+
+  # S3 Tables catalog (managed Iceberg) - if using S3 Tables
+  dataset3-s3tables:
+    type: rest
+    warehouse: arn:aws:s3tables:us-east-2:835323357340:bucket/dataset3
+    uri: https://s3tables.us-east-2.amazonaws.com/iceberg
+    rest.sigv4-enabled: "true"
+    rest.signing-name: s3tables
+    rest.signing-region: us-east-2
+```
+
+**Note:** If you configured S3 Tables ARNs in `resources/config.json`, the deployment script automatically creates this configuration for you.
+
+### Start GizmoSQL Server
+
+```bash
+# Option 1: Use alias (runs in foreground)
+gizmosvr
+
+# Option 2: Background process
+nohup gizmosql_server -P gizmosql_password -Q -T ~/.certs/cert0.pem ~/.certs/cert0.key &
+
+# Option 3: In separate tmux window
+tmux new-session -d -s gizmo 'gizmosvr'
+```
+
+### Configure tmux for Better Colors
+
+Create `~/.tmux.conf`:
+
+```bash
+set -g default-terminal "tmux-256color"
+set -ga terminal-overrides ",xterm-256color:RGB"
+set -ga terminal-overrides ",*:Tc"
+```
+
+Then reload: `tmux source-file ~/.tmux.conf`
+
+### Run TableSleuth
+
+```bash
+# Start tmux session
+tmux
+
+# Activate virtual environment
+cd ~/Code/TableSleuth
+source .venv/bin/activate
+
+# Ensure dependencies are current
+uv sync --all-extras
+
+# Run TableSleuth
+table-sleuth iceberg --catalog dataset1 --table dataset1.table1
+```
+
+---
 
 ## Basic Usage
 
-### 1. Inspect Your First File
+### Inspect Parquet Files
 
 ```bash
-# Inspect a single Parquet file
-table-sleuth inspect data/sample.parquet
+# Single file (local)
+table-sleuth inspect data/file.parquet
+
+# Single file (S3)
+table-sleuth inspect s3://bucket/path/file.parquet
+
+# Directory (recursive)
+table-sleuth inspect data/warehouse/
+
+# Iceberg table files
+table-sleuth inspect --catalog ratebeer ratebeer.reviews
 ```
 
-The TUI will launch and automatically display:
-- File metadata (size, rows, compression)
-- Schema with column types
-- Row group information
-- Column statistics
-
-### 2. Navigate the Interface
-
-Use these keys to explore:
+### Navigate the TUI
 
 ```
-↑/↓     - Navigate through files or lists
-Tab     - Switch between tabs
-Enter   - Select a file
+↑/↓     - Navigate lists
+Tab     - Switch tabs
+Enter   - Select item
 q       - Quit
 ```
 
-### 3. Explore File Metadata
+### View File Information
 
-**File Detail Tab**: Shows file-level information
-```
-Path: /data/sample.parquet
-Size: 1.2 MB
-Rows: 10,000
-Row Groups: 2
-Compression: SNAPPY
-```
+**Tabs available:**
+- **File Details** - Size, rows, compression, format version
+- **Schema** - Column names, types, nullability
+- **Row Groups** - Data distribution across row groups
+- **Structure** - Column statistics (min/max, null count, encoding)
+- **Data Sample** - Preview actual data (select columns, adjust row count)
+- **Profile** - Column profiling with GizmoSQL (requires GizmoSQL server)
 
-**Schema Tab**: Lists all columns
-```
-Column Name    | Physical Type | Logical Type
----------------|---------------|-------------
-id             | INT64         | -
-name           | BYTE_ARRAY    | UTF8
-created_at     | INT64         | TIMESTAMP_MILLIS
-```
+---
 
-**Row Groups Tab**: Shows data distribution
-```
-Group 0: 5,000 rows | 600 KB
-Group 1: 5,000 rows | 600 KB
-```
+## Iceberg Snapshot Analysis
 
-### 4. View Column Statistics
-
-1. Navigate to the **Schema** tab
-2. Use arrow keys to select a column
-3. Switch to **Column Stats** tab to see:
-   - Null count
-   - Min/max values
-   - Encoding type
-   - Compression codec
-
-## Advanced Usage
-
-### Inspect a Directory
-
-Recursively scan all Parquet files:
+### View Snapshots
 
 ```bash
-table-sleuth inspect data/warehouse/
+# Using Glue catalog as defined in the ~/.pyiceberg.yaml
+table-sleuth iceberg --catalog dataset1 --table dataset1.table1
+
+# Using S3 Tables catalog as defined in the ~/.pyiceberg.yaml
+table-sleuth iceberg --catalog dataset2 --table dataset2.table1
 ```
 
-Navigate through the file list with arrow keys and press Enter to inspect each file.
+### Snapshot Tabs
 
-### Profile Column Data (Requires GizmoSQL)
+- **Overview** - Snapshot metadata, operation type, timestamp
+- **Files** - Data files in the snapshot
+- **Schema** - Table schema at this snapshot
+- **Deletes** - Delete files (merge-on-read analysis)
+- **Properties** - Snapshot properties
+- **Data Sample** - Preview data from snapshot
 
-#### Install GizmoSQL
+### Compare Snapshots
 
-**macOS (ARM64):**
-```bash
-curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.10/gizmosql_cli_macos_arm64.zip \
-  | sudo unzip -o -d /usr/local/bin -
+1. Press **c** to enable Compare mode
+2. Select 2 snapshots using arrow keys (or mouse) + Enter
+3. View **Compare** tab to see:
+   - File changes (added/removed)
+   - Record changes
+   - Delete ratio changes
+   - Read amplification
+   - Compaction recommendations
+
+### Performance Testing
+
+1. Enable Compare mode and select 2 snapshots
+2. Switch to **Performance Test** tab
+3. Enter a SQL query (use `{table}` placeholder)
+4. Press **t** or click "Run Performance Test"
+5. View execution time, files scanned, scan efficiency
+
+**Example queries:**
+```sql
+SELECT COUNT(*) FROM {table}
+SELECT * FROM {table} LIMIT 1000
+SELECT AVG(price) FROM {table} WHERE year = 2024
 ```
 
-**macOS (Intel):**
-```bash
-curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.10/gizmosql_cli_macos_amd64.zip \
-  | sudo unzip -o -d /usr/local/bin -
-```
+### Cleanup Test Tables
 
-**Linux:**
-```bash
-curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.10/gizmosql_cli_linux_amd64.zip \
-  | sudo unzip -o -d /usr/local/bin -
-```
+After performance testing, cleanup temporary tables:
 
-#### Start GizmoSQL Server
+- Press **x** in the TUI
+- Or manually via AWS Glue:
+  ```bash
+  aws glue delete-database --name snapshot_tests --region us-east-2
+  ```
 
-```bash
-gizmosql_server -P gizmosql_password -Q -T ~/.certs/cert0.pem ~/.certs/cert0.key
-```
-
-(Default port is 31337, -Q enables query printing, -T enables TLS)
-
-#### Configure Connection
-
-Create `table_sleuth.toml`:
-
-```toml
-[gizmosql]
-uri = "grpc+tls://localhost:31337"
-username = "gizmosql_username"
-password = "gizmosql_password"
-tls_skip_verify = true
-```
-
-#### Profile a Column
-
-1. Launch Table Sleuth with a file
-2. Navigate to **Profile** tab
-3. Click on a column name in the list (or use arrow keys and Enter)
-4. View profiling results with statistics:
-
-```
-Column: customer_id
-Rows: 10,000
-Nulls: 0 (0.0%)
-Distinct: 5,234 (52.3% cardinality)
-Min: 1
-Max: 10000
-```
-
-### Inspect Iceberg Tables
-
-#### Configure PyIceberg
-
-Create `~/.pyiceberg.yaml`:
-
-```yaml
-catalog:
-  local:
-    type: sql  # Use SQL catalog for local file-based catalogs
-    uri: sqlite:////absolute/path/to/warehouse/catalog.db
-    warehouse: file:///absolute/path/to/warehouse
-```
-
-**Example** for a warehouse at `/Users/you/data/warehouse`:
-
-```yaml
-catalog:
-  local:
-    type: sql
-    uri: sqlite:////Users/you/data/warehouse/catalog.db
-    warehouse: file:///Users/you/data/warehouse
-```
-
-#### Inspect Table Files
-
-```bash
-table-sleuth inspect ratebeer.reviews --catalog local
-```
-
-All data files from the current snapshot will be loaded for inspection.
-
-**Note**: PyIceberg supports several catalog types:
-- `sql` - Local file-based catalog with SQLite
-- `rest` - REST catalog server
-- `hive` - Hive Metastore
-- `glue` - AWS Glue
-- See [PyIceberg documentation](https://py.iceberg.apache.org/) for more options
-
-## Common Workflows
-
-### Workflow 1: Quick File Check
-
-```bash
-# Launch with file
-table-sleuth inspect data/file.parquet
-
-# Check File Detail tab for:
-# - File size
-# - Row count
-# - Compression type
-
-# Press q to quit
-```
-
-### Workflow 2: Find Columns by Name
-
-```bash
-# Launch with file
-table-sleuth inspect data/file.parquet
-
-# Navigate to Schema tab
-# Press 'f' to filter
-# Type part of column name (e.g., "customer")
-# Results update in real-time
-# Press Escape to clear filter
-```
-
-### Workflow 3: Compare Row Group Sizes
-
-```bash
-# Launch with file
-table-sleuth inspect data/file.parquet
-
-# Navigate to Row Groups tab
-# Review row counts and sizes
-# Identify imbalanced row groups
-```
-
-### Workflow 4: Analyze Column Distribution
-
-```bash
-# Launch with file (GizmoSQL required)
-table-sleuth inspect data/file.parquet
-
-# Navigate to Profile tab
-# Click on a column name (or use arrow keys and Enter)
-# View profiling results:
-#   - Null percentage
-#   - Distinct count
-#   - Cardinality ratio
-#   - Min/max values
-#   - Quartiles (for numeric columns)
-#   - Mode (most frequent value)
-```
-
-### Workflow 5: Inspect Partitioned Dataset
-
-```bash
-# Launch with directory
-table-sleuth inspect data/warehouse/orders/
-
-# File list shows all partitions
-# Use arrow keys to navigate
-# Press Enter to inspect each partition
-# Compare row counts and sizes
-# Press 'r' to refresh if files change
-```
-
-## Configuration Options
-
-### Minimal Configuration
-
-No configuration needed for basic file inspection.
-
-### Full Configuration
-
-Create `table_sleuth.toml`:
-
-```toml
-[catalog]
-default = "local"
-
-[gizmosql]
-uri = "grpc+tls://localhost:31337"
-username = "gizmosql_username"
-password = "gizmosql_password"
-tls_skip_verify = true
-```
-
-### Environment Variables
-
-Override configuration with environment variables:
-
-```bash
-export TABLE_SLEUTH_CATALOG_NAME="local"
-export TABLE_SLEUTH_GIZMO_URI="grpc+tls://localhost:31337"
-export TABLE_SLEUTH_GIZMO_USERNAME="gizmosql_username"
-export TABLE_SLEUTH_GIZMO_PASSWORD="gizmosql_password"
-```
+---
 
 ## Troubleshooting
 
-### File Not Found
+### TUI Colors Not Working
 
+Ensure tmux is configured:
 ```bash
-# Verify file exists
-ls -lh data/file.parquet
-
-# Check file extension
-# Must be .parquet or .pq
-```
-
-### No Files in Directory
-
-```bash
-# Check for Parquet files
-find data/warehouse -name "*.parquet"
-
-# Verify directory path
-ls -la data/warehouse/
+echo 'set -g default-terminal "tmux-256color"' >> ~/.tmux.conf
+tmux source-file ~/.tmux.conf
 ```
 
 ### GizmoSQL Connection Failed
 
-```bash
-# Check server is running
-curl http://localhost:31337/health
+1. Check server is running:
+   ```bash
+   ps aux | grep gizmosql_server
+   ```
 
-# Check port is accessible
-nc -zv localhost 31337
+2. Verify credentials match in both files:
+   - `table_sleuth.toml`
+   - `resources/config.json`
 
-# Restart server if needed
-gizmosql_server -P gizmosql_password -Q -T ~/.certs/cert0.pem ~/.certs/cert0.key
-```
+3. Test connection:
+   ```bash
+   gizmo "SELECT 1"
+   ```
 
-### Slow Performance
+### S3 Access Denied
 
-```bash
-# Enable verbose logging to diagnose
-table-sleuth inspect data/file.parquet --verbose
+1. Verify AWS credentials:
+   ```bash
+   aws sts get-caller-identity
+   ```
 
-# Large files may take time to inspect
-# Caching is automatic for repeated access
-# Press 'r' to refresh and clear caches
-```
+2. Check region matches:
+   ```bash
+   echo $AWS_REGION
+   ```
 
-## Tips and Tricks
+3. Verify IAM permissions for S3 and Glue
 
-1. **Use Filtering**: Press `f` in Schema tab to quickly find columns
-2. **Keyboard Navigation**: Learn the keybindings for faster navigation
-3. **Cache Awareness**: Metadata is cached automatically for performance
-4. **Refresh When Needed**: Press `r` if files change on disk
-5. **Profile Selectively**: Profiling can be slow for large files
-6. **Check Notifications**: Watch the top of screen for status messages
+### Snapshot Comparison Shows "UNKNOWN" Operation
+
+This is normal for older snapshots that don't record operation type. TableSleuth infers the operation from file changes.
+
+### Files Scanned Shows 0
+
+This can happen if DuckDB's EXPLAIN ANALYZE doesn't expose file counts. The fallback reads from Iceberg metadata, but may not always be available.
+
+---
 
 ## Next Steps
 
-- Read the [User Guide](docs/USER_GUIDE.md) for comprehensive documentation
-- Explore the [Performance Profiling Guide](docs/PERFORMANCE_PROFILING.md)
-- Check the [Technical Specification](docs/technical_specification.md) for architecture details
-- Review the [Product Specification](docs/product_specification.md) for feature roadmap
+- Read [USER_GUIDE.md](docs/USER_GUIDE.md) for detailed features
+- See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for system design
+- Check [gizmosql-deployment.md](docs/gizmosql-deployment.md) for GizmoSQL setup
+- Review [s3_tables_guide.md](docs/s3_tables_guide.md) for S3 Tables configuration
 
-## Example Session
+---
 
-```bash
-# Start with a sample file
-table-sleuth inspect data/sample.parquet
+## Quick Reference
 
-# TUI launches showing file list
-# File is auto-selected and inspected
+### Keyboard Shortcuts
 
-# Press Tab to navigate tabs:
-# - File Detail: See metadata
-# - Schema: View columns
-# - Row Groups: Check distribution
-# - Column Stats: See statistics
+| Key | Action |
+|-----|--------|
+| ↑/↓ | Navigate |
+| Tab | Switch tabs |
+| Enter | Select |
+| q | Quit |
+| r | Refresh (Iceberg view) |
+| c | Toggle Compare mode |
+| t | Run performance test |
+| x | Cleanup test tables |
 
-# In Schema tab:
-# - Use ↑/↓ to select column
-# - Press 'f' to filter columns
-
-# In Profile tab:
-# - Click column name to profile (if GizmoSQL configured)
-# - Or use ↑/↓ and Enter to select column
-
-# Press 'q' to quit
-```
-
-## Getting Help
+### Command Examples
 
 ```bash
-# Show CLI help
-table-sleuth --help
+# Local Parquet file
+table-sleuth inspect data/file.parquet
 
-# Show inspect command help
-table-sleuth inspect --help
+# S3 Parquet file
+table-sleuth inspect s3://bucket/path/file.parquet
 
-# Show version
-table-sleuth --version
+# Iceberg table (Glue catalog)
+table-sleuth iceberg --catalog ratebeer --table ratebeer.reviews
+
+# Iceberg table (S3 Tables)
+table-sleuth iceberg --catalog tpch --table tpch.lineitem
+
+# Verbose logging
+table-sleuth iceberg --catalog ratebeer --table ratebeer.reviews -v
 ```
-
-For more detailed information, see the [User Guide](docs/USER_GUIDE.md).

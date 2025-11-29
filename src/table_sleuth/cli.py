@@ -19,17 +19,22 @@ from .tui.views.iceberg_view import IcebergView
 logger = logging.getLogger(__name__)
 
 # Version information
-__version__ = "0.2.4"
+__version__ = "0.2.5"
 
 
 @click.group()
 @click.version_option(version=__version__, prog_name="Table Sleuth")
 def main() -> None:
-    """Table Sleuth - Parquet File Forensics Tool.
+    """Table Sleuth - Parquet File Forensics and Iceberg Snapshot Analysis.
 
-    MVP 0: File-Based Inspection
+    A powerful TUI for inspecting Parquet files and analyzing Iceberg table snapshots.
 
-    Inspect Parquet files, directories, or Iceberg tables with a powerful TUI.
+    Features:
+    - Parquet file inspection (local and S3)
+    - Iceberg snapshot analysis and comparison in S3
+    - Performance testing between Iceberg snapshots
+    - Merge-on-read (MOR) forensics with GizmoSQL (duckdb)
+    - Column profiling with GizmoSQL (duckdb)
     """
 
 
@@ -51,26 +56,35 @@ def main() -> None:
 def inspect(path: str, catalog_name: str | None, verbose: bool) -> None:
     """Inspect Parquet files, directories, or Iceberg tables.
 
+    Provides detailed forensic analysis of Parquet file metadata including schema,
+    row groups, column statistics, and data samples. Supports local files, S3 paths,
+    and Iceberg table data files.
+
     PATH can be:
 
     \b
-    - A single Parquet file: /path/to/file.parquet
-    - A directory: /path/to/directory (recursively scans for .parquet files)
-    - An Iceberg table: database.table (requires --catalog option)
+    - Local Parquet file: data/file.parquet
+    - S3 Parquet file: s3://bucket/path/file.parquet
+    - Directory: data/warehouse/ (recursively scans for .parquet files)
+    - Iceberg table: database.table (requires --catalog, inspects data files)
 
     Examples:
 
     \b
-    # Inspect a single file
+    # Inspect a local file
     table-sleuth inspect data/file.parquet
+
+    \b
+    # Inspect an S3 file
+    table-sleuth inspect s3://bucket/path/file.parquet
 
     \b
     # Inspect all files in a directory
     table-sleuth inspect data/warehouse/
 
     \b
-    # Inspect an Iceberg table
-    table-sleuth inspect ratebeer.reviews --catalog local
+    # Inspect Iceberg table data files
+    table-sleuth inspect --catalog ratebeer ratebeer.reviews
     """
     # Configure logging
     if verbose:
@@ -186,25 +200,6 @@ def inspect(path: str, catalog_name: str | None, verbose: bool) -> None:
         sys.exit(1)
 
 
-# Legacy command for backward compatibility
-@main.command("tui")
-@click.argument("identifier", type=str)
-@click.option(
-    "--catalog",
-    "catalog_name",
-    type=str,
-    default=None,
-    help="Catalog name (for example local). If omitted, identifier is treated as a path.",
-)
-@click.pass_context
-def run_tui(ctx: click.Context, identifier: str, catalog_name: str | None) -> None:
-    """Launch the Textual TUI (legacy command, use 'inspect' instead)."""
-    click.echo("Note: 'tui' command is deprecated, use 'inspect' instead", err=True)
-
-    # Forward to inspect command using ctx.invoke for interactive execution
-    ctx.invoke(inspect, path=identifier, catalog_name=catalog_name, verbose=False)
-
-
 @main.command("iceberg")
 @click.argument("metadata_path", type=str, required=False)
 @click.option(
@@ -233,37 +228,45 @@ def iceberg_viewer(
     table_identifier: str | None,
     verbose: bool,
 ) -> None:
-    """Launch Iceberg metadata viewer for snapshot analysis.
+    """Launch Iceberg snapshot analyzer for forensic analysis and performance testing.
+
+    Provides comprehensive analysis of Iceberg table snapshots including metadata,
+    file evolution, merge-on-read overhead, and query performance comparison.
 
     METADATA_PATH: Path to Iceberg metadata.json file (optional if using --catalog)
 
     \b
     Usage:
     - From metadata file: table-sleuth iceberg /path/to/metadata.json
-    - From catalog: table-sleuth iceberg --catalog local --table database.table
+    - From catalog: table-sleuth iceberg --catalog CATALOG --table database.table
 
-    The Iceberg viewer allows you to:
+    Features:
 
     \b
-    - Browse all snapshots in an Iceberg table
-    - View detailed snapshot information (files, schema, deletes)
-    - Compare two snapshots side-by-side
-    - Measure query performance differences between snapshots
-    - Analyze merge-on-read (MOR) overhead
+    - Browse all snapshots with operation types and timestamps
+    - View snapshot details (data files, delete files, schema, properties)
+    - Analyze merge-on-read (MOR) overhead and compaction needs
+    - Compare two snapshots side-by-side (file/record changes)
+    - Performance test queries between snapshots
+    - Preview data samples from snapshots
 
     Examples:
 
     \b
-    # View snapshots from metadata file
-    table-sleuth iceberg data/warehouse/ratebeer/reviews/metadata/metadata.json
+    # View snapshots from Glue catalog
+    table-sleuth iceberg --catalog ratebeer --table ratebeer.reviews
 
     \b
-    # View snapshots from catalog
-    table-sleuth iceberg --catalog local --table ratebeer.reviews
+    # View snapshots from S3 Tables catalog
+    table-sleuth iceberg --catalog tpch --table tpch.lineitem
 
     \b
-    # View with verbose logging
-    table-sleuth iceberg --catalog local --table ratebeer.reviews -v
+    # View from metadata file (local or S3)
+    table-sleuth iceberg s3://bucket/warehouse/table/metadata/metadata.json
+
+    \b
+    # View with verbose logging (shows debug info)
+    table-sleuth iceberg --catalog ratebeer --table ratebeer.reviews -v
     """
     # Configure logging
     if verbose:

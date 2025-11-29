@@ -64,7 +64,7 @@ def test_app_has_title(
     )
 
     assert app.TITLE == "Table Sleuth - Parquet Inspector"
-    assert app.SUB_TITLE == "MVP 0: Parquet Data Profiler"
+    assert app.SUB_TITLE == "Parquet Forensics & Iceberg Analysis"
 
 
 def test_app_has_keybindings(

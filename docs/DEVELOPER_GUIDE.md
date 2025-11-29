@@ -1,41 +1,87 @@
 # Table Sleuth Developer Guide
 
+**Version**: 0.2.5
+
 ## Overview
 
 This guide provides comprehensive information for developers contributing to Table Sleuth, including architecture details, design decisions, testing strategies, and guidelines for extending the system.
 
-## Architecture
+**For detailed architecture information, see [ARCHITECTURE.md](ARCHITECTURE.md)**
 
-### High-Level Architecture
+**For development setup, see [../DEVELOPMENT_SETUP.md](../DEVELOPMENT_SETUP.md)**
+
+## Quick Start for Developers
+
+### Setup Development Environment
+
+```bash
+# Clone repository
+git clone https://github.com/jamesbconner/TableSleuth.git
+cd TableSleuth
+
+# Install dependencies with dev tools
+uv sync --all-extras
+
+# Activate virtual environment
+source .venv/bin/activate
+
+# Install pre-commit hooks
+pre-commit install
+
+# Run tests
+pytest
+
+# Run quality checks
+make check
+```
+
+See [DEVELOPMENT_SETUP.md](../DEVELOPMENT_SETUP.md) for complete setup instructions.
+
+## Architecture Overview
 
 Table Sleuth follows a layered architecture with clear separation of concerns:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Presentation Layer                       │
-│                    (Textual TUI)                            │
-│  - Views: File list, detail, schema, row groups, profile   │
-│  - Widgets: Notifications, loading indicators              │
-│  - Event handling and user interactions                    │
+│                    CLI Layer                                │
+│  - inspect: Parquet file inspection                         │
+│  - iceberg: Snapshot analysis and comparison                │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Presentation Layer (TUI)                 │
+│  - Views: File list, schema, row groups, snapshots          │
+│  - Widgets: Notifications, loading indicators, modals       │
+│  - Event handling and user interactions                     │
 └─────────────────────────────────────────────────────────────┘
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                     Service Layer                           │
-│  - ParquetInspector: Metadata extraction                   │
-│  - FileDiscoveryService: File and table discovery          │
-│  - ProfilingBackend: Abstract profiling interface          │
-│  - IcebergAdapter: Iceberg table integration               │
+│  - ParquetService: Metadata extraction                      │
+│  - FileDiscoveryService: File and table discovery           │
+│  - FilesystemService: S3/local abstraction                  │
+│  - IcebergAdapter: Catalog and table management             │
+│  - IcebergMetadataService: Snapshot loading                 │
+│  - MORService: Merge-on-read analysis                       │
+│  - ProfilingBackend: Abstract profiling interface           │
+│  - SnapshotTestManager: Performance test setup              │
+│  - SnapshotPerformanceAnalyzer: Query performance           │
 └─────────────────────────────────────────────────────────────┘
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                      Data Layer                             │
-│  - PyArrow: Parquet file access                            │
-│  - ADBC: Arrow Flight SQL client                           │
-│  - PyIceberg: Iceberg catalog access                       │
+│  - PyArrow: Parquet file access                             │
+│  - ADBC: Arrow Flight SQL client                            │
+│  - PyIceberg: Iceberg catalog access (SQL, Glue, REST)      │
+│  - boto3: AWS S3 and Glue access                            │
+│  - fsspec: Unified filesystem interface                     │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+**For detailed architecture documentation, see [ARCHITECTURE.md](ARCHITECTURE.md)**
 
 ### Design Principles
 
@@ -124,96 +170,126 @@ async def on_file_selected(self, file_ref: FileRef) -> None:
 table-sleuth/
 ├── src/table_sleuth/
 │   ├── __init__.py
-│   ├── cli.py                      # CLI entry point and argument parsing
-│   ├── config.py                   # Configuration loading and validation
+│   ├── cli.py                          # CLI entry point (inspect, iceberg commands)
+│   ├── config.py                       # Configuration loading and validation
+│   ├── exceptions.py                   # Custom exceptions
 │   │
-│   ├── models/                     # Data models and types
+│   ├── models/                         # Data models and types
 │   │   ├── __init__.py
-│   │   ├── file_ref.py            # File reference model
-│   │   ├── parquet.py             # Parquet metadata models
-│   │   ├── profiling.py           # Profiling result models
-│   │   └── performance.py         # Performance tracking models
+│   │   ├── file_ref.py                 # File reference model
+│   │   ├── parquet.py                  # Parquet metadata models
+│   │   ├── profiling.py                # Profiling result models
+│   │   ├── performance.py              # Performance tracking models
+│   │   ├── iceberg.py                  # Iceberg-specific models
+│   │   ├── snapshot.py                 # Snapshot models
+│   │   └── table.py                    # Table handle models
 │   │
-│   ├── services/                   # Business logic layer
+│   ├── services/                       # Business logic layer
 │   │   ├── __init__.py
-│   │   ├── parquet_service.py     # Parquet inspection service
-│   │   ├── file_discovery.py      # File discovery service
+│   │   ├── parquet_service.py          # Parquet inspection service
+│   │   ├── file_discovery.py           # File discovery service
+│   │   ├── filesystem.py               # S3/local filesystem abstraction
+│   │   ├── iceberg_metadata_service.py # Iceberg metadata loading
+│   │   ├── mor_service.py              # Merge-on-read analysis
+│   │   ├── snapshot_test_manager.py    # Snapshot registration for testing
+│   │   ├── snapshot_performance_analyzer.py  # Query performance analysis
 │   │   │
-│   │   ├── profiling/             # Profiling backends
+│   │   ├── profiling/                  # Profiling backends
 │   │   │   ├── __init__.py
-│   │   │   ├── base.py            # ProfilingBackend protocol
-│   │   │   └── gizmo_duckdb.py    # GizmoSQL implementation
+│   │   │   ├── backend.py              # ProfilingBackend protocol
+│   │   │   └── gizmo_duckdb.py         # GizmoSQL/DuckDB implementation
 │   │   │
-│   │   └── formats/               # Table format adapters
+│   │   └── formats/                    # Table format adapters
 │   │       ├── __init__.py
-│   │       └── iceberg.py         # Iceberg adapter
+│   │       └── iceberg.py              # Iceberg adapter (SQL, Glue, S3 Tables)
 │   │
-│   ├── tui/                        # Terminal UI layer
+│   ├── tui/                            # Terminal UI layer
 │   │   ├── __init__.py
-│   │   ├── app.py                 # Main TUI application
+│   │   ├── app.py                      # Main TUI application
 │   │   │
-│   │   ├── views/                 # TUI views (screens/panels)
+│   │   ├── views/                      # TUI views (screens/panels)
 │   │   │   ├── __init__.py
-│   │   │   ├── file_list_view.py
-│   │   │   ├── file_detail_view.py
-│   │   │   ├── schema_view.py
-│   │   │   ├── row_groups_view.py
-│   │   │   ├── column_stats_view.py
-│   │   │   └── profile_view.py
+│   │   │   ├── file_list_view.py       # File list navigation
+│   │   │   ├── file_detail_view.py     # File metadata view
+│   │   │   ├── schema_view.py          # Schema inspection
+│   │   │   ├── row_groups_view.py      # Row group analysis
+│   │   │   ├── column_stats_view.py    # Column statistics
+│   │   │   ├── data_sample_view.py     # Data preview
+│   │   │   ├── profile_view.py         # Profiling results
+│   │   │   ├── iceberg_view.py         # Iceberg snapshot browser
+│   │   │   ├── snapshot_detail_view.py # Snapshot details
+│   │   │   ├── snapshot_comparison_view.py  # Snapshot comparison
+│   │   │   └── performance_test_view.py     # Performance testing
 │   │   │
-│   │   └── widgets/               # Reusable UI components
+│   │   └── widgets/                    # Reusable UI components
 │   │       ├── __init__.py
-│   │       ├── notification.py
-│   │       └── loading.py
+│   │       ├── notification.py         # Toast notifications
+│   │       ├── loading_indicator.py    # Loading spinners
+│   │       ├── modal.py                # Dialog boxes
+│   │       └── data_table.py           # Rich table display
 │   │
-│   └── utils/                      # Utility functions
+│   └── utils/                          # Utility functions
 │       ├── __init__.py
-│       └── formatting.py          # Display formatting helpers
+│       └── formatting.py               # Display formatting helpers
 │
-├── tests/                          # Test suite
+├── tests/                              # Test suite
 │   ├── __init__.py
-│   ├── conftest.py                # Pytest fixtures
-│   ├── test_parquet_inspector.py
+│   ├── conftest.py                     # Pytest fixtures
+│   ├── test_parquet_service.py
 │   ├── test_file_discovery.py
 │   ├── test_profiling_backend.py
-│   ├── test_gizmosql_integration.py
-│   ├── test_*.py                  # Component tests
-│   └── test_end_to_end.py         # E2E tests
+│   ├── test_gizmo_profiler_config.py
+│   ├── test_snapshot_test_manager.py
+│   ├── test_snapshot_performance_analyzer.py
+│   ├── test_parquet_profiling_integration.py
+│   ├── test_end_to_end.py              # E2E tests
+│   └── fixtures/
+│       ├── test_data.parquet
+│       └── test_iceberg_table/
 │
-├── docs/                           # Documentation
-│   ├── USER_GUIDE.md
-│   ├── DEVELOPER_GUIDE.md
-│   ├── PERFORMANCE_PROFILING.md
-│   ├── product_specification.md
-│   └── technical_specification.md
+├── resources/                          # Deployment resources
+│   ├── config.json.template            # EC2 config template
+│   └── tablesleuth_create_env.py       # EC2 setup script
 │
-├── .kiro/specs/                    # Feature specifications
+├── docs/                               # Documentation
+│   ├── ARCHITECTURE.md                 # System architecture
+│   ├── USER_GUIDE.md                   # User documentation
+│   ├── DEVELOPER_GUIDE.md              # This file
+│   ├── EC2_DEPLOYMENT_GUIDE.md         # EC2 deployment
+│   ├── PERFORMANCE_PROFILING.md        # Performance guide
+│   ├── gizmosql-deployment.md          # GizmoSQL setup
+│   ├── s3_tables_guide.md              # S3 Tables configuration
+│   └── images/                         # Screenshots
+│
+├── .kiro/specs/                        # Feature specifications
 │   ├── table-sleuth-mvp-0/
 │   │   ├── requirements.md
 │   │   ├── design.md
 │   │   └── tasks.md
 │   └── table-sleuth-mvp-v1/
 │
-├── scripts/                        # Utility scripts
-│   ├── create_test_data.py
-│   └── create_iceberg_tables.py
-│
-├── pyproject.toml                  # Project configuration
+├── pyproject.toml                      # Project configuration
+├── uv.lock                             # Dependency lock file
+├── table_sleuth.toml                   # Application configuration
+├── Makefile                            # Development commands
 ├── README.md
 ├── QUICKSTART.md
+├── TABLESLEUTH_SETUP.md                # User setup guide
+├── DEVELOPMENT_SETUP.md                # Developer setup guide
+├── CONTRIBUTING.md
 ├── CHANGELOG.md
 └── .pre-commit-config.yaml
 ```
 
 ## Component Interfaces
 
-### ParquetInspector Service
+### ParquetService
 
-**Purpose**: Extract metadata from Parquet files using PyArrow
+**Purpose**: Extract metadata and data from Parquet files using PyArrow
 
 **Interface**:
 ```python
-class ParquetInspector:
+class ParquetService:
     def inspect_file(self, file_path: str | Path) -> ParquetFileInfo:
         """Extract complete metadata from a Parquet file."""
 
@@ -225,6 +301,14 @@ class ParquetInspector:
 
     def get_column_stats(self, file_path: str | Path, column_name: str) -> ColumnStats:
         """Extract statistics for a specific column."""
+
+    def get_data_sample(
+        self,
+        file_path: str | Path,
+        columns: list[str] | None = None,
+        limit: int = 100
+    ) -> dict[str, Any]:
+        """Extract data sample from Parquet file."""
 ```
 
 **Key Implementation Details**:
@@ -233,6 +317,7 @@ class ParquetInspector:
 - Supports nested column structures
 - Extracts physical and logical types
 - Collects encoding and compression information
+- Supports both local and S3 files via fsspec
 
 ### FileDiscoveryService
 
@@ -242,7 +327,7 @@ class ParquetInspector:
 ```python
 class FileDiscoveryService:
     def discover_from_path(self, path: str | Path) -> list[FileRef]:
-        """Discover files from a file or directory path."""
+        """Discover files from a file or directory path (local or S3)."""
 
     def discover_from_table(self, table_identifier: str, catalog_name: str) -> list[FileRef]:
         """Discover files from an Iceberg table."""
@@ -254,12 +339,45 @@ class FileDiscoveryService:
         """Recursively scan directory for Parquet files."""
 ```
 
+**Supported Sources**:
+- Local files and directories (recursive)
+- S3 files and prefixes (s3://bucket/path/)
+- Iceberg tables (via catalog)
+- S3 Tables (via ARN)
+
 **Key Implementation Details**:
 - Validates file extensions (.parquet, .pq)
 - Uses PyArrow to verify file validity
 - Recursively scans directories
 - Delegates to IcebergAdapter for table discovery
 - Returns FileRef objects with basic metadata
+- Handles S3 and local paths uniformly via fsspec
+
+### FilesystemService
+
+**Purpose**: Abstract filesystem operations for local and S3
+
+**Interface**:
+```python
+class FilesystemService:
+    def read_file(self, path: str) -> bytes:
+        """Read file contents."""
+
+    def list_files(self, path: str, pattern: str | None = None) -> list[str]:
+        """List files in directory."""
+
+    def file_exists(self, path: str) -> bool:
+        """Check if file exists."""
+
+    def get_file_size(self, path: str) -> int:
+        """Get file size in bytes."""
+```
+
+**Key Implementation Details**:
+- Uses fsspec for unified filesystem interface
+- Supports S3 via s3fs
+- Handles AWS credentials automatically
+- Provides consistent API for local and remote files
 
 ### ProfilingBackend Protocol
 
@@ -276,25 +394,207 @@ class ProfilingBackend(Protocol):
 
     def profile_columns(self, view_name: str, columns: Sequence[str], filters: str | None = None) -> dict[str, ColumnProfile]:
         """Profile multiple columns with optional filters."""
+
+    def register_iceberg_table_with_snapshot(
+        self,
+        table_name: str,
+        metadata_location: str,
+        view_name: str | None = None
+    ) -> str:
+        """Register Iceberg table with specific snapshot for querying."""
 ```
 
-**GizmoSQL Implementation**:
+**GizmoSQL/DuckDB Implementation**:
 ```python
 class GizmoDuckDbProfiler:
-    def __init__(self, connection_uri: str, username: str, password: str):
-        self._uri = connection_uri
+    def __init__(
+        self,
+        uri: str,
+        username: str,
+        password: str,
+        tls_skip_verify: bool = False
+    ):
+        self._uri = uri
         self._username = username
         self._password = password
+        self._tls_skip_verify = tls_skip_verify
         self._connection: dbapi.Connection | None = None
 
     def register_file_view(self, file_paths: list[str], view_name: str | None = None) -> str:
         # Uses DuckDB's read_parquet() function
         # Supports multiple files for partitioned datasets
+        # Direct filesystem access (no path conversion)
 
     def profile_single_column(self, view_name: str, column: str, filters: str | None = None) -> ColumnProfile:
         # Executes SQL query for statistics
-        # Returns ColumnProfile with results
+        # Returns ColumnProfile with min, max, avg, distinct count, nulls
+
+    def register_iceberg_table_with_snapshot(
+        self,
+        table_name: str,
+        metadata_location: str,
+        view_name: str | None = None
+    ) -> str:
+        # Uses DuckDB's iceberg_scan() function
+        # Supports snapshot-specific queries
+        # Enables performance testing across snapshots
 ```
+
+**Connection Details**:
+- Protocol: gRPC with optional TLS
+- Default port: 31337
+- Authentication: Username/password
+- TLS: Self-signed certificates supported
+
+### IcebergAdapter
+
+**Purpose**: Interface with Iceberg catalogs and tables
+
+**Interface**:
+```python
+class IcebergAdapter:
+    def open_table(self, table_identifier: str, catalog_name: str | None = None) -> TableHandle:
+        """Open Iceberg table from catalog."""
+
+    def get_data_files(self, table_identifier: str, catalog_name: str | None = None) -> list[FileRef]:
+        """Get data files from Iceberg table."""
+
+    def load_catalog(self, catalog_name: str) -> Catalog:
+        """Load PyIceberg catalog by name."""
+
+    def _parse_s3_tables_arn(self, arn: str) -> tuple[str, str] | None:
+        """Parse S3 Tables ARN into catalog and table identifier."""
+```
+
+**Supported Catalog Types**:
+- **SQL Catalog**: Local SQLite-based catalogs
+- **Glue Catalog**: AWS Glue Data Catalog
+- **REST Catalog**: AWS S3 Tables (managed Iceberg)
+
+**S3 Tables ARN Format**:
+```
+arn:aws:s3tables:region:account:bucket/bucket-name/table/namespace.table
+```
+
+**Key Implementation Details**:
+- Uses PyIceberg for catalog access
+- Automatic catalog type detection
+- S3 Tables ARN parsing and REST catalog configuration
+- SigV4 authentication for S3 Tables
+- Graceful fallback for missing catalogs
+
+### IcebergMetadataService
+
+**Purpose**: Load and parse Iceberg table metadata
+
+**Interface**:
+```python
+class IcebergMetadataService:
+    def load_table(
+        self,
+        catalog_name: str | None = None,
+        table_identifier: str | None = None,
+        metadata_path: str | None = None
+    ) -> TableInfo:
+        """Load table from catalog or metadata file."""
+
+    def get_snapshots(self, table: Table) -> list[SnapshotInfo]:
+        """Get all snapshots from table."""
+
+    def get_snapshot_details(self, table: Table, snapshot_id: int) -> SnapshotDetail:
+        """Get detailed information about a snapshot."""
+```
+
+**Key Implementation Details**:
+- Flexible loading (catalog or direct metadata file)
+- Rich snapshot information extraction
+- Supports both data and delete files
+- Handles S3 and local metadata files
+
+### MORService (Merge-on-Read)
+
+**Purpose**: Analyze merge-on-read overhead in Iceberg tables
+
+**Interface**:
+```python
+class MORService:
+    def calculate_mor_metrics(self, snapshot: Snapshot) -> MORMetrics:
+        """Calculate MOR overhead metrics."""
+
+    def get_delete_file_stats(self, snapshot: Snapshot) -> DeleteFileStats:
+        """Get statistics about delete files."""
+
+    def calculate_compaction_benefit(self, snapshot: Snapshot) -> CompactionBenefit:
+        """Estimate benefit of compaction."""
+```
+
+**Metrics Calculated**:
+- Delete file count and total size
+- Position delete vs equality delete breakdown
+- MOR overhead percentage
+- Compaction recommendations
+
+### SnapshotTestManager
+
+**Purpose**: Manage Iceberg snapshot registration for performance testing
+
+**Interface**:
+```python
+class SnapshotTestManager:
+    def ensure_snapshot_namespace(self) -> None:
+        """Ensure snapshot_tests namespace exists."""
+
+    def register_snapshots(
+        self,
+        table_name: str,
+        snapshot_a: Snapshot,
+        snapshot_b: Snapshot
+    ) -> tuple[str, str]:
+        """Register two snapshots as separate tables for comparison."""
+
+    def cleanup_test_tables(self) -> None:
+        """Clean up all test tables in snapshot_tests namespace."""
+```
+
+**Key Implementation Details**:
+- Uses configured local catalog
+- Creates dedicated `snapshot_tests` namespace
+- Persists tables across sessions
+- Automatic cleanup of test tables
+
+### SnapshotPerformanceAnalyzer
+
+**Purpose**: Execute and compare query performance across snapshots
+
+**Interface**:
+```python
+class SnapshotPerformanceAnalyzer:
+    def run_query_test(self, table_name: str, query: str) -> QueryPerformanceMetrics:
+        """Run query against snapshot table and collect metrics."""
+
+    def compare_query_performance(
+        self,
+        table_a: str,
+        table_b: str,
+        query: str
+    ) -> PerformanceComparison:
+        """Compare query performance between two snapshots."""
+
+    def get_predefined_queries(self) -> dict[str, str]:
+        """Get predefined query templates."""
+```
+
+**Metrics Collected**:
+- Execution time
+- Files scanned
+- Bytes read
+- Row count
+
+**Predefined Queries**:
+- Full table scan
+- Filtered scan
+- Aggregation queries
+- Join queries (if applicable)
 
 ## Adding New Profiling Backends
 
@@ -534,6 +834,7 @@ import pytest
 import pyarrow as pa
 import pyarrow.parquet as pq
 from pathlib import Path
+import os
 
 @pytest.fixture
 def test_parquet_file(tmp_path: Path) -> Path:
@@ -565,22 +866,80 @@ def test_parquet_directory(tmp_path: Path) -> Path:
     return dir_path
 
 @pytest.fixture
-def gizmosql_server():
-    """Fixture for local GizmoSQL server (assumes already running)."""
-    # Check if GizmoSQL is available
-    import subprocess
+def gizmosql_config():
+    """Get GizmoSQL configuration from environment."""
+    uri = os.getenv("TEST_GIZMOSQL_URI", "grpc+tls://localhost:31337")
+    username = os.getenv("TEST_GIZMOSQL_USERNAME", "gizmosql_username")
+    password = os.getenv("TEST_GIZMOSQL_PASSWORD", "gizmosql_password")
+
+    return {
+        "uri": uri,
+        "username": username,
+        "password": password,
+        "tls_skip_verify": True,
+    }
+
+@pytest.fixture
+def gizmosql_available(gizmosql_config):
+    """Check if GizmoSQL server is available."""
     try:
-        result = subprocess.run(
-            ["curl", "-s", "http://localhost:31337/health"],
-            capture_output=True,
-            timeout=2
-        )
-        if result.returncode == 0:
-            yield "grpc+tls://localhost:31337"
-        else:
-            pytest.skip("GizmoSQL server not running")
+        from table_sleuth.services.profiling.gizmo_duckdb import GizmoDuckDbProfiler
+        profiler = GizmoDuckDbProfiler(**gizmosql_config)
+        # Try a simple query
+        profiler._get_connection()
+        return True
     except Exception:
-        pytest.skip("GizmoSQL server not available")
+        return False
+
+# Skip marker for tests requiring GizmoSQL
+requires_gizmosql = pytest.mark.skipif(
+    not os.getenv("TEST_GIZMOSQL_URI"),
+    reason="TEST_GIZMOSQL_URI not set"
+)
+```
+
+### Running Tests
+
+**All Tests**:
+```bash
+pytest
+```
+
+**With Coverage**:
+```bash
+pytest --cov=src/table_sleuth --cov-report=html --cov-report=term-missing
+```
+
+**Specific Test Categories**:
+```bash
+# Unit tests only
+pytest -m unit
+
+# Integration tests only
+pytest -m integration
+
+# Skip slow tests
+pytest -m "not slow"
+
+# Tests requiring GizmoSQL
+pytest -m requires_gizmosql
+```
+
+**Specific Test Files**:
+```bash
+pytest tests/test_parquet_service.py -v
+pytest tests/test_snapshot_test_manager.py -v
+```
+
+**With GizmoSQL**:
+```bash
+# Set environment variables
+export TEST_GIZMOSQL_URI="grpc+tls://localhost:31337"
+export TEST_GIZMOSQL_USERNAME="gizmosql_username"
+export TEST_GIZMOSQL_PASSWORD="gizmosql_password"
+
+# Run integration tests
+pytest tests/test_parquet_profiling_integration.py -v
 ```
 
 ## Code Quality Standards
@@ -781,53 +1140,95 @@ Fixes #456
 - [ ] Performance impact considered
 - [ ] Security implications reviewed
 
-## Path to MVP 1
+## Current Status (v0.2.5)
 
-### Planned Features
+### Completed Features
 
-1. **Full Iceberg Support**
+1. **Parquet Inspection** ✅
+   - File metadata extraction
+   - Schema viewing with filtering
+   - Row group analysis
+   - Column statistics
+   - Data sample preview
+   - Column profiling via GizmoSQL
+
+2. **Iceberg Support** ✅
    - Snapshot history navigation
    - Delete file inspection
    - Merge-on-read analysis
-   - Schema evolution tracking
+   - Snapshot comparison
+   - Multiple catalog types (SQL, Glue, S3 Tables)
+   - S3 Tables ARN support
 
-2. **Performance Profiling**
-   - Query performance analysis
-   - File layout optimization suggestions
-   - Compression ratio analysis
+3. **Performance Testing** ✅
+   - Query performance analysis across snapshots
+   - Predefined query templates
+   - Custom SQL query support
+   - Metrics collection (time, files, bytes)
 
-3. **Export Capabilities**
-   - JSON export
+4. **Deployment** ✅
+   - Local development setup
+   - Automated EC2 deployment
+   - GizmoSQL integration
+   - S3 and S3 Tables access
+
+### Planned Enhancements
+
+1. **Advanced Snapshot Analysis**
+   - Schema evolution visualization
+   - Partition evolution tracking
+   - Automated compaction recommendations
+   - Historical performance trends
+
+2. **Export Capabilities**
+   - JSON export for metadata
    - Markdown reports
-   - HTML reports
-   - CSV statistics
+   - HTML reports with charts
+   - CSV export for statistics
+   - Performance dashboards
 
-4. **Advanced Filtering**
-   - SQL WHERE clause support
-   - Partition filtering
-   - Time range filtering
+3. **Advanced Filtering**
+   - Partition-aware filtering
+   - Time-travel queries
+   - Custom query builder UI
+   - Saved query templates
 
-5. **Query History**
+4. **Query History**
    - Save profiling queries
-   - Bookmark files
+   - Bookmark files and tables
    - Recent files list
+   - Query performance history
+
+5. **Additional Table Formats**
+   - Delta Lake support
+   - Apache Hudi support
+   - Unified table format interface
 
 ### Extension Points
 
 **New Table Formats**:
-- Delta Lake adapter
-- Hudi adapter
-- Custom format plugins
+1. Create adapter class (similar to `IcebergAdapter`)
+2. Implement file discovery method
+3. Integrate with `FileDiscoveryService`
+4. Add tests and documentation
 
 **New Profiling Backends**:
-- Trino/Presto backend
-- AWS Athena backend
-- Databricks backend
+1. Implement `ProfilingBackend` protocol
+2. Add configuration support
+3. Register in backend factory
+4. Add integration tests
+
+**New Catalog Types**:
+1. Add catalog configuration to PyIceberg
+2. Update `IcebergAdapter` to support new type
+3. Add authentication handling
+4. Test with real catalog
 
 **New Export Formats**:
-- PDF reports
-- Excel spreadsheets
-- Grafana dashboards
+1. Create exporter class
+2. Implement export method
+3. Add CLI option
+4. Add tests
 
 ## Resources
 
@@ -843,8 +1244,8 @@ Fixes #456
 - [Arrow Flight SQL](https://arrow.apache.org/docs/format/FlightSql.html)
 
 ### Internal Documentation
-- [Requirements](.kiro/specs/table-sleuth-mvp-0/requirements.md)
-- [Design](.kiro/specs/table-sleuth-mvp-0/design.md)
-- [Tasks](.kiro/specs/table-sleuth-mvp-0/tasks.md)
-- [Product Specification](product_specification.md)
-- [Technical Specification](technical_specification.md)
+- [Architecture](ARCHITECTURE.md) - System architecture and design patterns
+- [User Guide](USER_GUIDE.md) - Complete user documentation
+- [Performance Profiling](PERFORMANCE_PROFILING.md) - Performance testing guide
+- [EC2 Deployment](EC2_DEPLOYMENT_GUIDE.md) - AWS deployment guide
+- [Kiro Specs](.kiro/specs/) - Feature specifications and requirements

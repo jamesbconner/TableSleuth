@@ -144,8 +144,7 @@ class IcebergAdapter(TableFormatAdapter):
     ) -> list[FileRef]:
         """Get all data files from an Iceberg table's current snapshot.
 
-        This method is used for MVP 0 to discover Parquet files from Iceberg tables
-        without exposing full snapshot/delete file functionality.
+        This method discovers Parquet data files from Iceberg tables for inspection.
 
         Args:
             table_identifier: Table identifier (e.g., "db.table")
@@ -166,15 +165,12 @@ class IcebergAdapter(TableFormatAdapter):
         if snapshot is None:
             return []
 
-        # Extract data files only (ignore delete files for MVP 0)
+        # Extract data files from current snapshot
         data_files: list[FileRef] = []
         scan = py_table.scan(snapshot_id=snapshot.snapshot_id)
 
         for file_task in scan.plan_files():
             f = file_task.file
-
-            # DataFile objects are data files (delete files would be DeleteFile)
-            # For MVP 0, we only want data files
             # Convert file:// URI to regular path
             file_path = self._file_uri_to_path(f.file_path)
 

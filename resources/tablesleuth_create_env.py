@@ -50,8 +50,6 @@ def load_config(config_path: str | None = None) -> dict[str, Any]:
     # Validate required fields
     required_fields = [
         "ssh_allowed_cidr",
-        "s3tables_bucket_arn",
-        "s3tables_table_arn",
         "gizmosql_username",
         "gizmosql_password",
     ]
@@ -60,6 +58,10 @@ def load_config(config_path: str | None = None) -> dict[str, Any]:
     if missing_fields:
         print(f"Error: Missing required fields in config: {', '.join(missing_fields)}")
         sys.exit(1)
+
+    # Optional fields with defaults
+    config.setdefault("s3tables_bucket_arn", None)
+    config.setdefault("s3tables_table_arn", None)
 
     return config
 
@@ -397,19 +399,23 @@ def create_iam_role_and_instance_profile(config: dict[str, Any]) -> str:
                     "s3tables:PutTableData",
                 ],
                 "Resource": [
-                    config["s3tables_bucket_arn"],
-                    config["s3tables_table_arn"],
+                    config["s3tables_bucket_arn"] or "*",
+                    config["s3tables_table_arn"] or "*",
                 ],
             }
         ],
     }
 
-    iam.put_role_policy(
-        RoleName=IAM_ROLE_NAME,
-        PolicyName="tablesleuth-s3tables-access",
-        PolicyDocument=json.dumps(s3tables_policy),
-    )
-    print("Attached inline S3Tables policy to role")
+    # Only add S3 Tables policy if ARNs are configured
+    if config["s3tables_bucket_arn"] and config["s3tables_table_arn"]:
+        iam.put_role_policy(
+            RoleName=IAM_ROLE_NAME,
+            PolicyName="tablesleuth-s3tables-access",
+            PolicyDocument=json.dumps(s3tables_policy),
+        )
+        print("Attached inline S3Tables policy to role")
+    else:
+        print("Skipping S3 Tables policy (ARNs not configured)")
 
     # Instance profile creation and role attachment
     try:
@@ -514,6 +520,45 @@ def launch_instance(
     Returns:
         Instance information dictionary
     """
+    # Build PyIceberg config conditionally
+    pyiceberg_config = ""
+    if config["s3tables_bucket_arn"] and config["s3tables_table_arn"]:
+        pyiceberg_config = f"""
+echo "Configuring PyIceberg for S3 Tables..."
+cat > /home/ec2-user/.pyiceberg.yaml <<PYICEEOF
+catalog:
+  tpch:
+    type: rest
+    warehouse: {config['s3tables_bucket_arn']}
+    uri: https://s3tables.{region}.amazonaws.com/iceberg
+    rest.sigv4-enabled: "true"
+    rest.signing-name: s3tables
+    rest.signing-region: {region}
+PYICEEOF
+
+chown ec2-user:ec2-user /home/ec2-user/.pyiceberg.yaml
+"""
+    else:
+        pyiceberg_config = """
+echo "Skipping PyIceberg S3 Tables config (not configured)"
+"""
+
+    # Build S3 Tables environment variables conditionally
+    s3tables_env = ""
+    if config["s3tables_bucket_arn"] and config["s3tables_table_arn"]:
+        s3tables_env = f"""
+# S3 Tables configuration
+export S3TABLES_BUCKET_ARN="{config['s3tables_bucket_arn']}"
+export S3TABLES_TABLE_ARN="{config['s3tables_table_arn']}"
+"""
+
+    # Build GizmoSQL S3 Tables attachment conditionally
+    gizmosql_attach = ""
+    if config["s3tables_bucket_arn"]:
+        gizmosql_attach = (
+            "ATTACH '${S3TABLES_BUCKET_ARN}' AS tpch (TYPE iceberg, ENDPOINT_TYPE s3_tables);"
+        )
+
     # User data writes and runs a Python 3.13.9 installer script plus git, awscli,
     # GizmoSQL CLI, and clones + bootstraps TableSleuth for ec2-user.
     user_data = f"""#!/bin/bash
@@ -642,19 +687,7 @@ su - ec2-user -c 'mkdir -p ~/Code && git clone https://github.com/jamesbconner/T
 echo "Creating .venv in ~/Code/TableSleuth and installing uv + project dependencies..."
 su - ec2-user -c 'cd ~/Code/TableSleuth && python -m venv .venv && . .venv/bin/activate && pip install uv && uv sync --all-extras'
 
-echo "Configuring PyIceberg for S3 Tables..."
-cat > /home/ec2-user/.pyiceberg.yaml <<PYICEEOF
-catalog:
-  tpch:
-    type: rest
-    warehouse: {config['s3tables_bucket_arn']}
-    uri: https://s3tables.{region}.amazonaws.com/iceberg
-    rest.sigv4-enabled: "true"
-    rest.signing-name: s3tables
-    rest.signing-region: {region}
-PYICEEOF
-
-chown ec2-user:ec2-user /home/ec2-user/.pyiceberg.yaml
+{pyiceberg_config}
 
 echo "Python ${{PY_VERSION}}, pip, venv, virtualenv, git, awscli, GizmoSQL, and TableSleuth are installed and bootstrapped."
 EOF
@@ -731,10 +764,7 @@ su - ec2-user -c '/usr/local/bin/gen-certs.sh /home/ec2-user/.certs' > /var/log/
 
 echo "Configuring environment variables and aliases..."
 cat >> /home/ec2-user/.bashrc <<'ENVEOF'
-
-# S3 Tables configuration
-export S3TABLES_BUCKET_ARN="{config['s3tables_bucket_arn']}"
-export S3TABLES_TABLE_ARN="{config['s3tables_table_arn']}"
+{s3tables_env}
 export AWS_REGION="{region}"
 export AWS_DEFAULT_REGION="{region}"
 
@@ -747,7 +777,7 @@ export GIZMOSQL_USERNAME="{config['gizmosql_username']}"
 export GIZMOSQL_PASSWORD="{config['gizmosql_password']}"
 
 # GizmoSQL aliases
-alias gizmosvr='gizmosql_server -P "${{GIZMOSQL_PASSWORD}}" -Q -I "install aws; install httpfs; install iceberg; load aws; load httpfs; load iceberg; CREATE SECRET (TYPE s3, PROVIDER credential_chain); ATTACH '"'"'${{S3TABLES_BUCKET_ARN}}'"'"' AS tpch (TYPE iceberg, ENDPOINT_TYPE s3_tables);" -T ~/.certs/cert0.pem ~/.certs/cert0.key'
+alias gizmosvr='gizmosql_server -P "${{GIZMOSQL_PASSWORD}}" -Q -I "install aws; install httpfs; install iceberg; load aws; load httpfs; load iceberg; CREATE SECRET (TYPE s3, PROVIDER credential_chain); {gizmosql_attach}" -T ~/.certs/cert0.pem ~/.certs/cert0.key'
 alias gizmo='gizmosql_client --command Execute --use-tls --tls-skip-verify --username "${{GIZMOSQL_USERNAME}}" --password "${{GIZMOSQL_PASSWORD}}"'
 ENVEOF
 

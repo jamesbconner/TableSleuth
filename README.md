@@ -56,7 +56,7 @@ table-sleuth inspect "arn:aws:s3tables:us-east-2:123456789012:bucket/my-bucket/t
 table-sleuth inspect db.table --catalog s3tables
 ```
 
-See [QUICKSTART.md](QUICKSTART.md) for detailed examples and [docs/USER_GUIDE.md](docs/USER_GUIDE.md) for comprehensive documentation.
+See [QUICKSTART.md](QUICKSTART.md) for detailed examples, [TABLESLEUTH_SETUP.md](TABLESLEUTH_SETUP.md) for complete setup instructions, and [docs/USER_GUIDE.md](docs/USER_GUIDE.md) for comprehensive documentation.
 
 ## Installation
 
@@ -265,56 +265,60 @@ table-sleuth/
 
 ## Development
 
-### Running Tests
+See [DEVELOPMENT_SETUP.md](DEVELOPMENT_SETUP.md) for complete development setup instructions.
+
+### Quick Development Commands
 
 ```bash
-# Run all tests
-pytest
+# Install with dev dependencies
+make install-dev
 
-# Run with coverage
-pytest --cov=src/table_sleuth --cov-report=html
+# Run all quality checks
+make check
 
-# Run specific test file
-pytest tests/test_parquet_inspector.py
-```
+# Run tests with coverage
+make test-cov
 
-### Code Quality
-
-```bash
-# Format code
-ruff format .
-
-# Lint code
-ruff check .
-
-# Type checking
-mypy src/table_sleuth
+# Format and lint
+make format
+make lint
 ```
 
 ## Documentation
 
-- [User Guide](docs/USER_GUIDE.md) - Comprehensive usage guide
+### User Documentation
+- [Table Sleuth Setup](TABLESLEUTH_SETUP.md) - Complete setup guide for all catalog types
 - [Quick Start](QUICKSTART.md) - Get started quickly with examples
+- [User Guide](docs/USER_GUIDE.md) - Comprehensive usage guide
 - [Performance Profiling](docs/PERFORMANCE_PROFILING.md) - Performance analysis guide
-- [Product Specification](docs/product_specification.md) - Product requirements
-- [Technical Specification](docs/technical_specification.md) - Technical details
+
+### Developer Documentation
+- [Development Setup](DEVELOPMENT_SETUP.md) - Development environment setup
+- [EC2 Deployment Guide](docs/EC2_DEPLOYMENT_GUIDE.md) - Automated AWS EC2 deployment
+- [Architecture](docs/ARCHITECTURE.md) - System architecture and technical details
+- [Developer Guide](docs/DEVELOPER_GUIDE.md) - API reference and contribution guide
 
 ## Roadmap
 
-### MVP 0 (Current) ✅
-- Parquet file inspection
-- Directory scanning
-- Basic Iceberg file discovery
+### Current Release (v0.2.x) ✅
+- Parquet file inspection (local and S3)
+- Directory scanning with recursive discovery
+- Iceberg snapshot navigation and analysis
+- Delete file inspection and MOR forensics
+- Snapshot comparison and diff analysis
+- Query performance testing between snapshots
 - Column profiling with GizmoSQL
-- Interactive TUI
+- AWS Glue catalog support
+- AWS S3 Tables support
+- Interactive TUI with rich visualizations
 
-### MVP 1 (Planned)
-- Full Iceberg snapshot navigation
-- Delete file inspection
-- Merge-on-read analysis
-- Schema evolution tracking
-- Performance profiling
-- Export capabilities
+### Future Enhancements
+- Delta Lake and Hudi support
+- Schema evolution visualization
+- Export capabilities (JSON, CSV reports)
+- PySpark profiling backend option
+- REST catalog support
+- Automated compaction recommendations
 
 ## Contributing
 

@@ -27,7 +27,7 @@ def test_version_flag(cli_runner: CliRunner) -> None:
     """Test version flag."""
     result = cli_runner.invoke(main, ["--version"])
     assert result.exit_code == 0
-    assert "mvp0" in result.output.lower() or "version" in result.output.lower()
+    assert "version" in result.output.lower() or "table sleuth" in result.output.lower()
 
 
 def test_inspect_command_exists(cli_runner: CliRunner) -> None:
