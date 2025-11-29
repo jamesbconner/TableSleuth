@@ -513,9 +513,13 @@ class GizmoDuckDbProfiler(ProfilingBackend):
                 cur.execute(explain_query)
                 explain_output = cur.fetchall()
 
+                # Debug: Log the explain output to see what we're getting
+                logger.debug(f"EXPLAIN ANALYZE output: {explain_output}")
+
                 # Parse metrics from EXPLAIN ANALYZE output
-                # This is a simplified version - actual parsing would be more complex
-                metrics = self._parse_explain_analyze(explain_output, execution_time_ms)
+                metrics = self._parse_explain_analyze(
+                    explain_output, execution_time_ms, modified_query
+                )
 
                 return results, metrics
 
@@ -599,13 +603,14 @@ class GizmoDuckDbProfiler(ProfilingBackend):
             raise RuntimeError(f"EXPLAIN ANALYZE failed: {e}") from e
 
     def _parse_explain_analyze(
-        self, explain_output: list, execution_time_ms: float
+        self, explain_output: list, execution_time_ms: float, query: str
     ) -> QueryPerformanceMetrics:
         """Parse EXPLAIN ANALYZE output to extract metrics.
 
         Args:
             explain_output: Raw EXPLAIN ANALYZE output
             execution_time_ms: Measured execution time
+            query: Original query (for fallback file count extraction)
 
         Returns:
             QueryPerformanceMetrics object
@@ -678,6 +683,28 @@ class GizmoDuckDbProfiler(ProfilingBackend):
                     current_bytes = int(value * 1024 * 1024 * 1024)
                 bytes_scanned = max(bytes_scanned, current_bytes)
 
+        # Fallback: If files_scanned is still 0, try to extract from iceberg_scan() calls in query
+        if files_scanned == 0:
+            # Look for iceberg_scan calls with metadata locations
+            # Pattern matches: iceberg_scan('path') or iceberg_scan('path', version => 12345)
+            # Handles SQL-escaped single quotes ('') in paths
+            iceberg_scan_pattern = r"iceberg_scan\('((?:[^']|'')+)'(?:,\s*version\s*=>\s*(\d+))?\)"
+            for match in re.finditer(iceberg_scan_pattern, query, re.IGNORECASE):
+                # Unescape SQL single quotes ('' -> ')
+                metadata_location = match.group(1).replace("''", "'")
+                snapshot_id = match.group(2) if match.group(2) else None
+
+                # Try to get file count from Iceberg metadata
+                try:
+                    file_count = self._get_iceberg_file_count(metadata_location, snapshot_id)
+                    files_scanned += file_count
+                    logger.debug(
+                        f"Fallback: Got {file_count} files from Iceberg metadata "
+                        f"for {metadata_location}"
+                    )
+                except Exception as e:
+                    logger.debug(f"Could not get file count from Iceberg metadata: {e}")
+
         return QueryPerformanceMetrics(
             execution_time_ms=execution_time_ms,
             files_scanned=files_scanned,
@@ -686,3 +713,68 @@ class GizmoDuckDbProfiler(ProfilingBackend):
             rows_returned=rows_returned,
             memory_peak_mb=memory_peak_mb,
         )
+
+    def _get_iceberg_file_count(self, metadata_location: str, snapshot_id: str | None) -> int:
+        """Get file count from Iceberg metadata.
+
+        Args:
+            metadata_location: Path to Iceberg metadata JSON file
+            snapshot_id: Optional snapshot ID to query specific snapshot
+
+        Returns:
+            Number of data files in the snapshot
+
+        Raises:
+            Exception: If metadata cannot be read or parsed
+        """
+        import json
+
+        from table_sleuth.services.filesystem import FileSystem
+
+        # Read metadata file
+        fs = FileSystem()
+
+        if fs.is_s3_path(metadata_location):
+            with fs.open_file(metadata_location, "rb") as file_obj:
+                metadata = json.load(file_obj)
+        else:
+            with open(metadata_location) as f:
+                metadata = json.load(f)
+
+        # Get current snapshot or specific snapshot
+        if snapshot_id:
+            target_snapshot_id = int(snapshot_id)
+            snapshot = None
+            for snap in metadata.get("snapshots", []):
+                if snap["snapshot-id"] == target_snapshot_id:
+                    snapshot = snap
+                    break
+            if not snapshot:
+                raise ValueError(f"Snapshot {snapshot_id} not found in metadata")
+        else:
+            current_snapshot_id = metadata.get("current-snapshot-id")
+            if not current_snapshot_id:
+                return 0
+            snapshot = None
+            for snap in metadata.get("snapshots", []):
+                if snap["snapshot-id"] == current_snapshot_id:
+                    snapshot = snap
+                    break
+            if not snapshot:
+                return 0
+
+        # Get manifest list and count files
+        manifest_list_path = snapshot.get("manifest-list")
+        if not manifest_list_path:
+            return 0
+
+        # For now, return summary stats if available
+        summary = snapshot.get("summary", {})
+        total_data_files = summary.get("total-data-files")
+        if total_data_files:
+            return int(total_data_files)
+
+        # If summary not available, would need to read manifest list
+        # This is a simplified version - full implementation would parse manifests
+        logger.debug("Could not get file count from snapshot summary")
+        return 0
