@@ -613,9 +613,8 @@ class IcebergView(Screen):
         notification.info("Performance testing not yet implemented")
 
     def action_cleanup(self) -> None:
-        """Cleanup test tables (placeholder)."""
-        notification = self.query_one("#notification", Notification)
-        notification.info("Cleanup not yet implemented")
+        """Cleanup test tables."""
+        self._cleanup_test_tables()
 
     def action_dismiss_notification(self) -> None:
         """Dismiss the notification."""
