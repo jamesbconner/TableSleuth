@@ -687,11 +687,11 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         if files_scanned == 0:
             # Look for iceberg_scan calls with metadata locations
             # Pattern matches: iceberg_scan('path') or iceberg_scan('path', version => 12345)
-            iceberg_scan_pattern = (
-                r"iceberg_scan\(['\"]([^'\"]+)['\"](?:,\s*version\s*=>\s*(\d+))?\)"
-            )
+            # Handles SQL-escaped single quotes ('') in paths
+            iceberg_scan_pattern = r"iceberg_scan\('((?:[^']|'')+)'(?:,\s*version\s*=>\s*(\d+))?\)"
             for match in re.finditer(iceberg_scan_pattern, query, re.IGNORECASE):
-                metadata_location = match.group(1)
+                # Unescape SQL single quotes ('' -> ')
+                metadata_location = match.group(1).replace("''", "'")
                 snapshot_id = match.group(2) if match.group(2) else None
 
                 # Try to get file count from Iceberg metadata
