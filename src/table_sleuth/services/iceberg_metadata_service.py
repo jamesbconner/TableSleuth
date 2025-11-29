@@ -137,8 +137,13 @@ class IcebergMetadataService:
                 else {}
             )
 
-            # Get operation from summary
-            operation = summary.get("operation", "UNKNOWN")
+            # Get operation from summary or snapshot object
+            # Try multiple possible locations for the operation
+            operation = summary.get("operation")
+            if not operation and hasattr(snapshot, "operation"):
+                operation = str(snapshot.operation) if snapshot.operation else None
+            if not operation:
+                operation = "UNKNOWN"
 
             # Extract metrics from summary
             total_records = int(summary.get("total-records", 0))
