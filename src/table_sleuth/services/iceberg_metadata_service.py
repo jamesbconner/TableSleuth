@@ -137,13 +137,20 @@ class IcebergMetadataService:
                 else {}
             )
 
+            # Debug: Log summary keys to see what's available
+            logger.debug(f"Snapshot {snapshot.snapshot_id} summary keys: {list(summary.keys())}")
+
             # Get operation from summary or snapshot object
             # Try multiple possible locations for the operation
             operation = summary.get("operation")
             if not operation and hasattr(snapshot, "operation"):
                 operation = str(snapshot.operation) if snapshot.operation else None
-            if not operation:
-                operation = "UNKNOWN"
+
+            # If still no operation, try to infer from summary metrics
+            if not operation or operation == "UNKNOWN":
+                operation = self._infer_operation(summary)
+
+            logger.debug(f"Snapshot {snapshot.snapshot_id} operation: {operation}")
 
             # Extract metrics from summary
             total_records = int(summary.get("total-records", 0))
@@ -408,3 +415,59 @@ class IcebergMetadataService:
             schemas.append(schema_info)
 
         return schemas
+
+    def _infer_operation(self, summary: dict[str, str]) -> str:
+        """Infer operation type from snapshot summary metrics.
+
+        Args:
+            summary: Snapshot summary dictionary
+
+        Returns:
+            Inferred operation type
+        """
+        # Check for explicit operation indicators in summary
+        added_files = int(summary.get("added-data-files", 0))
+        deleted_files = int(summary.get("deleted-data-files", 0))
+        added_records = int(summary.get("added-records", 0))
+        deleted_records = int(summary.get("deleted-records", 0))
+        added_delete_files = int(summary.get("added-delete-files", 0))
+
+        # Infer based on metrics (order matters - check most specific conditions first)
+        # Note: Presence of added_delete_files indicates merge-on-read (MOR) operations
+
+        # Merge-on-read UPDATE: delete files + new data files (with or without deletions)
+        # This includes compaction scenarios where old files are removed
+        if added_delete_files > 0 and added_files > 0:
+            return "UPDATE"
+
+        # Merge-on-read DELETE: delete files without adding new data files
+        if added_delete_files > 0 and added_files == 0:
+            return "DELETE"
+
+        # Copy-on-write operations (no delete files)
+        # Distinguish OVERWRITE vs REPLACE by checking if all files were replaced
+        if deleted_files > 0 and added_delete_files == 0:
+            # If files were both added and deleted, could be OVERWRITE or REPLACE
+            # Check for explicit indicators in summary
+            if "replaced-partitions" in summary or "partition-summaries" in summary:
+                return "REPLACE"
+            # If all data files were deleted, it's likely a full OVERWRITE
+            total_data_files = int(summary.get("total-data-files", 0))
+            if total_data_files == added_files:
+                # All current files are new = full overwrite
+                return "OVERWRITE"
+            # Otherwise, assume REPLACE (partial rewrite)
+            if added_files > 0:
+                return "REPLACE"
+            # Only deletions, no additions
+            return "OVERWRITE"
+
+        # APPEND: only files added (most common)
+        if added_files > 0:
+            return "APPEND"
+
+        # Fallback to record changes
+        if added_records > 0 or deleted_records > 0:
+            return "UPDATE"
+
+        return "UNKNOWN"

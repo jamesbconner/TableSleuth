@@ -354,7 +354,7 @@ class TestSnapshotComparison:
         recommendation = comparison.compaction_recommendation
         assert "Compaction recommended" in recommendation
         assert "Delete ratio is 15.0%" in recommendation
-        assert "Read amplification is 1.5x" in recommendation
+        assert "Read amplification is 1.50x" in recommendation
 
 
 class TestQueryPerformanceMetrics:
