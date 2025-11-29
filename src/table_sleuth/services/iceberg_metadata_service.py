@@ -216,14 +216,27 @@ class IcebergMetadataService:
                 f = file_task.file
                 file_path = self._adapter._file_uri_to_path(f.file_path)
 
-                # For now, we'll create simple file references
-                # In a full implementation, we'd create FileRef objects
+                # Create file info
                 file_info = {
                     "file_path": file_path,
                     "file_size_bytes": f.file_size_in_bytes,
                     "record_count": f.record_count,
                 }
                 data_files.append(file_info)
+
+                # Get delete files associated with this data file
+                if hasattr(file_task, "delete_files") and file_task.delete_files:
+                    for delete_file in file_task.delete_files:
+                        delete_path = self._adapter._file_uri_to_path(delete_file.file_path)
+                        delete_info = {
+                            "file_path": delete_path,
+                            "file_size_bytes": delete_file.file_size_in_bytes,
+                            "record_count": delete_file.record_count,
+                            "content": str(delete_file.content)
+                            if hasattr(delete_file, "content")
+                            else "DELETE",
+                        }
+                        delete_files.append(delete_info)
 
             # Get schema
             schema = py_table.schema()
