@@ -33,7 +33,7 @@ class SnapshotPerformanceAnalyzer:
 
         Args:
             table_name: Name of the snapshot table to query
-            query: SQL query to execute
+            query: SQL query to execute (can contain {table} placeholder)
 
         Returns:
             QueryPerformanceMetrics object
@@ -42,6 +42,9 @@ class SnapshotPerformanceAnalyzer:
             RuntimeError: If query execution fails
         """
         try:
+            # Substitute table name if query contains placeholder
+            query = query.replace("{table}", table_name)
+
             # Execute query with metrics collection
             # Note: This assumes the profiler has execute_query_with_metrics method
             if hasattr(self._profiler, "execute_query_with_metrics"):

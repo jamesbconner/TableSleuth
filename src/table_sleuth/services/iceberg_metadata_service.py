@@ -432,16 +432,30 @@ class IcebergMetadataService:
         deleted_records = int(summary.get("deleted-records", 0))
         added_delete_files = int(summary.get("added-delete-files", 0))
 
-        # Infer based on metrics
-        if added_delete_files > 0 and added_files == 0:
-            return "DELETE"
-        elif deleted_files > 0 and added_files > 0:
-            return "REPLACE"
-        elif deleted_files > 0:
-            return "OVERWRITE"
-        elif added_files > 0:
-            return "APPEND"
-        elif added_records > 0 or deleted_records > 0:
+        # Infer based on metrics (order matters - check most specific conditions first)
+
+        # Merge-on-read UPDATE: new data files + delete files, no deleted data files
+        if added_delete_files > 0 and added_files > 0 and deleted_files == 0:
             return "UPDATE"
-        else:
-            return "UNKNOWN"
+
+        # Merge-on-read DELETE: only delete files added, no data file changes
+        if added_delete_files > 0 and added_files == 0 and deleted_files == 0:
+            return "DELETE"
+
+        # REPLACE: both files deleted and added (partition replacement or rewrite)
+        if deleted_files > 0 and added_files > 0:
+            return "REPLACE"
+
+        # OVERWRITE: files deleted (full table overwrite)
+        if deleted_files > 0:
+            return "OVERWRITE"
+
+        # APPEND: only files added (most common)
+        if added_files > 0:
+            return "APPEND"
+
+        # Fallback to record changes
+        if added_records > 0 or deleted_records > 0:
+            return "UPDATE"
+
+        return "UNKNOWN"
