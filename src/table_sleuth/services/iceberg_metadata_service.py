@@ -435,16 +435,13 @@ class IcebergMetadataService:
         # Infer based on metrics (order matters - check most specific conditions first)
         # Note: Presence of added_delete_files indicates merge-on-read (MOR) operations
 
-        # Merge-on-read UPDATE: new data files + delete files, no deleted data files
-        if added_delete_files > 0 and added_files > 0 and deleted_files == 0:
+        # Merge-on-read UPDATE: delete files + new data files (with or without deletions)
+        # This includes compaction scenarios where old files are removed
+        if added_delete_files > 0 and added_files > 0:
             return "UPDATE"
 
-        # Merge-on-read DELETE with file replacement: delete files + data file changes
-        if added_delete_files > 0 and deleted_files > 0:
-            return "DELETE"
-
-        # Merge-on-read DELETE: only delete files added, no data file changes
-        if added_delete_files > 0 and added_files == 0 and deleted_files == 0:
+        # Merge-on-read DELETE: delete files without adding new data files
+        if added_delete_files > 0 and added_files == 0:
             return "DELETE"
 
         # Copy-on-write operations (no delete files)
