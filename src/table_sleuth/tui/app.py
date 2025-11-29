@@ -44,7 +44,7 @@ class TableSleuthApp(App):
       - Profile results
     """
 
-    TITLE = "Table Sleuth - Parquet Inspector"
+    TITLE = "Table Sleuth - Parquet Analysis"
     SUB_TITLE = "Parquet Forensics & Iceberg Analysis"
 
     CSS = """
