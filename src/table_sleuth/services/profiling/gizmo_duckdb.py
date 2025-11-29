@@ -686,7 +686,10 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         # Fallback: If files_scanned is still 0, try to extract from iceberg_scan() calls in query
         if files_scanned == 0:
             # Look for iceberg_scan calls with metadata locations
-            iceberg_scan_pattern = r"iceberg_scan\(['\"]([^'\"]+)['\"](?:,\s*(\d+))?\)"
+            # Pattern matches: iceberg_scan('path') or iceberg_scan('path', version => 12345)
+            iceberg_scan_pattern = (
+                r"iceberg_scan\(['\"]([^'\"]+)['\"](?:,\s*version\s*=>\s*(\d+))?\)"
+            )
             for match in re.finditer(iceberg_scan_pattern, query, re.IGNORECASE):
                 metadata_location = match.group(1)
                 snapshot_id = match.group(2) if match.group(2) else None
