@@ -610,9 +610,7 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         Returns:
             QueryPerformanceMetrics object
         """
-        # This is a simplified parser
-        # In production, this would need to parse DuckDB's EXPLAIN ANALYZE format
-        # to extract actual metrics
+        import re
 
         # Default values
         files_scanned = 0
@@ -621,23 +619,64 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         rows_returned = 0
         memory_peak_mb = 0.0
 
-        # Parse explain output (simplified)
+        # Parse explain output
         explain_text = "\n".join(str(row[0]) for row in explain_output)
 
-        # Try to extract metrics from explain text
-        # This is a placeholder - actual implementation would parse DuckDB's format
-        import re
+        # DuckDB EXPLAIN ANALYZE patterns
+        # Look for PARQUET_SCAN or ICEBERG_SCAN with file counts
+        scan_patterns = [
+            r"PARQUET_SCAN.*?(\d+)\s+Files",
+            r"ICEBERG_SCAN.*?(\d+)\s+Files",
+            r"Scanning\s+(\d+)\s+files?",
+        ]
+        for pattern in scan_patterns:
+            match = re.search(pattern, explain_text, re.IGNORECASE | re.DOTALL)
+            if match:
+                files_scanned = max(files_scanned, int(match.group(1)))
 
-        # Look for row counts
-        row_match = re.search(r"(\d+) rows", explain_text, re.IGNORECASE)
-        if row_match:
-            rows_returned = int(row_match.group(1))
-            rows_scanned = rows_returned  # Simplified
+        # Look for rows scanned (from scan operators - before filtering)
+        scan_row_patterns = [
+            r"(?:PARQUET_SCAN|ICEBERG_SCAN).*?(\d+)\s+Rows",
+            r"(?:PARQUET_SCAN|ICEBERG_SCAN).*?Cardinality:\s*(\d+)",
+        ]
+        for pattern in scan_row_patterns:
+            match = re.search(pattern, explain_text, re.IGNORECASE | re.DOTALL)
+            if match:
+                rows_scanned = max(rows_scanned, int(match.group(1)))
 
-        # Look for file counts
-        file_match = re.search(r"(\d+) files?", explain_text, re.IGNORECASE)
-        if file_match:
-            files_scanned = int(file_match.group(1))
+        # Look for rows returned (final result - after filtering)
+        result_row_patterns = [
+            r"Result:\s*(\d+)\s+rows?",
+            r"RESULT.*?(\d+)\s+Rows",
+            r"RESULT.*?Cardinality:\s*(\d+)",
+        ]
+        for pattern in result_row_patterns:
+            match = re.search(pattern, explain_text, re.IGNORECASE | re.DOTALL)
+            if match:
+                rows_returned = max(rows_returned, int(match.group(1)))
+
+        # If we didn't find distinct values, use rows_returned as fallback for rows_scanned
+        if rows_scanned == 0 and rows_returned > 0:
+            rows_scanned = rows_returned
+
+        # Look for bytes scanned - aggregate all occurrences using max
+        bytes_patterns = [
+            r"(\d+(?:\.\d+)?)\s*(MB|GB|KB|Bytes)",
+        ]
+        for pattern in bytes_patterns:
+            for match in re.finditer(pattern, explain_text, re.IGNORECASE):
+                value = float(match.group(1))
+                unit = match.group(2).upper()
+                current_bytes = 0
+                if unit == "BYTES":
+                    current_bytes = int(value)
+                elif unit == "KB":
+                    current_bytes = int(value * 1024)
+                elif unit == "MB":
+                    current_bytes = int(value * 1024 * 1024)
+                elif unit == "GB":
+                    current_bytes = int(value * 1024 * 1024 * 1024)
+                bytes_scanned = max(bytes_scanned, current_bytes)
 
         return QueryPerformanceMetrics(
             execution_time_ms=execution_time_ms,
