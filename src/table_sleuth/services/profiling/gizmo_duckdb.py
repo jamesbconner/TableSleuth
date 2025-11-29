@@ -634,19 +634,30 @@ class GizmoDuckDbProfiler(ProfilingBackend):
             if match:
                 files_scanned = max(files_scanned, int(match.group(1)))
 
-        # Look for row counts in various formats
-        # Pattern: "X Rows" or "Cardinality: X"
-        row_patterns = [
-            r"(\d+)\s+Rows",
-            r"Cardinality:\s*(\d+)",
-            r"Result:\s*(\d+)\s+rows?",
+        # Look for rows scanned (from scan operators - before filtering)
+        scan_row_patterns = [
+            r"(?:PARQUET_SCAN|ICEBERG_SCAN).*?(\d+)\s+Rows",
+            r"(?:PARQUET_SCAN|ICEBERG_SCAN).*?Cardinality:\s*(\d+)",
         ]
-        for pattern in row_patterns:
-            match = re.search(pattern, explain_text, re.IGNORECASE)
+        for pattern in scan_row_patterns:
+            match = re.search(pattern, explain_text, re.IGNORECASE | re.DOTALL)
             if match:
-                count = int(match.group(1))
-                rows_returned = max(rows_returned, count)
-                rows_scanned = max(rows_scanned, count)
+                rows_scanned = max(rows_scanned, int(match.group(1)))
+
+        # Look for rows returned (final result - after filtering)
+        result_row_patterns = [
+            r"Result:\s*(\d+)\s+rows?",
+            r"RESULT.*?(\d+)\s+Rows",
+            r"RESULT.*?Cardinality:\s*(\d+)",
+        ]
+        for pattern in result_row_patterns:
+            match = re.search(pattern, explain_text, re.IGNORECASE | re.DOTALL)
+            if match:
+                rows_returned = max(rows_returned, int(match.group(1)))
+
+        # If we didn't find distinct values, use rows_returned as fallback for rows_scanned
+        if rows_scanned == 0 and rows_returned > 0:
+            rows_scanned = rows_returned
 
         # Look for bytes scanned - aggregate all occurrences using max
         bytes_patterns = [
