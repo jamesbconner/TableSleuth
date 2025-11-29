@@ -42,7 +42,7 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
 ]
 
-# Table format support - MVP: Iceberg
+# Table format support
 dependencies = [
     "pyiceberg[s3fs,sql-sqlite]>=0.9.1",
     "textual>=0.86.2",

@@ -1,4 +1,4 @@
-"""End-to-end tests for Table Sleuth MVP 0.
+"""End-to-end tests for Table Sleuth.
 
 These tests verify the complete data flow through all layers of the application.
 """

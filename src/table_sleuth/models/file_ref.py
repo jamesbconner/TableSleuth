@@ -8,8 +8,8 @@ from typing import Any
 class FileRef:
     """Reference to a Parquet file.
 
-    This model supports both simple file references (for MVP 0) and
-    Iceberg-specific metadata (for MVP 1).
+    This model supports both simple file references and
+    Iceberg-specific metadata with full snapshot context.
 
     Attributes:
         path: File path (local or remote)

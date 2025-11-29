@@ -45,7 +45,7 @@ class TableSleuthApp(App):
     """
 
     TITLE = "Table Sleuth - Parquet Inspector"
-    SUB_TITLE = "MVP 0: Parquet Data Profiler"
+    SUB_TITLE = "Parquet Forensics & Iceberg Analysis"
 
     CSS = """
     Screen {

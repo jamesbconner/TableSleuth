@@ -1,7 +1,10 @@
 {
+  "_comment": "EC2 deployment configuration for TableSleuth",
   "ssh_allowed_cidr": "YOUR_IP_ADDRESS/32",
+  "_comment_s3tables": "OPTIONAL: Only needed if using AWS S3 Tables (managed Iceberg). Omit or set to null for regular S3 + Glue catalog.",
   "s3tables_bucket_arn": "arn:aws:s3tables:REGION:ACCOUNT_ID:bucket/BUCKET_NAME",
   "s3tables_table_arn": "arn:aws:s3tables:REGION:ACCOUNT_ID:bucket/BUCKET_NAME/table/*",
+  "_comment_gizmosql": "IMPORTANT: These credentials should match table_sleuth.toml. Update both files if changed.",
   "gizmosql_username": "gizmosql_username",
   "gizmosql_password": "gizmosql_password"
 }

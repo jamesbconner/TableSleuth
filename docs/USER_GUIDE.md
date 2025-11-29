@@ -827,6 +827,6 @@ if info.file_size_bytes > 1_000_000_000:
 - See [QUICKSTART.md](../QUICKSTART.md) for quick examples
 - See [PERFORMANCE_PROFILING.md](PERFORMANCE_PROFILING.md) for performance analysis
 - See [CHANGELOG.md](../CHANGELOG.md) for version history
-- See `.kiro/specs/table-sleuth-mvp-0/` for detailed specifications
-- See [product_specification.md](product_specification.md) for feature roadmap
-- See [technical_specification.md](technical_specification.md) for architecture details
+- See [ARCHITECTURE.md](ARCHITECTURE.md) for system architecture and design
+- See [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md) for developer documentation
+- See `.kiro/specs/` for detailed feature specifications

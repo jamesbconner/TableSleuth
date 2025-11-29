@@ -25,8 +25,8 @@ class FakeProfiler(ProfilingBackend):
         self.profile_calls: list[tuple[str, str]] = []
 
     def register_snapshot_view(self, snapshot) -> str:
-        """Not implemented for MVP 0."""
-        raise NotImplementedError()
+        """Mock implementation for testing."""
+        return f"mock_view_{snapshot.snapshot_id}"
 
     def register_file_view(self, file_paths: list[str], view_name: str | None = None) -> str:
         """Register file paths for profiling."""

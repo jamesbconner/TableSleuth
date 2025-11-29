@@ -23,10 +23,14 @@ Before using the deployment scripts, create a configuration file:
    ```
 
    - `ssh_allowed_cidr`: Your public IP address with /32 suffix for SSH access
-   - `s3tables_bucket_arn`: ARN of your S3 Tables bucket for Iceberg data
-   - `s3tables_table_arn`: ARN pattern for tables in your S3 Tables bucket
+   - `s3tables_bucket_arn`: (Optional) ARN of your S3 Tables bucket - only needed for AWS S3 Tables (managed Iceberg)
+   - `s3tables_table_arn`: (Optional) ARN pattern for S3 Tables - only needed for AWS S3 Tables
    - `gizmosql_username`: Username for GizmoSQL server authentication
    - `gizmosql_password`: Password for GizmoSQL server authentication
+
+   **Important Notes:**
+   - The GizmoSQL credentials here should match those in `table_sleuth.toml` at the project root. Update both files if you change the username or password.
+   - S3 Tables ARNs are only required if you're using AWS S3 Tables (managed Iceberg service). If you're using regular S3 buckets with Glue catalog or other Iceberg catalogs, you can omit these fields or set them to `null`.
 
 ## Usage
 
