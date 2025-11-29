@@ -433,21 +433,26 @@ class IcebergMetadataService:
         added_delete_files = int(summary.get("added-delete-files", 0))
 
         # Infer based on metrics (order matters - check most specific conditions first)
+        # Note: Presence of added_delete_files indicates merge-on-read (MOR) operations
 
         # Merge-on-read UPDATE: new data files + delete files, no deleted data files
         if added_delete_files > 0 and added_files > 0 and deleted_files == 0:
             return "UPDATE"
 
+        # Merge-on-read DELETE with file replacement: delete files + data file changes
+        if added_delete_files > 0 and deleted_files > 0:
+            return "DELETE"
+
         # Merge-on-read DELETE: only delete files added, no data file changes
         if added_delete_files > 0 and added_files == 0 and deleted_files == 0:
             return "DELETE"
 
-        # REPLACE: both files deleted and added (partition replacement or rewrite)
-        if deleted_files > 0 and added_files > 0:
+        # Copy-on-write REPLACE: both files deleted and added, no delete files (partition replacement)
+        if deleted_files > 0 and added_files > 0 and added_delete_files == 0:
             return "REPLACE"
 
-        # OVERWRITE: files deleted (full table overwrite)
-        if deleted_files > 0:
+        # Copy-on-write OVERWRITE: files deleted, no delete files (full table overwrite)
+        if deleted_files > 0 and added_delete_files == 0:
             return "OVERWRITE"
 
         # APPEND: only files added (most common)
