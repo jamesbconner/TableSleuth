@@ -447,12 +447,22 @@ class IcebergMetadataService:
         if added_delete_files > 0 and added_files == 0 and deleted_files == 0:
             return "DELETE"
 
-        # Copy-on-write REPLACE: both files deleted and added, no delete files (partition replacement)
-        if deleted_files > 0 and added_files > 0 and added_delete_files == 0:
-            return "REPLACE"
-
-        # Copy-on-write OVERWRITE: files deleted, no delete files (full table overwrite)
+        # Copy-on-write operations (no delete files)
+        # Distinguish OVERWRITE vs REPLACE by checking if all files were replaced
         if deleted_files > 0 and added_delete_files == 0:
+            # If files were both added and deleted, could be OVERWRITE or REPLACE
+            # Check for explicit indicators in summary
+            if "replaced-partitions" in summary or "partition-summaries" in summary:
+                return "REPLACE"
+            # If all data files were deleted, it's likely a full OVERWRITE
+            total_data_files = int(summary.get("total-data-files", 0))
+            if total_data_files == added_files:
+                # All current files are new = full overwrite
+                return "OVERWRITE"
+            # Otherwise, assume REPLACE (partial rewrite)
+            if added_files > 0:
+                return "REPLACE"
+            # Only deletions, no additions
             return "OVERWRITE"
 
         # APPEND: only files added (most common)
