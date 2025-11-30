@@ -2,6 +2,44 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2024-11-29
+
+### Added
+- **Strict MyPy Type Checking** - Comprehensive type annotations across the codebase
+  - Enabled strict mypy configuration with `disallow_untyped_defs`, `disallow_incomplete_defs`, and `warn_return_any`
+  - Added proper type annotations to all service classes and methods
+  - Configured per-module overrides for third-party libraries without type stubs
+  - Integrated mypy into pre-commit hooks with all required dependencies
+  - Zero type errors in production code (only expected import-untyped warnings for PyArrow)
+
+- **Enhanced Documentation**
+  - Streamlined README.md with high-level feature overview and screenshot galleries
+  - Organized documentation with clear navigation to detailed guides
+  - Added visual comparison tables for Parquet and Iceberg interfaces
+  - Improved quick start examples and configuration guidance
+
+- **UI Improvements**
+  - Removed subtitle from TUI header for cleaner interface
+  - Updated application title to "Table Sleuth - Parquet Analysis"
+
+### Changed
+- **Code Quality Improvements**
+  - Fixed import paths for IcebergAdapter (moved to `formats.iceberg`)
+  - Removed unreachable backwards compatibility code in gizmo_duckdb.py
+  - Added explicit type casts where needed for type safety
+  - Improved error handling with proper type annotations
+
+- **Pre-commit Configuration**
+  - Added all required dependencies to mypy pre-commit hook
+  - Configured proper module overrides for untyped libraries (pyarrow, fsspec, s3fs, etc.)
+  - All pre-commit hooks now pass cleanly
+
+### Fixed
+- Type annotation issues in FileDiscoveryService, ParquetInspector, and GizmoDuckDbProfiler
+- Missing return type annotations across multiple service classes
+- Unused type ignore comments after fixing import paths
+- Event handler type annotations in TUI views
+
 ## [Unreleased]
 
 ### Added

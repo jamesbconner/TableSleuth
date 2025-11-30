@@ -1,6 +1,6 @@
 # Table Sleuth Developer Guide
 
-**Version**: 0.2.5
+**Version**: 0.3.0
 
 ## Overview
 
@@ -1140,7 +1140,7 @@ Fixes #456
 - [ ] Performance impact considered
 - [ ] Security implications reviewed
 
-## Current Status (v0.2.5)
+## Current Status (v0.3.0)
 
 ### Completed Features
 
