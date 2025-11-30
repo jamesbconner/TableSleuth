@@ -243,7 +243,7 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         self,
         view_name: str,
         column: str,
-        filters: Optional[str] = None,
+        filters: str | None = None,
     ) -> ColumnProfile:
         # Sanitize identifiers to prevent SQL injection
         safe_view_name = _sanitize_identifier(view_name)
@@ -398,7 +398,7 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         self,
         view_name: str,
         columns: Sequence[str],
-        filters: Optional[str] = None,
+        filters: str | None = None,
     ) -> dict[str, ColumnProfile]:
         return {col: self.profile_single_column(view_name, col, filters) for col in columns}
 

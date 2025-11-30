@@ -184,6 +184,10 @@ markers = [
 # TODO: Review this filter in the future when pyiceberg is upated
 filterwarnings = [
   "ignore::pydantic.warnings.PydanticDeprecatedSince212",
+  # Ignore unclosed database warnings from Textual's internal caching mechanisms
+  # This is a known issue with Textual's internal SQLite caching (FIFOCache, etc.)
+  # The connections are cleaned up by garbage collection but warnings appear in test runs
+  "ignore:unclosed database:ResourceWarning",
 ]
 
 # -----------------------

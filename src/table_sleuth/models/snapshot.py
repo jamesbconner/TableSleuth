@@ -9,7 +9,7 @@ from .file_ref import FileRef
 @dataclass
 class SnapshotInfo:
     snapshot_id: int
-    parent_id: Optional[int]
+    parent_id: int | None
     timestamp_ms: int
     operation: str
     summary: dict[str, str]

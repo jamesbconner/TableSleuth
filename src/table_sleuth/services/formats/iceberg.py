@@ -29,7 +29,7 @@ class IcebergAdapter(TableFormatAdapter):
         r"bucket/(?P<bucket>[^/]+)/table/(?P<table>.+)"
     )
 
-    def __init__(self, default_catalog: Optional[str] = None) -> None:
+    def __init__(self, default_catalog: str | None = None) -> None:
         self._default_catalog = default_catalog
 
     def _parse_s3_tables_arn(self, arn: str) -> tuple[str, str] | None:
@@ -91,7 +91,7 @@ class IcebergAdapter(TableFormatAdapter):
     def _open_via_metadata_path(self, identifier: str) -> Table:
         return StaticTable.from_metadata(identifier)
 
-    def open_table(self, identifier: str, catalog_name: Optional[str] = None) -> TableHandle:
+    def open_table(self, identifier: str, catalog_name: str | None = None) -> TableHandle:
         """Open an Iceberg table from various sources.
 
         Args:
@@ -121,7 +121,7 @@ class IcebergAdapter(TableFormatAdapter):
         py_table: Table = table.native
         return [self._build_snapshot_info(py_table, s) for s in py_table.snapshots()]
 
-    def load_snapshot(self, table: TableHandle, snapshot_id: Optional[int]) -> SnapshotInfo:
+    def load_snapshot(self, table: TableHandle, snapshot_id: int | None) -> SnapshotInfo:
         py_table: Table = table.native
         if snapshot_id is None:
             snapshot = py_table.current_snapshot()

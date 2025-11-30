@@ -24,7 +24,7 @@ class FakeProfiler(ProfilingBackend):
         self,
         view_name: str,
         column: str,
-        filters: Optional[str] = None,
+        filters: str | None = None,
     ) -> ColumnProfile:
         return ColumnProfile(
             column=column,
@@ -40,6 +40,6 @@ class FakeProfiler(ProfilingBackend):
         self,
         view_name: str,
         columns: Sequence[str],
-        filters: Optional[str] = None,
+        filters: str | None = None,
     ) -> dict[str, ColumnProfile]:
         return {col: self.profile_single_column(view_name, col, filters) for col in columns}

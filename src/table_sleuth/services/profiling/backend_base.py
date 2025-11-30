@@ -42,7 +42,7 @@ class ProfilingBackend(ABC):
         self,
         view_name: str,
         column: str,
-        filters: Optional[str] = None,
+        filters: str | None = None,
     ) -> ColumnProfile:
         """Profile a single column in the view."""
         ...
@@ -52,7 +52,7 @@ class ProfilingBackend(ABC):
         self,
         view_name: str,
         columns: Sequence[str],
-        filters: Optional[str] = None,
+        filters: str | None = None,
     ) -> dict[str, ColumnProfile]:
         """Profile multiple columns in the view."""
         ...
@@ -61,7 +61,7 @@ class ProfilingBackend(ABC):
         self,
         snapshot: SnapshotInfo,
         query: str,
-        filters: Optional[str] = None,
+        filters: str | None = None,
     ) -> MergeOnReadPerformance:
         """
         Profile query performance with and without delete file application.
