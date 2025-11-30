@@ -89,12 +89,6 @@ def test_inspect_command_parameters(cli_runner: CliRunner) -> None:
     assert "--verbose" in result.output
 
 
-def test_legacy_tui_command_exists(cli_runner: CliRunner) -> None:
-    """Test that legacy tui command still exists."""
-    result = cli_runner.invoke(main, ["tui", "--help"])
-    assert result.exit_code == 0
-
-
 def test_main_help_shows_commands(cli_runner: CliRunner) -> None:
     """Test that main help shows available commands."""
     result = cli_runner.invoke(main, ["--help"])

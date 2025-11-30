@@ -9,7 +9,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, Vertical
 from textual.widgets import Collapsible, Static
 
-from table_sleuth.models.parquet import ParquetFileInfo
+from table_sleuth.models.parquet import ColumnStats, ParquetFileInfo
 
 
 class RowGroupsView(Container):
@@ -157,7 +157,7 @@ class RowGroupsView(Container):
         container.remove_children()
         container.mount(Static("No file selected", id="rowgroups-content"))
 
-    def _create_column_panel(self, col) -> Panel:
+    def _create_column_panel(self, col: ColumnStats) -> Panel:
         """Create a Rich Panel for a column with enhanced statistics.
 
         Args:

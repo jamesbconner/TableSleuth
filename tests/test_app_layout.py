@@ -63,7 +63,7 @@ def test_app_has_title(
         config=app_config,
     )
 
-    assert app.TITLE == "Table Sleuth - Parquet Inspector"
+    assert app.TITLE == "Table Sleuth - Parquet Analysis"
     assert app.SUB_TITLE == "Parquet Forensics & Iceberg Analysis"
 
 

@@ -153,7 +153,7 @@ class ProfileView(Container):
             self._column_filter = event.value.lower()
             self._update_column_list()
 
-    def on_click(self, event) -> None:
+    def on_click(self, event: Any) -> None:
         """Handle clicks on column items.
 
         Args:

@@ -49,7 +49,7 @@ class SnapshotPerformanceAnalyzer:
             # Note: This assumes the profiler has execute_query_with_metrics method
             if hasattr(self._profiler, "execute_query_with_metrics"):
                 _, metrics = self._profiler.execute_query_with_metrics(query)
-                return metrics
+                return metrics  # type: ignore[no-any-return]
             else:
                 # Fallback: execute query and create basic metrics
                 import time
@@ -88,7 +88,7 @@ class SnapshotPerformanceAnalyzer:
             # Execute query with metrics collection
             if hasattr(self._profiler, "execute_query_with_metrics"):
                 _, metrics = self._profiler.execute_query_with_metrics(query)
-                return metrics
+                return metrics  # type: ignore[no-any-return]
             else:
                 # Fallback: execute query and create basic metrics
                 import time
