@@ -19,7 +19,7 @@ from .tui.views.iceberg_view import IcebergView
 logger = logging.getLogger(__name__)
 
 # Version information
-__version__ = "0.2.5"
+__version__ = "0.3.0"
 
 
 @click.group()

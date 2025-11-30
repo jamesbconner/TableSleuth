@@ -1,94 +1,141 @@
 # Table Sleuth
 
-A powerful Parquet file forensics tool with a terminal user interface (TUI) for inspecting file metadata, analyzing data structure, and profiling column statistics.
+A powerful terminal-based tool for deep inspection of Parquet files and Apache Iceberg tables. Analyze file structure, metadata, row groups, column statistics, and table evolution with an intuitive TUI interface.
 
-## Features
+## Key Features
 
-- **File Inspection**: Extract and display comprehensive Parquet file metadata using PyArrow
-- **Directory Scanning**: Recursively discover and inspect all Parquet files in a directory
-- **Iceberg Support**: Discover data files from Iceberg tables via local catalog or AWS S3 Tables
-- **AWS S3 Tables**: Direct ARN-based access to Iceberg tables in AWS S3 Tables service
-- **Interactive TUI**: Navigate files, schemas, row groups, and column statistics with keyboard shortcuts
-- **Column Profiling**: Profile column data using GizmoSQL (DuckDB over Arrow Flight SQL)
-- **Performance Optimized**: Async operations, caching, and lazy loading for responsive UI
+### Parquet Analysis
+- **Deep File Inspection** - Comprehensive metadata extraction using PyArrow
+- **Row Group Analysis** - Examine distribution, compression, and statistics
+- **Column Profiling** - Profile data using GizmoSQL (DuckDB over Arrow Flight SQL)
+- **Data Sampling** - Preview and filter data with column selection
+- **Directory Scanning** - Recursively discover and inspect Parquet files
+
+### Iceberg Table Analysis
+- **Snapshot Navigation** - Browse table history and metadata evolution
+- **Performance Testing** - Compare query performance across snapshots
+- **Delete File Inspection** - Analyze MOR (Merge-on-Read) delete files
+- **Schema Evolution** - Track schema changes over time
+- **Catalog Support** - Local SQLite, AWS Glue, and AWS S3 Tables
+
+### Interface
+- **Interactive TUI** - Keyboard-driven navigation with rich visualizations
+- **Multi-Source Support** - Local files, S3, and Iceberg catalogs
+- **Performance Optimized** - Async operations, caching, and lazy loading
 
 ## Screenshots
 
-### Iceberg Table Overview
+### Parquet File Inspection
+
+<table>
+<tr>
+<td width="50%">
+
+**File Structure & Schema**
+![Parquet Structure](docs/images/parquet_structure.png)
+
+</td>
+<td width="50%">
+
+**Row Group Analysis**
+![Row Groups](docs/images/parquet_row_groups.png)
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**Data Sample View**
+![Data Sample](docs/images/parquet_data_sample.png)
+
+</td>
+<td width="50%">
+
+**Column Profiling**
+![Profile](docs/images/parquet_profile.png)
+
+</td>
+</tr>
+</table>
+
+### Iceberg Table Analysis
+
+<table>
+<tr>
+<td width="50%">
+
+**Snapshot Overview**
 ![Iceberg Overview](docs/images/iceberg_overview.png)
-*Navigate Iceberg table snapshots, view metadata, and explore table structure*
 
-### Iceberg Performance Testing
-![Iceberg Performance](docs/images/iceberg_table_perf_with_menu.png)
-*Compare snapshot performance and analyze table evolution*
+</td>
+<td width="50%">
 
-### Parquet File Schema
-![Parquet Schema](docs/images/parquet_table_schema.png)
-*Inspect column schemas with detailed type information and statistics*
+**Performance Testing**
+![Performance](docs/images/iceberg_performance_sample.png)
 
-### Data Sample View
-![Data Sample](docs/images/parquet_table_data_sample.png)
-*Preview data with column selection and filtering capabilities*
+</td>
+</tr>
+<tr>
+<td width="50%">
 
-### Row Group Analysis
-![Row Groups](docs/images/parquet_table_groups.png)
-*Analyze row group distribution and compression statistics*
+**Delete Files (MOR)**
+![Deletes](docs/images/iceberg_deletes.png)
+
+</td>
+<td width="50%">
+
+**Snapshot Comparison**
+![Compare](docs/images/iceberg_compare.png)
+
+</td>
+</tr>
+</table>
 
 ## Quick Start
 
 ```bash
-# Install dependencies
+# Install with uv (recommended)
 uv sync
 
-# Inspect a single file
+# Inspect a Parquet file
 table-sleuth inspect data/file.parquet
 
-# Inspect a directory
+# Inspect a directory (recursive)
 table-sleuth inspect data/warehouse/
 
-# Inspect an Iceberg table (local catalog)
-table-sleuth inspect ratebeer.reviews --catalog local
+# Inspect an Iceberg table
+table-sleuth inspect db.table --catalog local
 
-# Inspect an AWS S3 Tables Iceberg table (using ARN)
+# Inspect AWS S3 Tables (using ARN)
 table-sleuth inspect "arn:aws:s3tables:us-east-2:123456789012:bucket/my-bucket/table/db.table"
-
-# Or use catalog name
-table-sleuth inspect db.table --catalog s3tables
 ```
 
-See [QUICKSTART.md](QUICKSTART.md) for detailed examples, [TABLESLEUTH_SETUP.md](TABLESLEUTH_SETUP.md) for complete setup instructions, and [docs/USER_GUIDE.md](docs/USER_GUIDE.md) for comprehensive documentation.
+**📚 Documentation:**
+- **[Quick Start Guide](QUICKSTART.md)** - Get started with examples
+- **[Setup Guide](TABLESLEUTH_SETUP.md)** - Complete installation and configuration
+- **[User Guide](docs/USER_GUIDE.md)** - Comprehensive usage documentation
 
 ## Installation
 
-### Prerequisites
-
-- Python 3.12 or higher
-- `uv` for dependency management
-
-### Install from Source
+**Requirements:** Python 3.12+ and [uv](https://docs.astral.sh/uv/)
 
 ```bash
-# Clone the repository
-git clone https://github.com/jamesbconner/TableSleuth>
-cd table-sleuth
+# Clone and install
+git clone https://github.com/jamesbconner/TableSleuth
+cd TableSleuth
+uv sync
 
-# Install with uv (recommended)
-uv sync --all-extras
-
-# Activate virtual environment
-source .venv/bin/activate  # macOS/Linux
-.venv\Scripts\activate     # Windows
-```
-
-### Verify Installation
-
-```bash
+# Verify installation
 table-sleuth --version
 ```
 
+See [TABLESLEUTH_SETUP.md](TABLESLEUTH_SETUP.md) for detailed setup including AWS, GizmoSQL, and catalog configuration.
+
 ## Configuration
 
-Create `table_sleuth.toml` in your project directory or `~/.config/table_sleuth.toml`:
+### Basic Configuration
+
+Create `table_sleuth.toml`:
 
 ```toml
 [catalog]
@@ -98,236 +145,145 @@ default = "local"
 uri = "grpc+tls://localhost:31337"
 username = "gizmosql_username"
 password = "gizmosql_password"
-```
-
-### AWS S3 Configuration
-
-For S3 file access and AWS S3 Tables support, configure AWS credentials and region:
-
-```bash
-# Using AWS CLI
-aws configure
-
-# Or set environment variables
-export AWS_ACCESS_KEY_ID=your_key
-export AWS_SECRET_ACCESS_KEY=your_secret
-export AWS_REGION=us-east-2  # Or your preferred region
-export AWS_DEFAULT_REGION=us-east-2  # Fallback if AWS_REGION not set
-```
-
-**Note**: TableSleuth automatically detects the AWS region from:
-1. `AWS_REGION` environment variable (highest priority)
-2. `AWS_DEFAULT_REGION` environment variable
-3. Defaults to `us-east-2` if neither is set
-
-Install PyIceberg with AWS extras:
-
-```bash
-pip install "pyiceberg[glue,s3fs]"
-```
-
-See [docs/s3_tables_guide.md](docs/s3_tables_guide.md) for detailed AWS S3 Tables configuration
 tls_skip_verify = false
 ```
 
-For Iceberg support, configure PyIceberg in `~/.pyiceberg.yaml`:
+### Iceberg Catalogs
+
+Configure PyIceberg in `~/.pyiceberg.yaml`:
 
 ```yaml
 catalog:
   local:
-    type: sql  # Use SQL catalog for local file-based catalogs
-    uri: sqlite:////absolute/path/to/warehouse/catalog.db
-    warehouse: file:///absolute/path/to/warehouse
+    type: sql
+    uri: sqlite:////path/to/catalog.db
+    warehouse: file:///path/to/warehouse
 ```
+
+**For detailed configuration:**
+- **[Setup Guide](TABLESLEUTH_SETUP.md)** - All catalog types and AWS configuration
+- **[GizmoSQL Deployment](docs/GIZMOSQL_DEPLOYMENT_GUIDE.md)** - Profiling backend setup
 
 ## Usage
 
 ### CLI Commands
 
 ```bash
-# Show help
-table-sleuth --help
+# Inspect Parquet files
+table-sleuth inspect file.parquet
+table-sleuth inspect directory/
+table-sleuth inspect s3://bucket/path/file.parquet
 
-# Inspect a file
-table-sleuth inspect data/file.parquet
-
-# Inspect with verbose logging
-table-sleuth inspect data/file.parquet --verbose
-
-# Inspect Iceberg table
+# Inspect Iceberg tables
 table-sleuth inspect db.table --catalog local
+table-sleuth inspect "arn:aws:s3tables:region:account:bucket/name/table/db.table"
+
+# Launch Iceberg viewer
+table-sleuth iceberg-viewer --catalog local
 ```
 
 ### TUI Navigation
 
 | Key | Action |
 |-----|--------|
-| `q` | Quit application |
-| `r` | Refresh and clear caches |
-| `f` | Filter columns by name/type |
-| `Tab` | Navigate between tabs |
-| `↑/↓` | Navigate lists |
-| `Enter` | Select file or item |
-| `Click` | Click column in Profile view to profile |
+| `q` | Quit |
+| `r` | Refresh |
+| `f` | Filter columns |
+| `Tab` | Switch tabs |
+| `↑/↓` | Navigate |
+| `Enter` | Select |
 
-### Tabs
+See [User Guide](docs/USER_GUIDE.md) for complete keyboard shortcuts and features.
 
-1. **File Detail**: File metadata (size, rows, compression)
-2. **Schema**: Column names, types, and filtering
-3. **Row Groups**: Row group breakdown and statistics
-4. **Column Stats**: Column-level statistics from metadata
-5. **Profile**: Profiling results from GizmoSQL
+## Optional: GizmoSQL Profiling
 
-## GizmoSQL Setup (Optional)
+Enable column profiling and performance testing with GizmoSQL (DuckDB over Arrow Flight SQL).
 
-For column profiling and Iceberg performance testing:
-
-### Installation
-
-**macOS (ARM64):**
+**Quick Setup:**
 ```bash
+# Install GizmoSQL (macOS ARM64 example)
 curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.10/gizmosql_cli_macos_arm64.zip \
   | sudo unzip -o -d /usr/local/bin -
+
+# Start server
+gizmosql_server -P password -Q -T ~/.certs/cert0.pem ~/.certs/cert0.key
 ```
 
-**macOS (Intel):**
-```bash
-curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.10/gizmosql_cli_macos_amd64.zip \
-  | sudo unzip -o -d /usr/local/bin -
-```
-
-**Linux:**
-```bash
-curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.10/gizmosql_cli_linux_amd64.zip \
-  | sudo unzip -o -d /usr/local/bin -
-```
-
-### Start Server
-
-```bash
-gizmosql_server -P gizmosql_password -Q -T ~/.certs/cert0.pem ~/.certs/cert0.key
-```
-
-(Default port is 31337, -Q enables query printing, -T enables TLS with self-signed certs)
-
-### Configure
-
-Update `table_sleuth.toml`:
-```toml
-[gizmosql]
-uri = "grpc+tls://localhost:31337"
-username = "gizmosql_username"
-password = "gizmosql_password"
-tls_skip_verify = true
-```
-
-See [docs/gizmosql-deployment.md](docs/gizmosql-deployment.md) for detailed setup instructions.
+See [GizmoSQL Deployment Guide](docs/GIZMOSQL_DEPLOYMENT_GUIDE.md) for complete setup and EC2 deployment.
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      Textual TUI Layer                      │
-│  File List | File Detail | Schema | Row Groups | Profile    │
-└─────────────────────────────────────────────────────────────┘
-                            │
-┌─────────────────────────────────────────────────────────────┐
-│                     Service Layer                           │
-│  Parquet Inspector | Profiling Backend | File Discovery     │
-└─────────────────────────────────────────────────────────────┘
-                            │
-┌─────────────────────────────────────────────────────────────┐
-│                   External Systems                          │
-│  PyArrow | GizmoSQL (DuckDB/ADBC) | PyIceberg               │
-└─────────────────────────────────────────────────────────────┘
-```
+Table Sleuth uses a layered architecture:
 
-## Project Structure
+- **TUI Layer** - Textual-based terminal interface with rich visualizations
+- **Service Layer** - Business logic for file inspection, profiling, and discovery
+- **Integration Layer** - PyArrow for Parquet, PyIceberg for tables, GizmoSQL for profiling
 
-```
-table-sleuth/
-├── src/table_sleuth/
-│   ├── cli.py                 # CLI entry point
-│   ├── config.py              # Configuration management
-│   ├── models/                # Data models
-│   ├── services/              # Business logic
-│   │   ├── parquet_service.py
-│   │   ├── file_discovery.py
-│   │   └── profiling/
-│   └── tui/                   # Terminal UI
-│       ├── app.py
-│       ├── views/
-│       └── widgets/
-├── tests/                     # Test suite
-├── docs/                      # Documentation
-└── .kiro/specs/              # Feature specifications
-```
+See [Architecture Guide](docs/ARCHITECTURE.md) for detailed technical documentation.
 
 ## Development
 
-See [DEVELOPMENT_SETUP.md](DEVELOPMENT_SETUP.md) for complete development setup instructions.
-
-### Quick Development Commands
-
 ```bash
 # Install with dev dependencies
-make install-dev
+uv sync --all-extras
 
-# Run all quality checks
-make check
+# Run tests
+pytest
 
-# Run tests with coverage
-make test-cov
+# Run quality checks
+uv run pre-commit run --all-files
 
-# Format and lint
-make format
-make lint
+# Type checking
+mypy src/
 ```
+
+See [Development Setup](DEVELOPMENT_SETUP.md) for complete development environment setup.
 
 ## Documentation
 
-### User Documentation
-- [Table Sleuth Setup](TABLESLEUTH_SETUP.md) - Complete setup guide for all catalog types
-- [Quick Start](QUICKSTART.md) - Get started quickly with examples
-- [User Guide](docs/USER_GUIDE.md) - Comprehensive usage guide
-- [Performance Profiling](docs/PERFORMANCE_PROFILING.md) - Performance analysis guide
+### Getting Started
+- **[Quick Start](QUICKSTART.md)** - Examples and common workflows
+- **[Setup Guide](TABLESLEUTH_SETUP.md)** - Installation and configuration
+- **[User Guide](docs/USER_GUIDE.md)** - Complete feature documentation
 
-### Developer Documentation
-- [Development Setup](DEVELOPMENT_SETUP.md) - Development environment setup
-- [EC2 Deployment Guide](docs/EC2_DEPLOYMENT_GUIDE.md) - Automated AWS EC2 deployment
-- [Architecture](docs/ARCHITECTURE.md) - System architecture and technical details
-- [Developer Guide](docs/DEVELOPER_GUIDE.md) - API reference and contribution guide
+### Advanced Topics
+- **[Performance Profiling](docs/PERFORMANCE_PROFILING.md)** - Query performance analysis
+- **[GizmoSQL Deployment](docs/GIZMOSQL_DEPLOYMENT_GUIDE.md)** - Profiling backend setup
+- **[EC2 Deployment](docs/EC2_DEPLOYMENT_GUIDE.md)** - Automated AWS deployment
 
-## Roadmap
+### Development
+- **[Development Setup](DEVELOPMENT_SETUP.md)** - Dev environment and workflows
+- **[Architecture](docs/ARCHITECTURE.md)** - System design and technical details
+- **[Developer Guide](docs/DEVELOPER_GUIDE.md)** - API reference and contributing
 
-### Current Release (v0.2.x) ✅
-- Parquet file inspection (local and S3)
-- Directory scanning with recursive discovery
-- Iceberg snapshot navigation and analysis
-- Delete file inspection and MOR forensics
-- Snapshot comparison and diff analysis
-- Query performance testing between snapshots
-- Column profiling with GizmoSQL
-- AWS Glue catalog support
-- AWS S3 Tables support
-- Interactive TUI with rich visualizations
+## What's New
 
-### Future Enhancements
+### v0.3.0 (Current)
+- ✅ Parquet file inspection (local and S3)
+- ✅ Iceberg snapshot navigation and analysis
+- ✅ Delete file inspection and MOR forensics
+- ✅ Snapshot comparison and performance testing
+- ✅ Column profiling with GizmoSQL
+- ✅ AWS Glue and S3 Tables catalog support
+- ✅ Interactive TUI with rich visualizations
+
+### Roadmap
 - Delta Lake and Hudi support
 - Schema evolution visualization
 - Export capabilities (JSON, CSV reports)
-- PySpark profiling backend option
 - REST catalog support
-- Automated compaction recommendations
+- Automated optimization recommendations
 
 ## Contributing
 
-Contributions are welcome! Please see the developer documentation in `.kiro/specs/` for architecture details and contribution guidelines.
+Contributions welcome! See [Developer Guide](docs/DEVELOPER_GUIDE.md) and [Development Setup](DEVELOPMENT_SETUP.md).
 
 ## License
 
-[Add license information]
+MIT License - See [LICENSE](LICENSE) for details.
 
 ## Support
 
-For issues, questions, or feature requests, please open an issue on the repository.
+- **Issues & Features:** [GitHub Issues](https://github.com/jamesbconner/TableSleuth/issues)
+- **Documentation:** See [docs/](docs/) directory
+- **Changelog:** [CHANGELOG.md](CHANGELOG.md)

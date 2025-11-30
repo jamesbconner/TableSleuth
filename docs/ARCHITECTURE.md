@@ -4,7 +4,7 @@
 
 Table Sleuth is a Python-based Parquet file forensics and Iceberg table analysis tool built with a layered architecture that separates concerns between presentation, business logic, and data access. The system provides comprehensive inspection of Parquet files and Iceberg tables with support for multiple catalog types (local SQL, AWS Glue, AWS S3 Tables), column profiling via GizmoSQL/DuckDB, and performance testing across Iceberg snapshots.
 
-**Current Version**: 0.2.5
+**Current Version**: 0.3.0
 
 This document provides a comprehensive overview of the system architecture, design patterns, and key technical decisions.
 
@@ -1171,7 +1171,7 @@ tests/
 3. Add CLI option
 4. Add tests
 
-## Current Features (v0.2.5)
+## Current Features (v0.3.0)
 
 ### Parquet Inspection
 - **File Discovery**:
