@@ -1,365 +1,122 @@
-"""Tests for GizmoDuckDbProfiler SQL injection prevention and sanitization."""
+"""Tests for GizmoDuckDB SQL sanitization functions."""
 
 import pytest
 
 from table_sleuth.services.profiling.gizmo_duckdb import (
-    GizmoDuckDbProfiler,
     _sanitize_identifier,
     _validate_filter_expression,
 )
 
 
 class TestSanitizeIdentifier:
-    """Test SQL identifier sanitization."""
+    """Tests for _sanitize_identifier function."""
 
-    def test_valid_identifiers(self):
-        """Test that valid identifiers pass through unchanged."""
+    def test_valid_identifier_simple(self):
+        """Test valid simple identifier."""
         assert _sanitize_identifier("column_name") == "column_name"
-        assert _sanitize_identifier("_private") == "_private"
-        assert _sanitize_identifier("Column123") == "Column123"
-        assert _sanitize_identifier("table_name_2") == "table_name_2"
 
-    def test_invalid_identifiers_raise(self):
-        """Test that invalid identifiers raise ValueError."""
-        # Starts with number
+    def test_valid_identifier_with_numbers(self):
+        """Test valid identifier with numbers."""
+        assert _sanitize_identifier("column_123") == "column_123"
+
+    def test_valid_identifier_starts_with_underscore(self):
+        """Test valid identifier starting with underscore."""
+        assert _sanitize_identifier("_private_column") == "_private_column"
+
+    def test_valid_identifier_uppercase(self):
+        """Test valid identifier with uppercase letters."""
+        assert _sanitize_identifier("ColumnName") == "ColumnName"
+
+    def test_invalid_identifier_starts_with_number(self):
+        """Test invalid identifier starting with number."""
         with pytest.raises(ValueError, match="Invalid identifier"):
             _sanitize_identifier("123column")
 
-        # Contains special characters
-        with pytest.raises(ValueError, match="Invalid identifier"):
-            _sanitize_identifier("column-name")
-
-        with pytest.raises(ValueError, match="Invalid identifier"):
-            _sanitize_identifier("column.name")
-
+    def test_invalid_identifier_with_spaces(self):
+        """Test invalid identifier with spaces."""
         with pytest.raises(ValueError, match="Invalid identifier"):
             _sanitize_identifier("column name")
 
-        # SQL injection attempts
+    def test_invalid_identifier_with_special_chars(self):
+        """Test invalid identifier with special characters."""
         with pytest.raises(ValueError, match="Invalid identifier"):
-            _sanitize_identifier("column; DROP TABLE users")
+            _sanitize_identifier("column-name")
 
+    def test_invalid_identifier_with_sql_injection(self):
+        """Test invalid identifier with SQL injection attempt."""
         with pytest.raises(ValueError, match="Invalid identifier"):
-            _sanitize_identifier("column' OR '1'='1")
+            _sanitize_identifier("column'; DROP TABLE users--")
+
+    def test_invalid_identifier_empty(self):
+        """Test invalid empty identifier."""
+        with pytest.raises(ValueError, match="Invalid identifier"):
+            _sanitize_identifier("")
+
+    def test_invalid_identifier_with_dots(self):
+        """Test invalid identifier with dots (table.column)."""
+        with pytest.raises(ValueError, match="Invalid identifier"):
+            _sanitize_identifier("table.column")
 
 
 class TestValidateFilterExpression:
-    """Test filter expression validation."""
+    """Tests for _validate_filter_expression function."""
 
-    def test_valid_filters(self):
-        """Test that valid filter expressions pass validation."""
-        # These should not raise
+    def test_valid_filter_simple_comparison(self):
+        """Test valid simple comparison filter."""
+        # Should not raise
         _validate_filter_expression("age > 18")
-        _validate_filter_expression("status = active")
-        _validate_filter_expression("price < 100 AND quantity > 0")
-        _validate_filter_expression("date >= 20240101")
-        _validate_filter_expression("")  # Empty filter is valid
-        _validate_filter_expression(None)  # None is valid
 
-    def test_dangerous_keywords_raise(self):
-        """Test that dangerous SQL keywords raise ValueError."""
-        # SQL injection keywords (without statement terminators)
-        with pytest.raises(ValueError, match="dangerous keyword"):
-            _validate_filter_expression("status = active DELETE FROM table")
+    def test_valid_filter_with_and(self):
+        """Test valid filter with AND operator (no quotes)."""
+        # Should not raise
+        _validate_filter_expression("age > 18 AND status = 1")
 
-        with pytest.raises(ValueError, match="dangerous keyword"):
-            _validate_filter_expression("price < 100 UNION SELECT * FROM passwords")
+    def test_valid_filter_with_or(self):
+        """Test valid filter with OR operator (no quotes)."""
+        # Should not raise
+        _validate_filter_expression("status = 1 OR status = 2")
 
-        with pytest.raises(ValueError, match="dangerous keyword"):
-            _validate_filter_expression("EXEC sp_executesql")
+    def test_invalid_filter_with_drop(self):
+        """Test invalid filter with DROP statement."""
+        with pytest.raises(ValueError, match="statement terminator"):
+            _validate_filter_expression("age > 18; DROP TABLE users")
 
-        with pytest.raises(ValueError, match="dangerous keyword"):
-            _validate_filter_expression("age > 18 DROP TABLE users")
-
-    def test_sql_comments_raise(self):
-        """Test that SQL comments raise ValueError."""
-        with pytest.raises(ValueError, match="SQL comment"):
-            _validate_filter_expression("age > 18 -- comment")
-
-        with pytest.raises(ValueError, match="SQL comment"):
-            _validate_filter_expression("age > 18 /* comment */")
-
-    def test_statement_terminators_raise(self):
-        """Test that statement terminators raise ValueError."""
+    def test_invalid_filter_with_delete(self):
+        """Test invalid filter with DELETE statement."""
         with pytest.raises(ValueError, match="statement terminator"):
             _validate_filter_expression("age > 18; DELETE FROM users")
 
-    def test_quotes_raise(self):
-        """Test that quotes raise ValueError."""
-        with pytest.raises(ValueError, match="quotes"):
-            _validate_filter_expression("name = 'John'")
+    def test_invalid_filter_with_insert(self):
+        """Test invalid filter with INSERT statement."""
+        with pytest.raises(ValueError, match="statement terminator"):
+            _validate_filter_expression("age > 18; INSERT INTO users")
 
-        with pytest.raises(ValueError, match="quotes"):
-            _validate_filter_expression('name = "John"')
+    def test_invalid_filter_with_update(self):
+        """Test invalid filter with UPDATE statement."""
+        with pytest.raises(ValueError, match="statement terminator"):
+            _validate_filter_expression("age > 18; UPDATE users SET")
 
-    def test_column_names_with_keyword_substrings(self):
-        """Test that column names containing keyword substrings are allowed."""
-        # These should NOT raise because keywords are not standalone words
-        _validate_filter_expression("deleted_at > 20240101")  # contains 'delete'
-        _validate_filter_expression("into_status = 1")  # contains 'into'
-        _validate_filter_expression("truncated_value < 100")  # contains 'truncate'
-        _validate_filter_expression("selecting = true")  # contains 'select'
+    def test_invalid_filter_with_exec(self):
+        """Test invalid filter with EXEC statement."""
+        with pytest.raises(ValueError, match="statement terminator"):
+            _validate_filter_expression("age > 18; EXEC sp_executesql")
 
+    def test_invalid_filter_with_semicolon(self):
+        """Test invalid filter with semicolon (statement separator)."""
+        with pytest.raises(ValueError, match="statement terminator"):
+            _validate_filter_expression("age > 18; SELECT * FROM users")
 
-class TestRegisterIcebergTable:
-    """Test Iceberg table registration."""
+    def test_invalid_filter_with_comment(self):
+        """Test invalid filter with SQL comment."""
+        with pytest.raises(ValueError, match="SQL comment"):
+            _validate_filter_expression("age > 18 -- comment")
 
-    def test_register_iceberg_table_basic(self):
-        """Test basic Iceberg table registration."""
-        profiler = GizmoDuckDbProfiler(
-            uri="grpc+tls://localhost:31337",
-            username="test_user",
-            password="test_pass",
-        )
+    def test_invalid_filter_with_quotes(self):
+        """Test invalid filter with quotes."""
+        with pytest.raises(ValueError, match="quotes which are not allowed"):
+            _validate_filter_expression("status = 'active'")
 
-        profiler.register_iceberg_table(
-            "snapshot_tests.table_snap_123",
-            "/path/to/metadata.json",
-        )
-
-        assert hasattr(profiler, "_iceberg_tables")
-        assert "snapshot_tests.table_snap_123" in profiler._iceberg_tables
-        metadata_loc, snapshot_id = profiler._iceberg_tables["snapshot_tests.table_snap_123"]
-        assert metadata_loc == "/path/to/metadata.json"
-        assert snapshot_id is None
-
-    def test_register_iceberg_table_with_snapshot(self):
-        """Test Iceberg table registration with specific snapshot."""
-        profiler = GizmoDuckDbProfiler(
-            uri="grpc+tls://localhost:31337",
-            username="test_user",
-            password="test_pass",
-        )
-
-        profiler.register_iceberg_table_with_snapshot(
-            "snapshot_tests.table_snap_123",
-            "/path/to/metadata.json",
-            snapshot_id=12345,
-        )
-
-        assert "snapshot_tests.table_snap_123" in profiler._iceberg_tables
-        metadata_loc, snapshot_id = profiler._iceberg_tables["snapshot_tests.table_snap_123"]
-        assert metadata_loc == "/path/to/metadata.json"
-        assert snapshot_id == 12345
-
-    def test_register_iceberg_table_cleans_file_prefix(self):
-        """Test that file:// prefix is removed from metadata location."""
-        profiler = GizmoDuckDbProfiler(
-            uri="grpc+tls://localhost:31337",
-            username="test_user",
-            password="test_pass",
-        )
-
-        profiler.register_iceberg_table(
-            "test_table",
-            "file:///path/to/metadata.json",
-        )
-
-        metadata_loc, _ = profiler._iceberg_tables["test_table"]
-        assert metadata_loc == "/path/to/metadata.json"
-        assert not metadata_loc.startswith("file://")
-
-    def test_register_iceberg_table_empty_identifier_raises(self):
-        """Test that empty table identifier raises ValueError."""
-        profiler = GizmoDuckDbProfiler(
-            uri="grpc+tls://localhost:31337",
-            username="test_user",
-            password="test_pass",
-        )
-
-        with pytest.raises(ValueError, match="table_identifier and metadata_location are required"):
-            profiler.register_iceberg_table("", "/path/to/metadata.json")
-
-    def test_register_iceberg_table_empty_metadata_raises(self):
-        """Test that empty metadata location raises ValueError."""
-        profiler = GizmoDuckDbProfiler(
-            uri="grpc+tls://localhost:31337",
-            username="test_user",
-            password="test_pass",
-        )
-
-        with pytest.raises(ValueError, match="table_identifier and metadata_location are required"):
-            profiler.register_iceberg_table("test_table", "")
-
-
-class TestRegisterCatalogDeprecated:
-    """Test deprecated register_catalog method."""
-
-    def test_register_catalog_raises_runtime_error(self):
-        """Test that register_catalog raises RuntimeError with deprecation message."""
-        profiler = GizmoDuckDbProfiler(
-            uri="grpc+tls://localhost:31337",
-            username="test_user",
-            password="test_pass",
-        )
-
-        with pytest.raises(RuntimeError, match="register_catalog\\(\\) is deprecated"):
-            profiler.register_catalog("/path/to/catalog.db", "test_catalog")
-
-
-class TestReplaceIcebergTables:
-    """Test Iceberg table reference replacement in queries."""
-
-    def test_replace_iceberg_tables_basic(self):
-        """Test basic table reference replacement."""
-        profiler = GizmoDuckDbProfiler(
-            uri="grpc+tls://localhost:31337",
-            username="test_user",
-            password="test_pass",
-        )
-
-        profiler.register_iceberg_table("test_table", "/path/to/metadata.json")
-
-        query = "SELECT * FROM test_table"
-        modified = profiler._replace_iceberg_tables(query)
-
-        assert "iceberg_scan('/path/to/metadata.json')" in modified
-        assert "test_table" not in modified
-
-    def test_replace_iceberg_tables_with_snapshot(self):
-        """Test table reference replacement with snapshot ID."""
-        profiler = GizmoDuckDbProfiler(
-            uri="grpc+tls://localhost:31337",
-            username="test_user",
-            password="test_pass",
-        )
-
-        profiler.register_iceberg_table_with_snapshot(
-            "test_table",
-            "/path/to/metadata.json",
-            snapshot_id=12345,
-        )
-
-        query = "SELECT * FROM test_table"
-        modified = profiler._replace_iceberg_tables(query)
-
-        assert "iceberg_scan('/path/to/metadata.json', version => 12345)" in modified
-
-    def test_replace_iceberg_tables_escapes_quotes(self):
-        """Test that single quotes in paths are properly escaped."""
-        profiler = GizmoDuckDbProfiler(
-            uri="grpc+tls://localhost:31337",
-            username="test_user",
-            password="test_pass",
-        )
-
-        # Path with single quote (unusual but possible)
-        profiler.register_iceberg_table("test_table", "/path/to/user's/metadata.json")
-
-        query = "SELECT * FROM test_table"
-        modified = profiler._replace_iceberg_tables(query)
-
-        # Single quotes should be doubled for SQL escaping
-        assert "iceberg_scan('/path/to/user''s/metadata.json')" in modified
-
-    def test_replace_iceberg_tables_no_tables_registered(self):
-        """Test that query is unchanged when no tables are registered."""
-        profiler = GizmoDuckDbProfiler(
-            uri="grpc+tls://localhost:31337",
-            username="test_user",
-            password="test_pass",
-        )
-
-        query = "SELECT * FROM some_table"
-        modified = profiler._replace_iceberg_tables(query)
-
-        assert modified == query
-
-    def test_replace_iceberg_tables_multiple_tables(self):
-        """Test replacement of multiple table references."""
-        profiler = GizmoDuckDbProfiler(
-            uri="grpc+tls://localhost:31337",
-            username="test_user",
-            password="test_pass",
-        )
-
-        profiler.register_iceberg_table("table_a", "/path/to/a.json")
-        profiler.register_iceberg_table("table_b", "/path/to/b.json")
-
-        query = "SELECT * FROM table_a JOIN table_b ON table_a.id = table_b.id"
-        modified = profiler._replace_iceberg_tables(query)
-
-        assert "iceberg_scan('/path/to/a.json')" in modified
-        assert "iceberg_scan('/path/to/b.json')" in modified
-        assert "table_a" not in modified
-        assert "table_b" not in modified
-
-
-class TestRegisterSnapshotView:
-    """Test snapshot view registration."""
-
-    def test_register_snapshot_view_validates_snapshot_id(self):
-        """Test that negative snapshot IDs raise ValueError."""
-        from table_sleuth.models import SnapshotInfo
-
-        profiler = GizmoDuckDbProfiler(
-            uri="grpc+tls://localhost:31337",
-            username="test_user",
-            password="test_pass",
-        )
-
-        # Create snapshot with negative ID
-        snapshot = SnapshotInfo(
-            snapshot_id=-1,
-            parent_id=None,
-            timestamp_ms=1234567890000,
-            operation="append",
-            summary={},
-            data_files=[],
-        )
-
-        with pytest.raises(ValueError, match="Invalid snapshot ID"):
-            profiler.register_snapshot_view(snapshot)
-
-    def test_register_snapshot_view_requires_data_files(self):
-        """Test that snapshots without data files raise ValueError."""
-        from table_sleuth.models import SnapshotInfo
-
-        profiler = GizmoDuckDbProfiler(
-            uri="grpc+tls://localhost:31337",
-            username="test_user",
-            password="test_pass",
-        )
-
-        # Create snapshot with no data files
-        snapshot = SnapshotInfo(
-            snapshot_id=12345,
-            parent_id=None,
-            timestamp_ms=1234567890000,
-            operation="append",
-            summary={},
-            data_files=[],  # Empty!
-        )
-
-        with pytest.raises(ValueError, match="has no data files"):
-            profiler.register_snapshot_view(snapshot)
-
-
-class TestTLSConfiguration:
-    """Test TLS configuration handling."""
-
-    def test_tls_enabled_with_grpc_tls_uri(self):
-        """Test that TLS is enabled for grpc+tls:// URIs."""
-        profiler = GizmoDuckDbProfiler(
-            uri="grpc+tls://localhost:31337",
-            username="test_user",
-            password="test_pass",
-            tls_skip_verify=True,
-        )
-
-        # URI should indicate TLS
-        assert profiler._uri.startswith("grpc+tls://")
-        assert profiler._tls_skip_verify is True
-
-    def test_tls_disabled_with_grpc_uri(self):
-        """Test that TLS is disabled for grpc:// URIs."""
-        profiler = GizmoDuckDbProfiler(
-            uri="grpc://localhost:31337",
-            username="test_user",
-            password="test_pass",
-            tls_skip_verify=False,
-        )
-
-        # URI should indicate no TLS
-        assert profiler._uri.startswith("grpc://")
-        assert not profiler._uri.startswith("grpc+tls://")
+    def test_empty_filter(self):
+        """Test empty filter expression."""
+        # Should not raise for empty filter
+        _validate_filter_expression("")

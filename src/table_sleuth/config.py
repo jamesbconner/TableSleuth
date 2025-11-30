@@ -14,7 +14,7 @@ DEFAULT_CONFIG_PATHS = [
 
 @dataclass
 class CatalogConfig:
-    default: Optional[str] = None
+    default: str | None = None
 
 
 @dataclass
