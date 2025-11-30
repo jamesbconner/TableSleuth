@@ -36,7 +36,7 @@ We are committed to providing a welcoming and inclusive environment for all cont
 
 ### Prerequisites
 
-- Python 3.12 or higher
+- Python 3.13 or higher
 - `uv` for dependency management
 - Git for version control
 - Local GizmoSQL server (optional, for integration tests)
@@ -236,7 +236,7 @@ def inspect_file(self, file_path):
     ...
 ```
 
-Use modern Python 3.12+ type syntax:
+Use modern Python 3.13+ type syntax:
 - `list[str]` instead of `List[str]`
 - `dict[str, int]` instead of `Dict[str, int]`
 - `str | None` instead of `Optional[str]`
