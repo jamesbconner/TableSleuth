@@ -249,7 +249,7 @@ textual console
 
 - Use **ruff** for formatting and linting
 - Follow **PEP 8** style guidelines
-- Add **type hints** for all functions (Python 3.12+ syntax)
+- Add **type hints** for all functions (Python 3.13+ syntax)
 - Write **Google-style docstrings** for public APIs
 - Keep **line length** under 100 characters
 - Use **explicit over implicit** code

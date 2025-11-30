@@ -117,7 +117,7 @@ table-sleuth inspect "arn:aws:s3tables:us-east-2:123456789012:bucket/my-bucket/t
 
 ## Installation
 
-**Requirements:** Python 3.12+ and [uv](https://docs.astral.sh/uv/)
+**Requirements:** Python 3.13+ and [uv](https://docs.astral.sh/uv/)
 
 ```bash
 # Clone and install
