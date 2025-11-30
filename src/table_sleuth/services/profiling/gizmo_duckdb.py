@@ -136,7 +136,12 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         self._tls_skip_verify = tls_skip_verify
         self._registered_catalogs: dict[str, str] = {}  # catalog_name -> catalog_path
 
-    def _connect(self):
+    def _connect(self) -> Any:
+        """Create a FlightSQL connection.
+
+        Returns:
+            FlightSQL connection object
+        """
         # Determine if we should use TLS based on URI scheme
         # grpc:// = plain (no TLS), grpc+tls:// = TLS
         use_tls = self._uri.startswith("grpc+tls://")
@@ -540,12 +545,8 @@ class GizmoDuckDbProfiler(ProfilingBackend):
 
         modified_query = query
         for table_id, table_info in self._iceberg_tables.items():
-            # Unpack table info (could be tuple or string for backwards compatibility)
-            if isinstance(table_info, tuple):
-                metadata_loc, snapshot_id = table_info
-            else:
-                metadata_loc = table_info
-                snapshot_id = None
+            # Unpack table info tuple
+            metadata_loc, snapshot_id = table_info
 
             # Escape single quotes in metadata location to prevent SQL injection
             # SQL standard: escape single quotes by doubling them

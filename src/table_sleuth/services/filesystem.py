@@ -73,7 +73,7 @@ class FileSystem:
             if self.is_s3_path(path):
                 normalized = self.normalize_s3_path(path)
                 file_info = self._s3_fs.get_file_info(normalized)
-                return file_info.type != pafs.FileType.NotFound
+                return file_info.type != pafs.FileType.NotFound  # type: ignore[no-any-return]
             else:
                 return Path(path).exists()
         except Exception as e:
@@ -92,7 +92,7 @@ class FileSystem:
         if self.is_s3_path(path):
             normalized = self.normalize_s3_path(path)
             file_info = self._s3_fs.get_file_info(normalized)
-            return file_info.size
+            return file_info.size  # type: ignore[no-any-return]
         else:
             return Path(path).stat().st_size
 

@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 class IcebergMetadataService:
     """Service for loading and querying Iceberg table metadata."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the Iceberg metadata service."""
         self._adapter = IcebergAdapter()
 

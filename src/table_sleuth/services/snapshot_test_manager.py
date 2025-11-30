@@ -157,7 +157,7 @@ class SnapshotTestManager:
         """
         return list(self._registered_tables)
 
-    def cleanup_tables(self, table_names: list[str] | None = None):
+    def cleanup_tables(self, table_names: list[str] | None = None) -> None:
         """Drop specified tables from snapshot_tests namespace or all tables if None.
 
         Args:
@@ -196,7 +196,7 @@ class SnapshotTestManager:
                 uri = self._catalog.properties.get("uri", "")
                 if uri.startswith("sqlite:///"):
                     # Extract path from sqlite:///path/to/catalog.db
-                    return uri.replace("sqlite:///", "")
+                    return str(uri.replace("sqlite:///", ""))
 
             # Fallback: try to get from catalog name in config
             # This requires reading .pyiceberg.yaml, which PyIceberg handles internally

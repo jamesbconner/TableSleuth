@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any
 
 import pyarrow.fs as pafs
 from pyarrow.parquet import ParquetFile
@@ -218,7 +219,7 @@ class ParquetInspector:
             col_metadata=row_group_cols,
         )
 
-    def _extract_schema(self, schema) -> dict[str, dict[str, str]]:
+    def _extract_schema(self, schema: Any) -> dict[str, dict[str, str]]:
         """Extract schema information from PyArrow schema.
 
         Args:
@@ -235,7 +236,9 @@ class ParquetInspector:
             }
         return schema_dict
 
-    def _extract_file_level_columns(self, pf: ParquetFile, md, schema) -> list[ColumnStats]:
+    def _extract_file_level_columns(
+        self, pf: ParquetFile, md: Any, schema: Any
+    ) -> list[ColumnStats]:
         """Extract file-level column statistics.
 
         Args:
@@ -275,7 +278,7 @@ class ParquetInspector:
         return columns
 
     def _extract_column_stats(
-        self, col_name: str, col_schema, field, col_metadata: list
+        self, col_name: str, col_schema: Any, field: Any, col_metadata: list[Any]
     ) -> ColumnStats:
         """Extract statistics for a column from metadata.
 

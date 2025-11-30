@@ -227,7 +227,7 @@ class DataSampleView(Container):
         elif event.button.id == "deselect-all-btn":
             self._deselect_all_columns()
 
-    def on_click(self, event) -> None:
+    def on_click(self, event: Any) -> None:
         """Handle clicks on column items.
 
         Args:

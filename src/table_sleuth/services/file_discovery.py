@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from table_sleuth.models.file_ref import FileRef
+
+if TYPE_CHECKING:
+    from table_sleuth.services.formats.iceberg import IcebergAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +21,7 @@ class FileDiscoveryService:
     - Iceberg tables via catalog (implemented in Task 3)
     """
 
-    def __init__(self, iceberg_adapter=None) -> None:
+    def __init__(self, iceberg_adapter: IcebergAdapter | None = None) -> None:
         """Initialize the file discovery service.
 
         Args:
