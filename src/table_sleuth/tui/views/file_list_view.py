@@ -128,9 +128,7 @@ class FileListView(Container):
 
         header = self.query_one("#file-list-header", Static)
         header.update(
-            f"Files: {total_files} | "
-            f"Size: {self._format_size(total_size)} | "
-            f"Rows: {total_rows:,}"
+            f"Files: {total_files} | Size: {self._format_size(total_size)} | Rows: {total_rows:,}"
         )
 
     @staticmethod

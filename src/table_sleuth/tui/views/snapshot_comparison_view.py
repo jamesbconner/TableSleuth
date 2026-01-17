@@ -248,9 +248,7 @@ class PerformanceTestView(Container):
         # Update info display
         info = self.query_one("#table-names-info", Static)
         info.update(
-            f"[bold]Registered Tables:[/bold]\n"
-            f"  Snapshot A: {table_a}\n"
-            f"  Snapshot B: {table_b}"
+            f"[bold]Registered Tables:[/bold]\n  Snapshot A: {table_a}\n  Snapshot B: {table_b}"
         )
 
     def update_results(self, comparison: PerformanceComparison) -> None:

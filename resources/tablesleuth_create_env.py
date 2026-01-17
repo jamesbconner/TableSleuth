@@ -483,7 +483,7 @@ def ensure_key_pair(dry_run: bool) -> None:
 
 
 def get_latest_amazon_linux_ami() -> str:
-    param_name = "/aws/service/ami-amazon-linux-latest/" "al2023-ami-kernel-default-x86_64"
+    param_name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
     resp = ssm.get_parameter(Name=param_name)
     ami_id = resp["Parameter"]["Value"]
     print(f"Using AMI: {ami_id} from SSM parameter {param_name}")
@@ -529,7 +529,7 @@ cat > /home/ec2-user/.pyiceberg.yaml <<PYICEEOF
 catalog:
   tpch:
     type: rest
-    warehouse: {config['s3tables_bucket_arn']}
+    warehouse: {config["s3tables_bucket_arn"]}
     uri: https://s3tables.{region}.amazonaws.com/iceberg
     rest.sigv4-enabled: "true"
     rest.signing-name: s3tables
@@ -548,8 +548,8 @@ echo "Skipping PyIceberg S3 Tables config (not configured)"
     if config["s3tables_bucket_arn"] and config["s3tables_table_arn"]:
         s3tables_env = f"""
 # S3 Tables configuration
-export S3TABLES_BUCKET_ARN="{config['s3tables_bucket_arn']}"
-export S3TABLES_TABLE_ARN="{config['s3tables_table_arn']}"
+export S3TABLES_BUCKET_ARN="{config["s3tables_bucket_arn"]}"
+export S3TABLES_TABLE_ARN="{config["s3tables_table_arn"]}"
 """
 
     # Build GizmoSQL S3 Tables attachment conditionally
@@ -773,8 +773,8 @@ export PYICEBERG_CATALOG__TPCH__REGION="{region}"
 export PYICEBERG_CATALOG__RATEBEER__REGION="{region}"
 
 # GizmoSQL configuration
-export GIZMOSQL_USERNAME="{config['gizmosql_username']}"
-export GIZMOSQL_PASSWORD="{config['gizmosql_password']}"
+export GIZMOSQL_USERNAME="{config["gizmosql_username"]}"
+export GIZMOSQL_PASSWORD="{config["gizmosql_password"]}"
 
 # GizmoSQL aliases
 alias gizmosvr='gizmosql_server -P "${{GIZMOSQL_PASSWORD}}" -Q -I "install aws; install httpfs; install iceberg; load aws; load httpfs; load iceberg; CREATE SECRET (TYPE s3, PROVIDER credential_chain); {gizmosql_attach}" -T ~/.certs/cert0.pem ~/.certs/cert0.key'

@@ -344,7 +344,7 @@ class GizmoDuckDbProfiler(ProfilingBackend):
             SELECT {safe_column}, COUNT(*) AS frequency
             FROM {from_clause}
             WHERE {safe_column} IS NOT NULL
-            {where_clause.replace('WHERE', 'AND') if where_clause else ''}
+            {where_clause.replace("WHERE", "AND") if where_clause else ""}
             GROUP BY {safe_column}
             ORDER BY frequency DESC
             LIMIT 1
