@@ -40,9 +40,6 @@ def adapter() -> IcebergAdapter:
     return IcebergAdapter(default_catalog=None)
 
 
-
-
-
 class TestEndToEndSingleFile:
     """End-to-end tests for single file loading."""
 

@@ -42,9 +42,7 @@ def _load_toml_config() -> dict:
 def load_config() -> AppConfig:
     raw = _load_toml_config()
 
-    catalog_default = os.getenv("TABLESLEUTH_CATALOG_NAME") or raw.get("catalog", {}).get(
-        "default"
-    )
+    catalog_default = os.getenv("TABLESLEUTH_CATALOG_NAME") or raw.get("catalog", {}).get("default")
 
     gizmo_section = raw.get("gizmosql", {})
 
