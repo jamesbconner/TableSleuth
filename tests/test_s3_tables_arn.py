@@ -84,8 +84,38 @@ class TestS3TablesARN:
 
         assert result is not None
         catalog_name, table_identifier = result
-        assert catalog_name == "s3tables"
+        assert catalog_name == "s3tables"  # Default catalog
         assert table_identifier == "db_prod.table_v2"
+
+    def test_parse_s3_tables_arn_with_custom_catalog(self):
+        """Test parsing ARN with custom catalog name."""
+        adapter = IcebergAdapter()
+
+        arn = "arn:aws:s3tables:us-east-2:123456789012:bucket/my-bucket/table/db.table"
+        result = adapter._parse_s3_tables_arn(arn, catalog_name="tpch-s3tables")
+
+        assert result is not None
+        catalog_name, table_identifier = result
+        assert catalog_name == "tpch-s3tables"  # Custom catalog
+        assert table_identifier == "db.table"
+
+    def test_parse_s3_tables_arn_default_vs_custom_catalog(self):
+        """Test that default catalog is used when no catalog_name provided."""
+        adapter = IcebergAdapter()
+
+        arn = "arn:aws:s3tables:us-east-2:123456789012:bucket/my-bucket/table/db.table"
+
+        # Without catalog_name - should use default "s3tables"
+        result_default = adapter._parse_s3_tables_arn(arn)
+        assert result_default is not None
+        catalog_default, _ = result_default
+        assert catalog_default == "s3tables"
+
+        # With catalog_name - should use provided name
+        result_custom = adapter._parse_s3_tables_arn(arn, catalog_name="my-custom-catalog")
+        assert result_custom is not None
+        catalog_custom, _ = result_custom
+        assert catalog_custom == "my-custom-catalog"
 
     def test_arn_pattern_regex(self):
         """Test the ARN regex pattern directly."""

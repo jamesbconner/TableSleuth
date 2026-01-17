@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/tablesleuth
+      url: https://pypi.org/p/TableSleuth
     permissions:
       id-token: write  # Required for trusted publishing
 

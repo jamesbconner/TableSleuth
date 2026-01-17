@@ -3,7 +3,8 @@
 [![PyPI version](https://badge.fury.io/py/tablesleuth.svg)](https://badge.fury.io/py/tablesleuth)
 [![Python versions](https://img.shields.io/pypi/pyversions/tablesleuth.svg)](https://pypi.org/project/tablesleuth/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![CI](https://github.com/jamesbconner/table-sleuth/workflows/CI/badge.svg)](https://github.com/jamesbconner/table-sleuth/actions)
+[![CI](https://github.com/jamesbconner/tablesleuth/workflows/CI/badge.svg)](https://github.com/jamesbconner/tablesleuth/actions)
+[![Publish to PyPI](https://github.com/jamesbconner/TableSleuth/actions/workflows/publish.yml/badge.svg)](https://github.com/jamesbconner/TableSleuth/actions/workflows/publish.yml)
 
 A powerful terminal-based tool for deep inspection of Parquet files and Apache Iceberg tables. Analyze file structure, metadata, row groups, column statistics, and table evolution with an intuitive TUI interface.
 
@@ -135,30 +136,67 @@ uv sync
 
 # Verify installation
 tablesleuth --version
+
+# Initialize configuration files
+tablesleuth init
 ```
 
 See [TABLESLEUTH_SETUP.md](TABLESLEUTH_SETUP.md) for detailed setup including AWS, GizmoSQL, and catalog configuration.
 
+## Quick Start
+
+```bash
+# 1. Initialize configuration (first time only)
+tablesleuth init
+
+# 2. Edit configuration files
+#    - tablesleuth.toml (main config)
+#    - .pyiceberg.yaml (catalog config)
+
+# 3. Verify configuration
+tablesleuth config-check
+
+# 4. Start inspecting files
+tablesleuth inspect data/file.parquet
+```
+
 ## Configuration
 
-### Basic Configuration
+### Quick Setup
 
-Create `tablesleuth.toml`:
+```bash
+# Initialize configuration files with interactive prompts
+tablesleuth init
+
+# Check configuration and test connections
+tablesleuth config-check
+tablesleuth config-check -v  # Verbose output
+```
+
+### Configuration Files
+
+**tablesleuth.toml** - Main configuration:
 
 ```toml
 [catalog]
-default = "local"
+default = "local"  # Default Iceberg catalog
 
 [gizmosql]
 uri = "grpc+tls://localhost:31337"
 username = "gizmosql_username"
 password = "gizmosql_password"
-tls_skip_verify = false
+tls_skip_verify = true
 ```
+
+**Configuration Priority:**
+1. Environment variables (`TABLESLEUTH_*`)
+2. Local config files (`./tablesleuth.toml`, `./.pyiceberg.yaml`)
+3. Home config files (`~/tablesleuth.toml`, `~/.pyiceberg.yaml`)
+4. Built-in defaults
 
 ### Iceberg Catalogs
 
-Configure PyIceberg in `~/.pyiceberg.yaml`:
+Configure PyIceberg in `.pyiceberg.yaml`:
 
 ```yaml
 catalog:
@@ -177,6 +215,11 @@ catalog:
 ### CLI Commands
 
 ```bash
+# Configuration management
+tablesleuth init                    # Initialize config files
+tablesleuth config-check            # Validate configuration
+tablesleuth config-check -v         # Detailed validation
+
 # Inspect Parquet files
 tablesleuth inspect file.parquet
 tablesleuth inspect directory/
@@ -187,7 +230,7 @@ tablesleuth inspect db.table --catalog local
 tablesleuth inspect "arn:aws:s3tables:region:account:bucket/name/table/db.table"
 
 # Launch Iceberg viewer
-tablesleuth iceberg-viewer --catalog local
+tablesleuth iceberg --catalog local --table db.table
 ```
 
 ### TUI Navigation

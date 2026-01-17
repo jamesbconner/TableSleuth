@@ -32,11 +32,14 @@ class IcebergAdapter(TableFormatAdapter):
     def __init__(self, default_catalog: str | None = None) -> None:
         self._default_catalog = default_catalog
 
-    def _parse_s3_tables_arn(self, arn: str) -> tuple[str, str] | None:
+    def _parse_s3_tables_arn(
+        self, arn: str, catalog_name: str | None = None
+    ) -> tuple[str, str] | None:
         """Parse S3 Tables ARN into catalog name and table identifier.
 
         Args:
             arn: S3 Tables ARN (e.g., arn:aws:s3tables:us-east-2:123456:bucket/my-bucket/table/db.table)
+            catalog_name: Optional catalog name to use. If not provided, uses "s3tables" as default.
 
         Returns:
             Tuple of (catalog_name, table_identifier) or None if not an S3 Tables ARN
@@ -48,8 +51,9 @@ class IcebergAdapter(TableFormatAdapter):
         # Extract table identifier (namespace.table)
         table_identifier = match.group("table")
 
-        # Use s3tables catalog (configured in .pyiceberg.yaml)
-        return ("s3tables", table_identifier)
+        # Use provided catalog name or default to "s3tables"
+        catalog = catalog_name if catalog_name else "s3tables"
+        return (catalog, table_identifier)
 
     def _file_uri_to_path(self, uri: str) -> str:
         """Convert file:// URI to local file path, preserve S3 URIs.
@@ -99,13 +103,14 @@ class IcebergAdapter(TableFormatAdapter):
                 - Table identifier (e.g., "db.table") when using catalog_name
                 - S3 Tables ARN (e.g., "arn:aws:s3tables:region:account:bucket/name/table/db.table")
                 - Path to metadata.json file
-            catalog_name: Optional catalog name to use
+            catalog_name: Optional catalog name to use. For S3 Tables ARNs, this specifies
+                which S3 Tables catalog configuration to use.
 
         Returns:
             TableHandle wrapping the PyIceberg Table
         """
         # Check if identifier is an S3 Tables ARN
-        s3_tables_info = self._parse_s3_tables_arn(identifier)
+        s3_tables_info = self._parse_s3_tables_arn(identifier, catalog_name)
         if s3_tables_info:
             catalog_name, table_identifier = s3_tables_info
             table = self._open_via_catalog(table_identifier, catalog_name)

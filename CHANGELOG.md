@@ -2,7 +2,76 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.4.1] - 2025-01-17
+## [0.4.2] - 2026-01-17
+
+### Added
+- **Configuration Management Commands**
+  - `tablesleuth init` - Interactive configuration file initialization
+    - Creates `tablesleuth.toml` and `.pyiceberg.yaml` with comprehensive templates
+    - Prompts for home directory (~/) or current directory (./) placement
+    - Includes `--force` flag to overwrite existing files
+    - Generates well-commented templates with multiple catalog examples
+  - `tablesleuth config-check` - Configuration validation and testing
+    - Validates all configuration files and syntax
+    - Tests GizmoSQL connection
+    - Checks PyIceberg catalog configuration
+    - Shows configuration precedence and active values
+    - Supports `-v/--verbose` flag for detailed output
+
+### Changed
+- **Configuration File Locations** - Simplified configuration paths
+  - Removed `~/.config/tablesleuth/` directory approach
+  - Now supports: `./tablesleuth.toml` (local) and `~/tablesleuth.toml` (home)
+  - PyIceberg config: `./.pyiceberg.yaml` (local) and `~/.pyiceberg.yaml` (home)
+  - Respects `PYICEBERG_HOME` environment variable for PyIceberg config location
+
+- **Configuration Priority** - Clear precedence order
+  1. Environment variables (`TABLESLEUTH_*`, `PYICEBERG_*`)
+  2. Local config files (current directory)
+  3. Home config files (home directory)
+  4. Built-in defaults
+
+- **Environment Variable Support**
+  - `TABLESLEUTH_CONFIG` - Override config file path
+  - Existing: `TABLESLEUTH_CATALOG_NAME`, `TABLESLEUTH_GIZMO_*`
+  - PyIceberg native: `PYICEBERG_HOME`
+
+- **Configuration File Renamed** - Consistency with package name
+  - `table_sleuth.toml` → `tablesleuth.toml`
+  - Updated all documentation and code references
+
+### Fixed
+- **Configuration Error Handling** - Improved error messages and handling
+  - Fixed unhandled `FileNotFoundError` in `inspect` and `iceberg` commands when `TABLESLEUTH_CONFIG` points to non-existent file
+  - Fixed unhandled exception in `config-check` command with invalid `TABLESLEUTH_CONFIG` environment variable
+  - Both commands now show helpful error messages suggesting `tablesleuth init` instead of tracebacks
+  - Added proper try-except blocks around `load_config()` calls in main CLI commands
+
+- **Configuration Template TOML Syntax** - Fixed invalid TOML in generated config
+  - Changed `default = null` to commented `# default = ""` (TOML doesn't support null type)
+  - Generated config files now parse correctly without `TOMLDecodeError`
+  - Affects `tablesleuth init` command output
+
+- **S3 Tables Catalog Configuration** - Fixed incorrect catalog type and improved flexibility
+  - Changed S3 Tables catalog from `type: glue` to `type: rest` with proper REST API settings
+  - Added required REST API configuration: `uri`, `rest.sigv4-enabled`, `rest.signing-name`, `rest.signing-region`
+  - Fixed hardcoded catalog name - now supports multiple S3 Tables catalogs
+  - Users can specify which S3 Tables catalog to use with `--catalog` flag when using ARNs
+  - Default catalog name "s3tables" is used when ARN is provided without `--catalog` flag
+  - Added clear documentation and usage examples in template showing multiple S3 Tables catalogs
+  - Clarified difference between Glue catalog and S3 Tables catalog
+
+- **GizmoSQL Optional Component Handling** - Made GizmoSQL truly optional
+  - `config-check` command no longer fails when GizmoSQL connection fails
+  - Added `--with-gizmosql` flag to explicitly test GizmoSQL connection
+  - GizmoSQL test is now skipped by default (shown as "⊘ Skipped")
+  - Exit code 0 (success) when only optional components fail
+  - Consistent with other optional checks like missing PyIceberg config
+
+### Dependencies
+- Added `pyyaml>=6.0.0` for PyIceberg config validation
+
+## [0.4.1] - 2026-01-17
 
 ### Changed
 - **Python Module Renamed to `tablesleuth`** - Complete consistency across package
@@ -23,7 +92,7 @@ from tablesleuth import __version__
 from tablesleuth.services import ParquetInspector
 ```
 
-## [0.4.0] - 2025-01-16 (Unreleased)
+## [0.4.0] - 2026-01-16 (Unreleased)
 
 ### Changed
 - **Package Renamed to `tablesleuth`** - Unified package name for PyPI distribution
@@ -52,7 +121,7 @@ from tablesleuth.services import ParquetInspector
   - Automated release process documentation
   - Troubleshooting guide
 
-## [0.3.0] - 2024-11-29
+## [0.3.0] - 2025-11-29
 
 ### Added
 - **Strict MyPy Type Checking** - Comprehensive type annotations across the codebase

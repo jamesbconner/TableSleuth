@@ -30,6 +30,12 @@ uv sync --all-extras
 
 # Activate virtual environment
 source .venv/bin/activate  # macOS/Linux
+
+# Initialize configuration files
+tablesleuth init
+
+# Verify configuration
+tablesleuth config-check
 ```
 
 ### Configure AWS Credentials (if using S3)
@@ -48,7 +54,8 @@ aws configure
 
 ### Configure Iceberg Catalogs
 
-Create `~/.pyiceberg.yaml` for Iceberg table access:
+The `tablesleuth init` command creates `.pyiceberg.yaml` with example catalogs.
+Edit this file (`.pyiceberg.yaml` or `~/.pyiceberg.yaml`) to configure your Iceberg catalogs:
 
 ```yaml
 catalog:
@@ -66,6 +73,8 @@ catalog:
     rest.signing-name: s3tables
     rest.signing-region: us-east-2
 ```
+
+**Tip:** Run `tablesleuth config-check` to verify your configuration.
 
 ---
 
