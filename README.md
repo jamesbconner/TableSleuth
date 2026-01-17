@@ -38,13 +38,13 @@ A powerful terminal-based tool for deep inspection of Parquet files and Apache I
 <td width="50%">
 
 **File Structure & Schema**
-![Parquet Structure](docs/images/parquet_structure.png)
+![Parquet Structure](https://raw.githubusercontent.com/jamesbconner/TableSleuth/main/docs/images/parquet_structure.png)
 
 </td>
 <td width="50%">
 
 **Row Group Analysis**
-![Row Groups](docs/images/parquet_row_groups.png)
+![Row Groups](https://raw.githubusercontent.com/jamesbconner/TableSleuth/main/docs/images/parquet_row_groups.png)
 
 </td>
 </tr>
@@ -52,13 +52,13 @@ A powerful terminal-based tool for deep inspection of Parquet files and Apache I
 <td width="50%">
 
 **Data Sample View**
-![Data Sample](docs/images/parquet_data_sample.png)
+![Data Sample](https://raw.githubusercontent.com/jamesbconner/TableSleuth/main/docs/images/parquet_data_sample.png)
 
 </td>
 <td width="50%">
 
 **Column Profiling**
-![Profile](docs/images/parquet_profile.png)
+![Profile](https://raw.githubusercontent.com/jamesbconner/TableSleuth/main/docs/images/parquet_profile.png)
 
 </td>
 </tr>
@@ -71,13 +71,13 @@ A powerful terminal-based tool for deep inspection of Parquet files and Apache I
 <td width="50%">
 
 **Snapshot Overview**
-![Iceberg Overview](docs/images/iceberg_overview.png)
+![Iceberg Overview](https://raw.githubusercontent.com/jamesbconner/TableSleuth/main/docs/images/iceberg_overview.png)
 
 </td>
 <td width="50%">
 
 **Performance Testing**
-![Performance](docs/images/iceberg_performance_sample.png)
+![Performance](https://raw.githubusercontent.com/jamesbconner/TableSleuth/main/docs/images/iceberg_performance_sample.png)
 
 </td>
 </tr>
@@ -85,13 +85,13 @@ A powerful terminal-based tool for deep inspection of Parquet files and Apache I
 <td width="50%">
 
 **Delete Files (MOR)**
-![Deletes](docs/images/iceberg_deletes.png)
+![Deletes](https://raw.githubusercontent.com/jamesbconner/TableSleuth/main/docs/images/iceberg_deletes.png)
 
 </td>
 <td width="50%">
 
 **Snapshot Comparison**
-![Compare](docs/images/iceberg_compare.png)
+![Compare](https://raw.githubusercontent.com/jamesbconner/TableSleuth/main/docs/images/iceberg_compare.png)
 
 </td>
 </tr>

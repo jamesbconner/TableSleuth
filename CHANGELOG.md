@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.2.post1] - 2026-01-17
+
+### Fixed
+- **PyPI Package Display** - Fixed broken image links on PyPI project page
+  - Changed relative image paths to absolute GitHub URLs
+  - Images now display correctly on https://pypi.org/project/tablesleuth/
+  - Uses `raw.githubusercontent.com` URLs for reliable image hosting
+
 ## [0.4.2] - 2026-01-17
 
 ### Added
@@ -46,11 +54,19 @@ All notable changes to this project will be documented in this file.
   - Fixed unhandled exception in `config-check` command with invalid `TABLESLEUTH_CONFIG` environment variable
   - Both commands now show helpful error messages suggesting `tablesleuth init` instead of tracebacks
   - Added proper try-except blocks around `load_config()` calls in main CLI commands
+  - Fixed misleading "No config file found (using defaults)" message after `TABLESLEUTH_CONFIG` error
+  - Fixed incorrect init suggestion for non-config FileNotFoundError in `iceberg` command
 
 - **Configuration Template TOML Syntax** - Fixed invalid TOML in generated config
   - Changed `default = null` to commented `# default = ""` (TOML doesn't support null type)
   - Generated config files now parse correctly without `TOMLDecodeError`
   - Affects `tablesleuth init` command output
+
+- **Configuration Init Command** - Improved Windows compatibility
+  - Removed backup file creation when using `--force` flag
+  - Files are now directly overwritten instead of being backed up
+  - Fixes Windows `FileExistsError` when running `init --force` multiple times
+  - Simplifies the init process
 
 - **S3 Tables Catalog Configuration** - Fixed incorrect catalog type and improved flexibility
   - Changed S3 Tables catalog from `type: glue` to `type: rest` with proper REST API settings
