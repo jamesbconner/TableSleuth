@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from table_sleuth.services.profiling.gizmo_duckdb import GizmoDuckDbProfiler
+from tablesleuth.services.profiling.gizmo_duckdb import GizmoDuckDbProfiler
 
 # Check if GizmoSQL is available for testing
 GIZMOSQL_URI = os.getenv("TEST_GIZMOSQL_URI")

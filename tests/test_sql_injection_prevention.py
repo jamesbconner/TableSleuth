@@ -2,7 +2,7 @@
 
 import pytest
 
-from table_sleuth.services.profiling.gizmo_duckdb import GizmoDuckDbProfiler
+from tablesleuth.services.profiling.gizmo_duckdb import GizmoDuckDbProfiler
 
 
 class TestSQLInjectionPrevention:
@@ -146,7 +146,7 @@ class TestSQLInjectionPrevention:
 
     def test_identifier_sanitization_prevents_injection(self):
         """Test that table identifiers are sanitized to prevent injection."""
-        from table_sleuth.services.profiling.gizmo_duckdb import _sanitize_identifier
+        from tablesleuth.services.profiling.gizmo_duckdb import _sanitize_identifier
 
         # Valid identifiers should pass
         assert _sanitize_identifier("valid_table") == "valid_table"

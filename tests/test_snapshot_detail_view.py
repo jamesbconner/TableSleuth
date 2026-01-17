@@ -7,14 +7,14 @@ from datetime import datetime
 import pytest
 from textual.widgets import DataTable, Static
 
-from table_sleuth.models.iceberg import (
+from tablesleuth.models.iceberg import (
     IcebergSnapshotDetails,
     IcebergSnapshotInfo,
     PartitionSpecInfo,
     SchemaField,
     SchemaInfo,
 )
-from table_sleuth.tui.views.snapshot_detail_view import (
+from tablesleuth.tui.views.snapshot_detail_view import (
     SnapshotDeletesView,
     SnapshotFilesView,
     SnapshotOverviewView,

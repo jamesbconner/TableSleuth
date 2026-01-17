@@ -10,8 +10,8 @@ import pyarrow.parquet as pq
 import pytest
 from textual.widgets import Button, DataTable, Input, Select, Static
 
-from table_sleuth.models.parquet import ColumnStats, ParquetFileInfo
-from table_sleuth.tui.views.data_sample_view import DataSampleView
+from tablesleuth.models.parquet import ColumnStats, ParquetFileInfo
+from tablesleuth.tui.views.data_sample_view import DataSampleView
 
 
 @pytest.fixture

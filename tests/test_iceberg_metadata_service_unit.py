@@ -4,9 +4,9 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from table_sleuth.exceptions import SnapshotNotFoundError, TableLoadError
-from table_sleuth.models.iceberg import IcebergSnapshotInfo, IcebergTableInfo
-from table_sleuth.services.iceberg_metadata_service import IcebergMetadataService
+from tablesleuth.exceptions import SnapshotNotFoundError, TableLoadError
+from tablesleuth.models.iceberg import IcebergSnapshotInfo, IcebergTableInfo
+from tablesleuth.services.iceberg_metadata_service import IcebergMetadataService
 
 
 class TestIcebergMetadataServiceInit:
@@ -139,7 +139,7 @@ class TestLoadTable:
         with pytest.raises(TableLoadError, match="Metadata file not found"):
             service.load_table(metadata_path="/nonexistent/metadata.json")
 
-    @patch("table_sleuth.services.iceberg_metadata_service.StaticTable")
+    @patch("tablesleuth.services.iceberg_metadata_service.StaticTable")
     def test_load_table_from_metadata_path(self, mock_static_table, service, tmp_path):
         """Test loading table from metadata path."""
         # Create a temporary metadata file
@@ -165,7 +165,7 @@ class TestLoadTable:
         assert result.current_snapshot_id is None
         assert result.properties == {"key": "value"}
 
-    @patch("table_sleuth.services.iceberg_metadata_service.load_catalog")
+    @patch("tablesleuth.services.iceberg_metadata_service.load_catalog")
     def test_load_table_from_catalog(self, mock_load_catalog, service):
         """Test loading table from catalog."""
         # Mock catalog and table
@@ -194,7 +194,7 @@ class TestLoadTable:
         mock_load_catalog.assert_called_once_with("test_catalog")
         mock_catalog.load_table.assert_called_once_with("db.table")
 
-    @patch("table_sleuth.services.iceberg_metadata_service.load_catalog")
+    @patch("tablesleuth.services.iceberg_metadata_service.load_catalog")
     def test_load_table_catalog_not_found(self, mock_load_catalog, service):
         """Test loading table with invalid catalog."""
         mock_load_catalog.side_effect = Exception("Catalog not found")
@@ -205,7 +205,7 @@ class TestLoadTable:
                 table_identifier="db.table",
             )
 
-    @patch("table_sleuth.services.iceberg_metadata_service.load_catalog")
+    @patch("tablesleuth.services.iceberg_metadata_service.load_catalog")
     def test_load_table_table_not_found(self, mock_load_catalog, service):
         """Test loading non-existent table from catalog."""
         mock_catalog = Mock()

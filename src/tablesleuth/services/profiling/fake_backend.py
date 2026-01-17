@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Dict, Optional
 
-from table_sleuth.models import ColumnProfile, SnapshotInfo
+from tablesleuth.models import ColumnProfile, SnapshotInfo
 
 from .backend_base import ProfilingBackend
 

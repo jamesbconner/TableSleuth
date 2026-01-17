@@ -4,8 +4,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from table_sleuth.models import FileRef, SnapshotInfo, TableHandle
-from table_sleuth.services.formats.iceberg import IcebergAdapter
+from tablesleuth.models import FileRef, SnapshotInfo, TableHandle
+from tablesleuth.services.formats.iceberg import IcebergAdapter
 
 
 class TestIcebergAdapterOpenTable:
@@ -16,7 +16,7 @@ class TestIcebergAdapterOpenTable:
         """Create IcebergAdapter instance."""
         return IcebergAdapter()
 
-    @patch("table_sleuth.services.formats.iceberg.load_catalog")
+    @patch("tablesleuth.services.formats.iceberg.load_catalog")
     def test_open_table_with_catalog_name(self, mock_load_catalog, adapter):
         """Test opening table with explicit catalog name."""
         mock_catalog = Mock()
@@ -32,7 +32,7 @@ class TestIcebergAdapterOpenTable:
         mock_load_catalog.assert_called_once_with("test_catalog")
         mock_catalog.load_table.assert_called_once_with("db.table")
 
-    @patch("table_sleuth.services.formats.iceberg.load_catalog")
+    @patch("tablesleuth.services.formats.iceberg.load_catalog")
     def test_open_table_with_default_catalog(self, mock_load_catalog):
         """Test opening table with default catalog."""
         adapter = IcebergAdapter(default_catalog="default_cat")
@@ -47,7 +47,7 @@ class TestIcebergAdapterOpenTable:
         mock_load_catalog.assert_called_once_with("default_cat")
         mock_catalog.load_table.assert_called_once_with("db.table")
 
-    @patch("table_sleuth.services.formats.iceberg.StaticTable")
+    @patch("tablesleuth.services.formats.iceberg.StaticTable")
     def test_open_table_via_metadata_path(self, mock_static_table, adapter):
         """Test opening table via metadata file path."""
         mock_table = Mock()
@@ -59,7 +59,7 @@ class TestIcebergAdapterOpenTable:
         assert result.native == mock_table
         mock_static_table.from_metadata.assert_called_once_with("/path/to/metadata.json")
 
-    @patch("table_sleuth.services.formats.iceberg.load_catalog")
+    @patch("tablesleuth.services.formats.iceberg.load_catalog")
     def test_open_table_with_s3_tables_arn(self, mock_load_catalog, adapter):
         """Test opening table with S3 Tables ARN."""
         arn = "arn:aws:s3tables:us-east-1:123456:bucket/my-bucket/table/db.table"
@@ -247,7 +247,7 @@ class TestIcebergAdapterGetDataFiles:
         """Create IcebergAdapter instance."""
         return IcebergAdapter()
 
-    @patch("table_sleuth.services.formats.iceberg.load_catalog")
+    @patch("tablesleuth.services.formats.iceberg.load_catalog")
     def test_get_data_files_success(self, mock_load_catalog, adapter):
         """Test getting data files from table."""
         # Setup mocks
@@ -285,7 +285,7 @@ class TestIcebergAdapterGetDataFiles:
         assert result[0].source == "iceberg"
         assert result[0].content_type == "DATA"
 
-    @patch("table_sleuth.services.formats.iceberg.load_catalog")
+    @patch("tablesleuth.services.formats.iceberg.load_catalog")
     def test_get_data_files_with_partition(self, mock_load_catalog, adapter):
         """Test getting data files with partition information."""
         mock_catalog = Mock()
@@ -322,7 +322,7 @@ class TestIcebergAdapterGetDataFiles:
         assert result[0].partition is not None
         assert isinstance(result[0].partition, dict)
 
-    @patch("table_sleuth.services.formats.iceberg.load_catalog")
+    @patch("tablesleuth.services.formats.iceberg.load_catalog")
     def test_get_data_files_with_file_uri(self, mock_load_catalog, adapter):
         """Test getting data files with file:// URI conversion."""
         mock_catalog = Mock()
@@ -353,7 +353,7 @@ class TestIcebergAdapterGetDataFiles:
         assert len(result) == 1
         assert result[0].path == "/home/user/data.parquet"
 
-    @patch("table_sleuth.services.formats.iceberg.load_catalog")
+    @patch("tablesleuth.services.formats.iceberg.load_catalog")
     def test_get_data_files_no_current_snapshot(self, mock_load_catalog, adapter):
         """Test getting data files when no current snapshot exists."""
         mock_catalog = Mock()
@@ -367,7 +367,7 @@ class TestIcebergAdapterGetDataFiles:
 
         assert result == []
 
-    @patch("table_sleuth.services.formats.iceberg.load_catalog")
+    @patch("tablesleuth.services.formats.iceberg.load_catalog")
     def test_get_data_files_with_extra_metadata(self, mock_load_catalog, adapter):
         """Test getting data files with extra metadata fields."""
         mock_catalog = Mock()
@@ -559,7 +559,7 @@ class TestIcebergAdapterBuildSnapshotInfo:
 
     def test_get_data_files_with_partition_conversion_error(self, adapter):
         """Test get_data_files when partition conversion fails."""
-        with patch("table_sleuth.services.formats.iceberg.load_catalog") as mock_load_catalog:
+        with patch("tablesleuth.services.formats.iceberg.load_catalog") as mock_load_catalog:
             mock_catalog = Mock()
             mock_table = Mock()
             mock_snapshot = Mock()

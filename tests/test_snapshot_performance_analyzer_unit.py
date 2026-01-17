@@ -4,8 +4,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from table_sleuth.models.iceberg import QueryPerformanceMetrics
-from table_sleuth.services.snapshot_performance_analyzer import (
+from tablesleuth.models.iceberg import QueryPerformanceMetrics
+from tablesleuth.services.snapshot_performance_analyzer import (
     SnapshotPerformanceAnalyzer,
 )
 

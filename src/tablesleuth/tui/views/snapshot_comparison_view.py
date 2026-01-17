@@ -6,7 +6,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, Vertical
 from textual.widgets import Button, DataTable, Input, Select, Static
 
-from table_sleuth.models.iceberg import (
+from tablesleuth.models.iceberg import (
     PerformanceComparison,
     SnapshotComparison,
 )

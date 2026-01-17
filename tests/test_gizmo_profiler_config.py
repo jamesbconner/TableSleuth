@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from table_sleuth.services.profiling.gizmo_duckdb import GizmoDuckDbProfiler, _clean_file_path
+from tablesleuth.services.profiling.gizmo_duckdb import GizmoDuckDbProfiler, _clean_file_path
 
 
 class TestGizmoProfilerConfiguration:
@@ -135,12 +135,12 @@ class TestConfigurationLoading:
 
     def test_config_loads_basic_settings(self, monkeypatch):
         """Test that configuration loads basic GizmoSQL settings."""
-        from table_sleuth.config import load_config
+        from tablesleuth.config import load_config
 
         # Set environment variables
-        monkeypatch.setenv("TABLE_SLEUTH_GIZMO_URI", "grpc://custom:9999")
-        monkeypatch.setenv("TABLE_SLEUTH_GIZMO_USERNAME", "custom_user")
-        monkeypatch.setenv("TABLE_SLEUTH_GIZMO_PASSWORD", "custom_pass")
+        monkeypatch.setenv("TABLESLEUTH_GIZMO_URI", "grpc://custom:9999")
+        monkeypatch.setenv("TABLESLEUTH_GIZMO_USERNAME", "custom_user")
+        monkeypatch.setenv("TABLESLEUTH_GIZMO_PASSWORD", "custom_pass")
 
         config = load_config()
 
@@ -151,12 +151,12 @@ class TestConfigurationLoading:
 
     def test_config_uses_defaults_when_not_set(self, monkeypatch):
         """Test that configuration uses defaults when not configured."""
-        from table_sleuth.config import load_config
+        from tablesleuth.config import load_config
 
         # Clear any environment variables
-        monkeypatch.delenv("TABLE_SLEUTH_GIZMO_URI", raising=False)
-        monkeypatch.delenv("TABLE_SLEUTH_GIZMO_USERNAME", raising=False)
-        monkeypatch.delenv("TABLE_SLEUTH_GIZMO_PASSWORD", raising=False)
+        monkeypatch.delenv("TABLESLEUTH_GIZMO_URI", raising=False)
+        monkeypatch.delenv("TABLESLEUTH_GIZMO_USERNAME", raising=False)
+        monkeypatch.delenv("TABLESLEUTH_GIZMO_PASSWORD", raising=False)
 
         config = load_config()
 

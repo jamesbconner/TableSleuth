@@ -9,12 +9,12 @@ from typing import Any
 from pyiceberg.catalog import load_catalog
 from pyiceberg.table import StaticTable, Table
 
-from table_sleuth.exceptions import (
+from tablesleuth.exceptions import (
     MetadataError,
     SnapshotNotFoundError,
     TableLoadError,
 )
-from table_sleuth.models.iceberg import (
+from tablesleuth.models.iceberg import (
     IcebergSnapshotDetails,
     IcebergSnapshotInfo,
     IcebergTableInfo,
@@ -26,7 +26,7 @@ from table_sleuth.models.iceberg import (
     SortField,
     SortOrderInfo,
 )
-from table_sleuth.services.formats.iceberg import IcebergAdapter
+from tablesleuth.services.formats.iceberg import IcebergAdapter
 
 logger = logging.getLogger(__name__)
 

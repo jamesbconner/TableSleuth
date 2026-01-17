@@ -6,9 +6,9 @@ from collections.abc import Sequence
 
 import pytest
 
-from table_sleuth.models import FileRef, SnapshotInfo
-from table_sleuth.models.profiling import ColumnProfile
-from table_sleuth.services.profiling.backend_base import ProfilingBackend
+from tablesleuth.models import FileRef, SnapshotInfo
+from tablesleuth.models.profiling import ColumnProfile
+from tablesleuth.services.profiling.backend_base import ProfilingBackend
 
 
 # Create a simple fake profiler for testing

@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import logging
 
-from table_sleuth.models.iceberg import (
+from tablesleuth.models.iceberg import (
     PerformanceComparison,
     QueryPerformanceMetrics,
 )
-from table_sleuth.services.profiling.backend_base import ProfilingBackend
+from tablesleuth.services.profiling.backend_base import ProfilingBackend
 
 logger = logging.getLogger(__name__)
 

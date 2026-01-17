@@ -7,14 +7,14 @@ from unittest.mock import Mock
 
 import pytest
 
-from table_sleuth.config import AppConfig, CatalogConfig, GizmoConfig
-from table_sleuth.models import TableHandle
-from table_sleuth.models.file_ref import FileRef
-from table_sleuth.models.parquet import ColumnStats, ParquetFileInfo, RowGroupInfo
-from table_sleuth.models.profiling import ColumnProfile
-from table_sleuth.services.formats.iceberg import IcebergAdapter
-from table_sleuth.services.profiling.backend_base import ProfilingBackend
-from table_sleuth.tui.app import TableSleuthApp
+from tablesleuth.config import AppConfig, CatalogConfig, GizmoConfig
+from tablesleuth.models import TableHandle
+from tablesleuth.models.file_ref import FileRef
+from tablesleuth.models.parquet import ColumnStats, ParquetFileInfo, RowGroupInfo
+from tablesleuth.models.profiling import ColumnProfile
+from tablesleuth.services.formats.iceberg import IcebergAdapter
+from tablesleuth.services.profiling.backend_base import ProfilingBackend
+from tablesleuth.tui.app import TableSleuthApp
 
 
 class FakeProfiler(ProfilingBackend):
@@ -254,7 +254,7 @@ def test_action_profile_column_no_file(
     fake_profiler: FakeProfiler,
 ) -> None:
     """Test profile action with no file selected."""
-    from table_sleuth.tui.views.profile_view import ProfileColumnRequested
+    from tablesleuth.tui.views.profile_view import ProfileColumnRequested
 
     app = TableSleuthApp(
         table_handle=table_handle,
@@ -275,7 +275,7 @@ def test_action_profile_column_no_profiler(
     sample_file_info: ParquetFileInfo,
 ) -> None:
     """Test profile action with no profiler."""
-    from table_sleuth.tui.views.profile_view import ProfileColumnRequested
+    from tablesleuth.tui.views.profile_view import ProfileColumnRequested
 
     app = TableSleuthApp(
         table_handle=table_handle,

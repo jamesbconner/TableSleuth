@@ -7,12 +7,12 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from table_sleuth.config import AppConfig, CatalogConfig, GizmoConfig
-from table_sleuth.models import TableHandle
-from table_sleuth.models.file_ref import FileRef
-from table_sleuth.models.parquet import ColumnStats, ParquetFileInfo, RowGroupInfo
-from table_sleuth.services.formats.iceberg import IcebergAdapter
-from table_sleuth.tui.app import TableSleuthApp
+from tablesleuth.config import AppConfig, CatalogConfig, GizmoConfig
+from tablesleuth.models import TableHandle
+from tablesleuth.models.file_ref import FileRef
+from tablesleuth.models.parquet import ColumnStats, ParquetFileInfo, RowGroupInfo
+from tablesleuth.services.formats.iceberg import IcebergAdapter
+from tablesleuth.tui.app import TableSleuthApp
 
 
 @pytest.fixture
@@ -240,12 +240,10 @@ def test_app_with_real_test_file(
     table_handle: TableHandle,
     adapter: IcebergAdapter,
     app_config: AppConfig,
+    sample_parquet_file: Path,
 ) -> None:
     """Test app with real test Parquet file."""
-    test_file = Path("tests/data/nested_test.parquet")
-
-    if not test_file.exists():
-        pytest.skip("Test file not found")
+    test_file = sample_parquet_file
 
     file_ref = FileRef(
         path=str(test_file),

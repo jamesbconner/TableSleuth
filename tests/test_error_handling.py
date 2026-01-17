@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from table_sleuth.config import AppConfig, CatalogConfig, GizmoConfig
-from table_sleuth.models import TableHandle
-from table_sleuth.services.formats.iceberg import IcebergAdapter
-from table_sleuth.tui.app import TableSleuthApp
-from table_sleuth.tui.widgets import LoadingIndicator, Notification
+from tablesleuth.config import AppConfig, CatalogConfig, GizmoConfig
+from tablesleuth.models import TableHandle
+from tablesleuth.services.formats.iceberg import IcebergAdapter
+from tablesleuth.tui.app import TableSleuthApp
+from tablesleuth.tui.widgets import LoadingIndicator, Notification
 
 
 @pytest.fixture

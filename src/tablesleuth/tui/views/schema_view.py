@@ -12,7 +12,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.widgets import DataTable, Input, Static
 
-from table_sleuth.models.parquet import ParquetFileInfo
+from tablesleuth.models.parquet import ParquetFileInfo
 
 logger = logging.getLogger(__name__)
 
@@ -165,7 +165,7 @@ class SchemaView(Container):
 
         # Load PyArrow ParquetFile for detailed metadata access (with S3 support)
         try:
-            from table_sleuth.services.filesystem import FileSystem
+            from tablesleuth.services.filesystem import FileSystem
 
             fs = FileSystem()
             if fs.is_s3_path(file_info.path):

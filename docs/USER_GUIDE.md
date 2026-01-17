@@ -41,7 +41,7 @@ table-sleuth --version
 
 ### Configuration File
 
-Create a `table_sleuth.toml` file in your project directory or `~/.config/table_sleuth.toml`:
+Create a `tablesleuth.toml` file in your project directory or `~/.config/tablesleuth.toml`:
 
 ```toml
 [catalog]
@@ -312,7 +312,7 @@ GIZMOSQL_PASSWORD="gizmosql_password" gizmosql_server --port 31337 --print-queri
 
 ### Configure Connection
 
-Create or update `table_sleuth.toml`:
+Create or update `tablesleuth.toml`:
 
 ```toml
 [gizmosql]
@@ -368,7 +368,7 @@ nc -zv localhost 31337
 **Authentication Failed:**
 ```bash
 # Verify credentials in configuration
-cat table_sleuth.toml
+cat tablesleuth.toml
 
 # Check environment variables
 env | grep TABLE_SLEUTH_GIZMO

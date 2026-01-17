@@ -8,7 +8,7 @@ from unittest.mock import mock_open, patch
 
 import pytest
 
-from table_sleuth.config import (
+from tablesleuth.config import (
     AppConfig,
     CatalogConfig,
     GizmoConfig,
@@ -63,7 +63,7 @@ def test_app_config_structure() -> None:
 
 def test_load_config_with_defaults() -> None:
     """Test load_config returns defaults when no config file exists."""
-    with patch("table_sleuth.config._load_toml_config", return_value={}):
+    with patch("tablesleuth.config._load_toml_config", return_value={}):
         with patch.dict(os.environ, {}, clear=True):
             config = load_config()
 
@@ -77,13 +77,13 @@ def test_load_config_with_defaults() -> None:
 def test_load_config_from_env_vars() -> None:
     """Test load_config reads from environment variables."""
     env_vars = {
-        "TABLE_SLEUTH_CATALOG_NAME": "test_catalog",
-        "TABLE_SLEUTH_GIZMO_URI": "grpc://test:9999",
-        "TABLE_SLEUTH_GIZMO_USERNAME": "test_user",
-        "TABLE_SLEUTH_GIZMO_PASSWORD": "test_pass",
+        "TABLESLEUTH_CATALOG_NAME": "test_catalog",
+        "TABLESLEUTH_GIZMO_URI": "grpc://test:9999",
+        "TABLESLEUTH_GIZMO_USERNAME": "test_user",
+        "TABLESLEUTH_GIZMO_PASSWORD": "test_pass",
     }
 
-    with patch("table_sleuth.config._load_toml_config", return_value={}):
+    with patch("tablesleuth.config._load_toml_config", return_value={}):
         with patch.dict(os.environ, env_vars, clear=True):
             config = load_config()
 
@@ -105,7 +105,7 @@ def test_load_config_from_toml() -> None:
         },
     }
 
-    with patch("table_sleuth.config._load_toml_config", return_value=toml_data):
+    with patch("tablesleuth.config._load_toml_config", return_value=toml_data):
         with patch.dict(os.environ, {}, clear=True):
             config = load_config()
 
@@ -127,11 +127,11 @@ def test_load_config_env_overrides_toml() -> None:
     }
 
     env_vars = {
-        "TABLE_SLEUTH_CATALOG_NAME": "env_catalog",
-        "TABLE_SLEUTH_GIZMO_URI": "grpc://env:7777",
+        "TABLESLEUTH_CATALOG_NAME": "env_catalog",
+        "TABLESLEUTH_GIZMO_URI": "grpc://env:7777",
     }
 
-    with patch("table_sleuth.config._load_toml_config", return_value=toml_data):
+    with patch("tablesleuth.config._load_toml_config", return_value=toml_data):
         with patch.dict(os.environ, env_vars, clear=True):
             config = load_config()
 
@@ -150,7 +150,7 @@ def test_load_config_partial_toml() -> None:
         # gizmosql section missing
     }
 
-    with patch("table_sleuth.config._load_toml_config", return_value=toml_data):
+    with patch("tablesleuth.config._load_toml_config", return_value=toml_data):
         with patch.dict(os.environ, {}, clear=True):
             config = load_config()
 
@@ -164,7 +164,7 @@ def test_load_config_partial_toml() -> None:
 
 def test_load_config_empty_toml() -> None:
     """Test load_config handles empty TOML file."""
-    with patch("table_sleuth.config._load_toml_config", return_value={}):
+    with patch("tablesleuth.config._load_toml_config", return_value={}):
         with patch.dict(os.environ, {}, clear=True):
             config = load_config()
 
@@ -180,7 +180,7 @@ def test_load_config_missing_catalog_section() -> None:
         # catalog section missing
     }
 
-    with patch("table_sleuth.config._load_toml_config", return_value=toml_data):
+    with patch("tablesleuth.config._load_toml_config", return_value=toml_data):
         with patch.dict(os.environ, {}, clear=True):
             config = load_config()
 
@@ -194,7 +194,7 @@ def test_gizmo_config_tls_skip_verify_bool_conversion() -> None:
         "gizmosql": {"tls_skip_verify": "true"},  # String instead of bool
     }
 
-    with patch("table_sleuth.config._load_toml_config", return_value=toml_data):
+    with patch("tablesleuth.config._load_toml_config", return_value=toml_data):
         with patch.dict(os.environ, {}, clear=True):
             config = load_config()
 
@@ -212,7 +212,7 @@ def test_config_dataclasses_are_frozen() -> None:
 
 def test_load_config_returns_app_config() -> None:
     """Test that load_config returns AppConfig instance."""
-    with patch("table_sleuth.config._load_toml_config", return_value={}):
+    with patch("tablesleuth.config._load_toml_config", return_value={}):
         with patch.dict(os.environ, {}, clear=True):
             config = load_config()
 

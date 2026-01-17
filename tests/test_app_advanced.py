@@ -8,12 +8,12 @@ from unittest.mock import Mock, patch
 import pytest
 from textual.widgets import Footer, Header, TabPane
 
-from table_sleuth.config import AppConfig, CatalogConfig, GizmoConfig
-from table_sleuth.models import TableHandle
-from table_sleuth.models.file_ref import FileRef
-from table_sleuth.models.parquet import ColumnStats, ParquetFileInfo, RowGroupInfo
-from table_sleuth.services.formats.base import TableFormatAdapter
-from table_sleuth.tui.app import TableSleuthApp
+from tablesleuth.config import AppConfig, CatalogConfig, GizmoConfig
+from tablesleuth.models import TableHandle
+from tablesleuth.models.file_ref import FileRef
+from tablesleuth.models.parquet import ColumnStats, ParquetFileInfo, RowGroupInfo
+from tablesleuth.services.formats.base import TableFormatAdapter
+from tablesleuth.tui.app import TableSleuthApp
 
 
 @pytest.fixture
@@ -402,7 +402,7 @@ class TestTableSleuthApp:
             gizmosql=GizmoConfig(),
         )
 
-        with patch("table_sleuth.tui.app.GizmoDuckDbProfiler") as mock_profiler_class:
+        with patch("tablesleuth.tui.app.GizmoDuckDbProfiler") as mock_profiler_class:
             # Make profiler initialization raise an exception
             mock_profiler_class.side_effect = Exception("Connection failed")
 
@@ -930,7 +930,7 @@ class TestTableSleuthAppAdvancedCoverage:
             await pilot.pause()
 
             # Create profile request message
-            from table_sleuth.tui.views.profile_view import ProfileColumnRequested
+            from tablesleuth.tui.views.profile_view import ProfileColumnRequested
 
             message = ProfileColumnRequested(column_name="test_col")
             app.on_profile_column_requested(message)
@@ -960,7 +960,7 @@ class TestTableSleuthAppAdvancedCoverage:
             app._profiler = None
 
             # Create profile request message
-            from table_sleuth.tui.views.profile_view import ProfileColumnRequested
+            from tablesleuth.tui.views.profile_view import ProfileColumnRequested
 
             message = ProfileColumnRequested(column_name="test_col")
             app.on_profile_column_requested(message)
@@ -979,7 +979,7 @@ class TestTableSleuthAppAdvancedCoverage:
         mock_profiler = Mock()
         mock_profiler.register_file_view = Mock(return_value="test_view")
 
-        from table_sleuth.models.profiling import ColumnProfile
+        from tablesleuth.models.profiling import ColumnProfile
 
         mock_profile = ColumnProfile(
             column="id",
@@ -1023,7 +1023,7 @@ class TestTableSleuthAppAdvancedCoverage:
         """Test profiling uses cache."""
         mock_profiler = Mock()
 
-        from table_sleuth.models.profiling import ColumnProfile
+        from tablesleuth.models.profiling import ColumnProfile
 
         mock_profile = ColumnProfile(
             column="id",

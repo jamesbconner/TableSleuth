@@ -21,30 +21,30 @@ from textual.widgets import (
     TabPane,
 )
 
-from table_sleuth.models.iceberg import (
+from tablesleuth.models.iceberg import (
     IcebergSnapshotDetails,
     IcebergSnapshotInfo,
     IcebergTableInfo,
 )
-from table_sleuth.services.iceberg_metadata_service import IcebergMetadataService
-from table_sleuth.services.profiling.backend_base import ProfilingBackend
-from table_sleuth.services.snapshot_performance_analyzer import (
+from tablesleuth.services.iceberg_metadata_service import IcebergMetadataService
+from tablesleuth.services.profiling.backend_base import ProfilingBackend
+from tablesleuth.services.snapshot_performance_analyzer import (
     SnapshotPerformanceAnalyzer,
 )
-from table_sleuth.services.snapshot_test_manager import SnapshotTestManager
-from table_sleuth.tui.views.data_sample_view import DataSampleView
-from table_sleuth.tui.views.snapshot_comparison_view import (
+from tablesleuth.services.snapshot_test_manager import SnapshotTestManager
+from tablesleuth.tui.views.data_sample_view import DataSampleView
+from tablesleuth.tui.views.snapshot_comparison_view import (
     PerformanceTestView,
     SnapshotComparisonView,
 )
-from table_sleuth.tui.views.snapshot_detail_view import (
+from tablesleuth.tui.views.snapshot_detail_view import (
     SnapshotDeletesView,
     SnapshotFilesView,
     SnapshotOverviewView,
     SnapshotPropertiesView,
     SnapshotSchemaView,
 )
-from table_sleuth.tui.widgets import LoadingIndicator, Notification
+from tablesleuth.tui.widgets import LoadingIndicator, Notification
 
 logger = logging.getLogger(__name__)
 
@@ -579,8 +579,8 @@ class IcebergView(Screen):
 
             # Load the file info using the parquet inspector
             try:
-                from table_sleuth.services.filesystem import FileSystem
-                from table_sleuth.services.parquet_service import ParquetInspector
+                from tablesleuth.services.filesystem import FileSystem
+                from tablesleuth.services.parquet_service import ParquetInspector
 
                 # Ensure the file exists (supports both local and S3 paths)
                 fs = FileSystem()  # Uses AWS_REGION env var or defaults

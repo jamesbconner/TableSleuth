@@ -1,7 +1,7 @@
 import pytest
 
-from table_sleuth.models import FileRef, SnapshotInfo
-from table_sleuth.services.profiling.fake_backend import FakeProfiler
+from tablesleuth.models import FileRef, SnapshotInfo
+from tablesleuth.services.profiling.fake_backend import FakeProfiler
 
 
 def test_fake_profiler_profiles() -> None:

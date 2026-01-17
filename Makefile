@@ -44,7 +44,7 @@ test:
 	uv run pytest
 
 test-cov:
-	uv run pytest --cov=table_sleuth --cov-report=html --cov-report=term
+	uv run pytest --cov=tablesleuth --cov-report=html --cov-report=term
 
 # Code quality
 lint:

@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import Dict, Optional
 
-from table_sleuth.models import (
+from tablesleuth.models import (
     ColumnProfile,
     MergeOnReadPerformance,
     SnapshotInfo,

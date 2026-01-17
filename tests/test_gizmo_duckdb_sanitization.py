@@ -2,7 +2,7 @@
 
 import pytest
 
-from table_sleuth.services.profiling.gizmo_duckdb import (
+from tablesleuth.services.profiling.gizmo_duckdb import (
     _sanitize_identifier,
     _validate_filter_expression,
 )

@@ -10,7 +10,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, Vertical
 from textual.widgets import DataTable, Static
 
-from table_sleuth.models.iceberg import (
+from tablesleuth.models.iceberg import (
     IcebergSnapshotDetails,
     IcebergSnapshotInfo,
     PartitionSpecInfo,

@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Optional, Protocol
 
-from table_sleuth.models import FileRef, SnapshotInfo, TableHandle
+from tablesleuth.models import FileRef, SnapshotInfo, TableHandle
 
 
 class TableFormatAdapter(Protocol):

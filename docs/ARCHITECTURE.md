@@ -382,7 +382,7 @@ tls_skip_verify = True  # For self-signed certificates
 - Graceful error handling with retries
 - Local deployment (no Docker complexity)
 - Optional TLS for security
-- Configurable via `table_sleuth.toml`
+- Configurable via `tablesleuth.toml`
 
 #### IcebergAdapter
 
@@ -755,12 +755,12 @@ Display comparison results
 ### Configuration Sources (Priority Order)
 
 1. **Environment Variables** (highest priority)
-2. **Configuration File** (`table_sleuth.toml` or `~/.config/table_sleuth.toml`)
+2. **Configuration File** (`tablesleuth.toml` or `~/.config/tablesleuth.toml`)
 3. **Built-in Defaults** (lowest priority)
 
 ### Table Sleuth Configuration
 
-**File**: `table_sleuth.toml` (project root) or `~/.config/table_sleuth.toml`
+**File**: `tablesleuth.toml` (project root) or `~/.config/tablesleuth.toml`
 
 ```toml
 [catalog]
@@ -862,8 +862,8 @@ class Config:
 
         # 2. Load from file (project root or ~/.config)
         config_paths = [
-            Path("table_sleuth.toml"),
-            Path.home() / ".config" / "table_sleuth.toml",
+            Path("tablesleuth.toml"),
+            Path.home() / ".config" / "tablesleuth.toml",
         ]
         for path in config_paths:
             if path.exists():
@@ -1347,7 +1347,7 @@ table-sleuth/
 │
 ├── pyproject.toml                      # Project metadata and dependencies
 ├── uv.lock                             # Dependency lock file
-├── table_sleuth.toml                   # Application configuration
+├── tablesleuth.toml                    # Application configuration
 ├── README.md                           # Project overview
 ├── QUICKSTART.md                       # Quick start guide
 ├── TABLESLEUTH_SETUP.md                # User setup guide

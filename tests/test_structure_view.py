@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from table_sleuth.models.parquet import ColumnStats, ParquetFileInfo, RowGroupInfo
-from table_sleuth.tui.views.structure_view import StructureView
+from tablesleuth.models.parquet import ColumnStats, ParquetFileInfo, RowGroupInfo
+from tablesleuth.tui.views.structure_view import StructureView
 
 
 @pytest.fixture

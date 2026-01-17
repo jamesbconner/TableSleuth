@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-from table_sleuth.exceptions import SnapshotNotFoundError, TableLoadError
-from table_sleuth.services.iceberg_metadata_service import IcebergMetadataService
+from tablesleuth.exceptions import SnapshotNotFoundError, TableLoadError
+from tablesleuth.services.iceberg_metadata_service import IcebergMetadataService
 
 
 class TestIcebergMetadataService:

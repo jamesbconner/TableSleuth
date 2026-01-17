@@ -4,10 +4,10 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from table_sleuth.models.file_ref import FileRef
+from tablesleuth.models.file_ref import FileRef
 
 if TYPE_CHECKING:
-    from table_sleuth.services.formats.iceberg import IcebergAdapter
+    from tablesleuth.services.formats.iceberg import IcebergAdapter
 
 logger = logging.getLogger(__name__)
 
