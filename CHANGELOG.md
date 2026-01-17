@@ -41,8 +41,32 @@ All notable changes to this project will be documented in this file.
   - Updated all documentation and code references
 
 ### Fixed
-- Improved error messages throughout CLI to suggest running `tablesleuth init`
-- Better handling of missing configuration files (graceful defaults)
+- **Configuration Error Handling** - Improved error messages and handling
+  - Fixed unhandled `FileNotFoundError` in `inspect` and `iceberg` commands when `TABLESLEUTH_CONFIG` points to non-existent file
+  - Fixed unhandled exception in `config-check` command with invalid `TABLESLEUTH_CONFIG` environment variable
+  - Both commands now show helpful error messages suggesting `tablesleuth init` instead of tracebacks
+  - Added proper try-except blocks around `load_config()` calls in main CLI commands
+
+- **Configuration Template TOML Syntax** - Fixed invalid TOML in generated config
+  - Changed `default = null` to commented `# default = ""` (TOML doesn't support null type)
+  - Generated config files now parse correctly without `TOMLDecodeError`
+  - Affects `tablesleuth init` command output
+
+- **S3 Tables Catalog Configuration** - Fixed incorrect catalog type and improved flexibility
+  - Changed S3 Tables catalog from `type: glue` to `type: rest` with proper REST API settings
+  - Added required REST API configuration: `uri`, `rest.sigv4-enabled`, `rest.signing-name`, `rest.signing-region`
+  - Fixed hardcoded catalog name - now supports multiple S3 Tables catalogs
+  - Users can specify which S3 Tables catalog to use with `--catalog` flag when using ARNs
+  - Default catalog name "s3tables" is used when ARN is provided without `--catalog` flag
+  - Added clear documentation and usage examples in template showing multiple S3 Tables catalogs
+  - Clarified difference between Glue catalog and S3 Tables catalog
+
+- **GizmoSQL Optional Component Handling** - Made GizmoSQL truly optional
+  - `config-check` command no longer fails when GizmoSQL connection fails
+  - Added `--with-gizmosql` flag to explicitly test GizmoSQL connection
+  - GizmoSQL test is now skipped by default (shown as "⊘ Skipped")
+  - Exit code 0 (success) when only optional components fail
+  - Consistent with other optional checks like missing PyIceberg config
 
 ### Dependencies
 - Added `pyyaml>=6.0.0` for PyIceberg config validation

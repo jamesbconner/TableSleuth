@@ -183,12 +183,13 @@ def inspect(path: str, catalog_name: str | None, verbose: bool) -> None:
             click.echo(f"Loading S3 Tables Iceberg table: {path}")
 
             # Open table using ARN (adapter will parse it)
-            table_handle = adapter.open_table(path)
+            # Pass catalog_name to allow user to specify which S3 Tables catalog to use
+            table_handle = adapter.open_table(path, catalog_name)
 
             # Discover files from table
             discovery = FileDiscoveryService(iceberg_adapter=adapter)
             # Extract table identifier from ARN for discovery
-            arn_info = adapter._parse_s3_tables_arn(path)
+            arn_info = adapter._parse_s3_tables_arn(path, catalog_name)
             if arn_info:
                 catalog, table_id = arn_info
                 files = discovery.discover_from_table(table_id, catalog)
@@ -601,7 +602,12 @@ def init_config(force: bool) -> None:
     is_flag=True,
     help="Show detailed configuration values.",
 )
-def config_check(verbose: bool) -> None:
+@click.option(
+    "--with-gizmosql",
+    is_flag=True,
+    help="Include GizmoSQL connection test (optional component).",
+)
+def config_check(verbose: bool, with_gizmosql: bool) -> None:
     """Check TableSleuth configuration and validate settings.
 
     Validates configuration files and tests connections to verify setup.
@@ -610,8 +616,8 @@ def config_check(verbose: bool) -> None:
     Checks performed:
     - Configuration file locations and syntax
     - Environment variable overrides
-    - GizmoSQL connection (if configured)
     - PyIceberg catalog configuration
+    - GizmoSQL connection (only with --with-gizmosql flag)
 
     Examples:
 
@@ -622,6 +628,10 @@ def config_check(verbose: bool) -> None:
     \b
     # Detailed check with all values
     tablesleuth config-check --verbose
+
+    \b
+    # Include optional GizmoSQL connection test
+    tablesleuth config-check --with-gizmosql
     """
     click.echo("TableSleuth Configuration Check")
     click.echo("=" * 50)
@@ -756,38 +766,48 @@ def config_check(verbose: bool) -> None:
 
     click.echo()
 
-    # Check 4: GizmoSQL connection
-    click.echo("4. GizmoSQL Connection Test")
-    click.echo("-" * 50)
-
-    try:
-        config = load_config()
-        click.echo(f"   Testing connection to {config.gizmosql.uri}...")
+    # Check 4: GizmoSQL connection (optional, only with flag)
+    if with_gizmosql:
+        click.echo("4. GizmoSQL Connection Test")
+        click.echo("-" * 50)
 
         try:
-            profiler = GizmoDuckDbProfiler(
-                uri=config.gizmosql.uri,
-                username=config.gizmosql.username,
-                password=config.gizmosql.password,
-                tls_skip_verify=config.gizmosql.tls_skip_verify,
-            )
-            # Try a simple query to verify connection works
-            with profiler._connect() as conn, conn.cursor() as cur:
-                cur.execute("SELECT 1")
-                cur.fetchone()
-            click.echo("   ✓ GizmoSQL connection successful")
-        except Exception as e:
-            click.echo(f"   ✗ GizmoSQL connection failed: {e}", err=True)
-            click.echo("     GizmoSQL is optional but required for:")
-            click.echo("     - Column profiling")
-            click.echo("     - Iceberg snapshot performance testing")
-            click.echo("     See: docs/GIZMOSQL_DEPLOYMENT_GUIDE.md")
-            all_checks_passed = False
-    except Exception as e:
-        click.echo(f"   ✗ Configuration error: {e}", err=True)
-        all_checks_passed = False
+            config = load_config()
+            click.echo(f"   Testing connection to {config.gizmosql.uri}...")
 
-    click.echo()
+            try:
+                profiler = GizmoDuckDbProfiler(
+                    uri=config.gizmosql.uri,
+                    username=config.gizmosql.username,
+                    password=config.gizmosql.password,
+                    tls_skip_verify=config.gizmosql.tls_skip_verify,
+                )
+                # Try a simple query to verify connection works
+                with profiler._connect() as conn, conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+                    cur.fetchone()
+                click.echo("   ✓ GizmoSQL connection successful")
+            except Exception as e:
+                click.echo(f"   ✗ GizmoSQL connection failed: {e}", err=True)
+                click.echo("     GizmoSQL is optional but required for:")
+                click.echo("     - Column profiling")
+                click.echo("     - Iceberg snapshot performance testing")
+                click.echo("     See: docs/GIZMOSQL_DEPLOYMENT_GUIDE.md")
+                all_checks_passed = False
+        except Exception as e:
+            click.echo(f"   ✗ Configuration error: {e}", err=True)
+            all_checks_passed = False
+
+        click.echo()
+    else:
+        click.echo("4. GizmoSQL Connection Test")
+        click.echo("-" * 50)
+        click.echo("   ⊘ Skipped (use --with-gizmosql to test)")
+        click.echo("     GizmoSQL is optional but required for:")
+        click.echo("     - Column profiling")
+        click.echo("     - Iceberg snapshot performance testing")
+        click.echo()
+
     click.echo("=" * 50)
 
     if all_checks_passed:

@@ -109,6 +109,7 @@ class TestConfigCheckCommand:
         assert result.exit_code == 0
         assert "Check TableSleuth configuration" in result.output
         assert "--verbose" in result.output
+        assert "--with-gizmosql" in result.output
 
     def test_config_check_no_config(self, cli_runner: CliRunner, tmp_path: Path) -> None:
         """Test config-check with no configuration files."""
@@ -116,9 +117,11 @@ class TestConfigCheckCommand:
             with patch("tablesleuth.config.DEFAULT_CONFIG_PATHS", [tmp_path / "tablesleuth.toml"]):
                 result = cli_runner.invoke(config_check)
 
-                assert result.exit_code == 1
+                # Should warn but not fail (GizmoSQL is optional and skipped by default)
                 assert "No config file found" in result.output or "⚠" in result.output
                 assert "tablesleuth init" in result.output
+                # GizmoSQL should be skipped
+                assert "Skipped" in result.output or "⊘" in result.output
 
     def test_config_check_with_valid_config(self, cli_runner: CliRunner, tmp_path: Path) -> None:
         """Test config-check with valid configuration."""
@@ -137,14 +140,12 @@ tls_skip_verify = true
             Path("tablesleuth.toml").write_text(config_content)
 
             with patch("pathlib.Path.cwd", return_value=tmp_path):
-                # Mock GizmoSQL connection to avoid actual connection attempt
-                with patch("tablesleuth.cli.GizmoDuckDbProfiler") as mock_profiler:
-                    mock_profiler.return_value._connect.return_value.__enter__.return_value.cursor.return_value.__enter__.return_value.execute.return_value = None
+                result = cli_runner.invoke(config_check)
 
-                    result = cli_runner.invoke(config_check)
-
-                    assert "Config file found" in result.output
-                    assert "Config file syntax valid" in result.output
+                assert "Config file found" in result.output
+                assert "Config file syntax valid" in result.output
+                # GizmoSQL should be skipped by default
+                assert "Skipped" in result.output or "⊘" in result.output
 
     def test_config_check_verbose(self, cli_runner: CliRunner, tmp_path: Path) -> None:
         """Test config-check with verbose flag."""
@@ -164,12 +165,11 @@ password = "verbose_pass"
             with patch(
                 "tablesleuth.config.DEFAULT_CONFIG_PATHS", [Path.cwd() / "tablesleuth.toml"]
             ):
-                with patch("tablesleuth.cli.GizmoDuckDbProfiler"):
-                    result = cli_runner.invoke(config_check, ["-v"])
+                result = cli_runner.invoke(config_check, ["-v"])
 
-                    assert "Configuration values:" in result.output
-                    # Password should be masked
-                    assert "verbose_pass" not in result.output or "*" in result.output
+                assert "Configuration values:" in result.output
+                # Password should be masked
+                assert "verbose_pass" not in result.output or "*" in result.output
 
     def test_config_check_with_env_vars(
         self, cli_runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -183,12 +183,11 @@ password = "verbose_pass"
             monkeypatch.setenv("TABLESLEUTH_GIZMO_URI", "grpc://env:1234")
 
             with patch("pathlib.Path.cwd", return_value=tmp_path):
-                with patch("tablesleuth.cli.GizmoDuckDbProfiler"):
-                    result = cli_runner.invoke(config_check)
+                result = cli_runner.invoke(config_check)
 
-                    assert "Environment Variable Overrides" in result.output
-                    assert "TABLESLEUTH_CATALOG_NAME" in result.output
-                    assert "TABLESLEUTH_GIZMO_URI" in result.output
+                assert "Environment Variable Overrides" in result.output
+                assert "TABLESLEUTH_CATALOG_NAME" in result.output
+                assert "TABLESLEUTH_GIZMO_URI" in result.output
 
     def test_config_check_invalid_toml(self, cli_runner: CliRunner, tmp_path: Path) -> None:
         """Test config-check with invalid TOML syntax."""
@@ -224,12 +223,11 @@ catalog:
             with patch(
                 "tablesleuth.config.DEFAULT_CONFIG_PATHS", [Path.cwd() / "tablesleuth.toml"]
             ):
-                with patch("tablesleuth.cli.GizmoDuckDbProfiler"):
-                    result = cli_runner.invoke(config_check, ["-v"])
+                result = cli_runner.invoke(config_check, ["-v"])
 
-                    assert "PyIceberg config found" in result.output
-                    # Should show catalogs in verbose mode
-                    assert "local" in result.output or "glue" in result.output
+                assert "PyIceberg config found" in result.output
+                # Should show catalogs in verbose mode
+                assert "local" in result.output or "glue" in result.output
 
     def test_config_check_invalid_env_var(
         self, cli_runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -336,3 +334,101 @@ class TestCLIConfigErrorHandling:
                 assert "gizmosql" in config
             except Exception as e:
                 pytest.fail(f"Generated config file is invalid TOML: {e}")
+
+    def test_config_check_with_gizmosql_flag(self, cli_runner: CliRunner, tmp_path: Path) -> None:
+        """Test config-check with --with-gizmosql flag tests GizmoSQL connection."""
+        with cli_runner.isolated_filesystem(temp_dir=tmp_path):
+            # Create a valid config file
+            config_content = """
+[catalog]
+default = "local"
+
+[gizmosql]
+uri = "grpc+tls://localhost:31337"
+username = "test_user"
+password = "test_pass"
+tls_skip_verify = true
+"""
+            Path("tablesleuth.toml").write_text(config_content)
+
+            with patch("pathlib.Path.cwd", return_value=tmp_path):
+                # Mock GizmoSQL connection to succeed
+                with patch("tablesleuth.cli.GizmoDuckDbProfiler") as mock_profiler:
+                    mock_cursor = Mock()
+                    mock_cursor.execute.return_value = None
+                    mock_cursor.fetchone.return_value = (1,)
+
+                    mock_conn = Mock()
+                    mock_conn.cursor.return_value.__enter__ = Mock(return_value=mock_cursor)
+                    mock_conn.cursor.return_value.__exit__ = Mock(return_value=False)
+
+                    mock_profiler.return_value._connect.return_value.__enter__ = Mock(
+                        return_value=mock_conn
+                    )
+                    mock_profiler.return_value._connect.return_value.__exit__ = Mock(
+                        return_value=False
+                    )
+
+                    result = cli_runner.invoke(config_check, ["--with-gizmosql"])
+
+                    assert "GizmoSQL connection successful" in result.output
+                    assert result.exit_code == 0
+
+    def test_config_check_with_gizmosql_flag_failure(
+        self, cli_runner: CliRunner, tmp_path: Path
+    ) -> None:
+        """Test config-check with --with-gizmosql flag handles connection failure."""
+        with cli_runner.isolated_filesystem(temp_dir=tmp_path):
+            # Create a valid config file
+            config_content = """
+[catalog]
+default = "local"
+
+[gizmosql]
+uri = "grpc+tls://localhost:31337"
+username = "test_user"
+password = "test_pass"
+tls_skip_verify = true
+"""
+            Path("tablesleuth.toml").write_text(config_content)
+
+            with patch("pathlib.Path.cwd", return_value=tmp_path):
+                # Mock GizmoSQL connection to fail
+                with patch("tablesleuth.cli.GizmoDuckDbProfiler") as mock_profiler:
+                    mock_profiler.return_value._connect.side_effect = Exception(
+                        "Connection refused"
+                    )
+
+                    result = cli_runner.invoke(config_check, ["--with-gizmosql"])
+
+                    assert "GizmoSQL connection failed" in result.output
+                    assert "Connection refused" in result.output
+                    assert result.exit_code == 1
+
+    def test_config_check_without_gizmosql_flag_skips_test(
+        self, cli_runner: CliRunner, tmp_path: Path
+    ) -> None:
+        """Test config-check without --with-gizmosql flag skips GizmoSQL test."""
+        with cli_runner.isolated_filesystem(temp_dir=tmp_path):
+            # Create a valid config file
+            config_content = """
+[catalog]
+default = "local"
+
+[gizmosql]
+uri = "grpc+tls://localhost:31337"
+username = "test_user"
+password = "test_pass"
+tls_skip_verify = true
+"""
+            Path("tablesleuth.toml").write_text(config_content)
+
+            with patch("pathlib.Path.cwd", return_value=tmp_path):
+                result = cli_runner.invoke(config_check)
+
+                # Should skip GizmoSQL test
+                assert "Skipped" in result.output or "⊘" in result.output
+                assert "--with-gizmosql" in result.output
+                # Should not attempt connection
+                assert "connection successful" not in result.output.lower()
+                assert "connection failed" not in result.output.lower()

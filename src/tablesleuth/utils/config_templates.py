@@ -101,7 +101,7 @@ catalog:
   # ---------------------------------------------------------------------------
   # Local SQLite Catalog (for development and testing)
   # ---------------------------------------------------------------------------
-  local:
+  local-name:
     type: sql
     uri: sqlite:////tmp/iceberg_catalog.db
     warehouse: file:///tmp/iceberg_warehouse
@@ -114,7 +114,9 @@ catalog:
   # ---------------------------------------------------------------------------
   # AWS Glue Catalog (production AWS environment)
   # ---------------------------------------------------------------------------
-  glue:
+  # Note: This is different from S3 Tables. Use this for regular Glue Data Catalog.
+  # For S3 Tables, see the "s3tables" catalog configuration below.
+  glue-name:
     type: glue
 
     # AWS region where Glue catalog is located
@@ -136,16 +138,39 @@ catalog:
   # ---------------------------------------------------------------------------
   # AWS S3 Tables Catalog (managed Iceberg service)
   # ---------------------------------------------------------------------------
+  # You can have multiple S3 Tables catalogs for different buckets/regions
+  # The catalog name "s3tables" is used as the default when using ARNs without --catalog flag
   s3tables:
-    type: glue
+    type: rest
+    warehouse: arn:aws:s3tables:us-east-2:123456789012:bucket/my-bucket
+    uri: https://s3tables.us-east-2.amazonaws.com/iceberg
 
-    # S3 Tables uses Glue catalog under the hood
-    # Configure region and credentials same as Glue catalog above
-    # region: us-east-2
+    # S3 Tables REST API authentication (uses AWS SigV4)
+    rest.sigv4-enabled: "true"
+    rest.signing-name: s3tables
+    rest.signing-region: us-east-2
 
-    # S3 Tables specific configuration
-    # Use S3 Tables ARNs when inspecting tables:
-    # tablesleuth inspect "arn:aws:s3tables:region:account:bucket/name/table/db.table"
+    # AWS credentials are loaded from:
+    # - Environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+    # - AWS credentials file (~/.aws/credentials)
+    # - IAM role (when running on EC2/ECS/Lambda)
+
+  # Example: Additional S3 Tables catalog for a different bucket
+  # my-dataset-s3tables:
+  #   type: rest
+  #   warehouse: arn:aws:s3tables:us-west-2:123456789012:bucket/my-dataset
+  #   uri: https://s3tables.us-west-2.amazonaws.com/iceberg
+  #   rest.sigv4-enabled: "true"
+  #   rest.signing-name: s3tables
+  #   rest.signing-region: us-west-2
+
+    # Usage examples:
+    # Using ARN without --catalog (uses "s3tables" catalog name by default):
+    #   tablesleuth inspect "arn:aws:s3tables:us-east-2:123456789012:bucket/my-bucket/table/db.table"
+    # Using ARN with --catalog to specify which S3 Tables catalog:
+    #   tablesleuth inspect "arn:aws:s3tables:..." --catalog my-dataset-s3tables
+    # Using catalog name explicitly:
+    #   tablesleuth inspect db.table --catalog s3tables
 
   # ---------------------------------------------------------------------------
   # REST Catalog (for custom catalog servers)
