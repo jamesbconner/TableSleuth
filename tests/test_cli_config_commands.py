@@ -230,3 +230,109 @@ catalog:
                     assert "PyIceberg config found" in result.output
                     # Should show catalogs in verbose mode
                     assert "local" in result.output or "glue" in result.output
+
+    def test_config_check_invalid_env_var(
+        self, cli_runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test config-check handles invalid TABLESLEUTH_CONFIG gracefully."""
+        with cli_runner.isolated_filesystem(temp_dir=tmp_path):
+            # Set TABLESLEUTH_CONFIG to non-existent file
+            monkeypatch.setenv("TABLESLEUTH_CONFIG", "/nonexistent/config.toml")
+
+            result = cli_runner.invoke(config_check)
+
+            assert result.exit_code == 1
+            assert "TABLESLEUTH_CONFIG" in result.output
+            assert "non-existent" in result.output or "not found" in result.output.lower()
+
+    def test_config_check_invalid_env_var_verbose(
+        self, cli_runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test config-check handles invalid TABLESLEUTH_CONFIG with verbose flag."""
+        with cli_runner.isolated_filesystem(temp_dir=tmp_path):
+            # Set TABLESLEUTH_CONFIG to non-existent file
+            monkeypatch.setenv("TABLESLEUTH_CONFIG", "/nonexistent/config.toml")
+
+            result = cli_runner.invoke(config_check, ["-v"])
+
+            assert result.exit_code == 1
+            assert "TABLESLEUTH_CONFIG" in result.output
+            # Should not crash with unhandled exception
+            assert "Traceback" not in result.output
+
+
+class TestCLIConfigErrorHandling:
+    """Tests for configuration error handling in main CLI commands."""
+
+    def test_inspect_invalid_env_var(
+        self, cli_runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test inspect command handles invalid TABLESLEUTH_CONFIG gracefully."""
+        from tablesleuth.cli import inspect
+
+        # Set TABLESLEUTH_CONFIG to non-existent file
+        monkeypatch.setenv("TABLESLEUTH_CONFIG", "/nonexistent/config.toml")
+
+        result = cli_runner.invoke(inspect, ["test.parquet"])
+
+        assert result.exit_code == 1
+        assert "TABLESLEUTH_CONFIG" in result.output
+        assert "tablesleuth init" in result.output
+        # Should not show traceback
+        assert "Traceback" not in result.output
+
+    def test_iceberg_invalid_env_var(
+        self, cli_runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test iceberg command handles invalid TABLESLEUTH_CONFIG gracefully."""
+        from tablesleuth.cli import iceberg_viewer
+
+        # Set TABLESLEUTH_CONFIG to non-existent file
+        monkeypatch.setenv("TABLESLEUTH_CONFIG", "/nonexistent/config.toml")
+
+        result = cli_runner.invoke(iceberg_viewer, ["--catalog", "test", "--table", "db.table"])
+
+        assert result.exit_code == 1
+        assert "TABLESLEUTH_CONFIG" in result.output
+        assert "tablesleuth init" in result.output
+        # Should not show traceback
+        assert "Traceback" not in result.output
+
+    def test_generated_config_is_valid_toml(self, cli_runner: CliRunner, tmp_path: Path) -> None:
+        """Test that generated config file is valid TOML (no null values)."""
+        import tomllib
+
+        from tablesleuth.utils.config_templates import get_tablesleuth_template
+
+        # Get the template
+        template = get_tablesleuth_template()
+
+        # Try to parse it as TOML
+        try:
+            config = tomllib.loads(template)
+            # Should parse successfully
+            assert "catalog" in config
+            assert "gizmosql" in config
+        except Exception as e:
+            pytest.fail(f"Generated config template is invalid TOML: {e}")
+
+    def test_init_creates_valid_toml(self, cli_runner: CliRunner, tmp_path: Path) -> None:
+        """Test that init command creates a valid TOML file."""
+        import tomllib
+
+        with cli_runner.isolated_filesystem(temp_dir=tmp_path):
+            # Run init
+            result = cli_runner.invoke(init_config, input="2\n")
+
+            assert result.exit_code == 0
+            assert Path("tablesleuth.toml").exists()
+
+            # Try to parse the generated file
+            try:
+                with open("tablesleuth.toml", "rb") as f:
+                    config = tomllib.load(f)
+                # Should parse successfully
+                assert "catalog" in config
+                assert "gizmosql" in config
+            except Exception as e:
+                pytest.fail(f"Generated config file is invalid TOML: {e}")

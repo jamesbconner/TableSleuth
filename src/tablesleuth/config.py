@@ -103,12 +103,17 @@ def get_config_file_path() -> Path | None:
 
     Returns:
         Path to config file being used, or None if using defaults
+
+    Raises:
+        FileNotFoundError: If TABLESLEUTH_CONFIG is set but file doesn't exist
     """
     env_config_path = os.getenv("TABLESLEUTH_CONFIG")
     if env_config_path:
         path = Path(env_config_path)
         if path.exists():
             return path
+        # If specified but doesn't exist, that's an error (consistent with _load_toml_config)
+        raise FileNotFoundError(f"Config file specified by TABLESLEUTH_CONFIG not found: {path}")
 
     for path in DEFAULT_CONFIG_PATHS:
         if path.exists():

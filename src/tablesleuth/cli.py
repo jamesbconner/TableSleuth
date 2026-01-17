@@ -159,7 +159,18 @@ def inspect(path: str, catalog_name: str | None, verbose: bool) -> None:
     logging.getLogger("urllib3").setLevel(logging.WARNING)
 
     # Load configuration
-    config = load_config()
+    try:
+        config = load_config()
+    except FileNotFoundError as e:
+        click.echo(f"Error: {e}", err=True)
+        click.echo("", err=True)
+        click.echo(
+            "The TABLESLEUTH_CONFIG environment variable points to a non-existent file.", err=True
+        )
+        click.echo("Either fix the path or unset the variable, then run:", err=True)
+        click.echo("  tablesleuth init", err=True)
+        sys.exit(1)
+
     adapter = IcebergAdapter(default_catalog=config.catalog.default)
 
     # Detect input type and discover files
@@ -354,7 +365,17 @@ def iceberg_viewer(
     logging.getLogger("urllib3").setLevel(logging.WARNING)
 
     # Load configuration
-    config = load_config()
+    try:
+        config = load_config()
+    except FileNotFoundError as e:
+        click.echo(f"Error: {e}", err=True)
+        click.echo("", err=True)
+        click.echo(
+            "The TABLESLEUTH_CONFIG environment variable points to a non-existent file.", err=True
+        )
+        click.echo("Either fix the path or unset the variable, then run:", err=True)
+        click.echo("  tablesleuth init", err=True)
+        sys.exit(1)
 
     try:
         # Initialize services
@@ -612,7 +633,18 @@ def config_check(verbose: bool) -> None:
     click.echo("1. TableSleuth Configuration (tablesleuth.toml)")
     click.echo("-" * 50)
 
-    config_path = get_config_file_path()
+    try:
+        config_path = get_config_file_path()
+    except FileNotFoundError as e:
+        click.echo(f"   ✗ Error: {e}", err=True)
+        click.echo(
+            "     The TABLESLEUTH_CONFIG environment variable points to a non-existent file",
+            err=True,
+        )
+        click.echo("     Either fix the path or unset the variable", err=True)
+        all_checks_passed = False
+        config_path = None
+
     if config_path:
         click.echo(f"   ✓ Config file found: {config_path}")
 
@@ -636,12 +668,16 @@ def config_check(verbose: bool) -> None:
         click.echo("     Run 'tablesleuth init' to create configuration files")
 
         if verbose:
-            config = load_config()
-            click.echo()
-            click.echo("   Default values:")
-            click.echo(f"     catalog.default: {config.catalog.default or '(not set)'}")
-            click.echo(f"     gizmosql.uri: {config.gizmosql.uri}")
-            click.echo(f"     gizmosql.username: {config.gizmosql.username}")
+            try:
+                config = load_config()
+                click.echo()
+                click.echo("   Default values:")
+                click.echo(f"     catalog.default: {config.catalog.default or '(not set)'}")
+                click.echo(f"     gizmosql.uri: {config.gizmosql.uri}")
+                click.echo(f"     gizmosql.username: {config.gizmosql.username}")
+            except FileNotFoundError as e:
+                click.echo(f"   ✗ Error loading defaults: {e}", err=True)
+                all_checks_passed = False
 
     click.echo()
 

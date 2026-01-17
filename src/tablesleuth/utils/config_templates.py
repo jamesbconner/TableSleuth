@@ -16,8 +16,8 @@ TABLESLEUTH_TOML_TEMPLATE = """# TableSleuth Configuration
 [catalog]
 # Default Iceberg catalog to use when --catalog flag is not specified
 # Must match a catalog name defined in .pyiceberg.yaml
-# Set to null or comment out to require explicit --catalog flag
-default = null
+# Comment out or leave empty to require explicit --catalog flag
+# default = ""
 
 # Examples:
 # default = "local"      # Use local SQLite catalog

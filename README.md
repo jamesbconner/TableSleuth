@@ -3,7 +3,8 @@
 [![PyPI version](https://badge.fury.io/py/tablesleuth.svg)](https://badge.fury.io/py/tablesleuth)
 [![Python versions](https://img.shields.io/pypi/pyversions/tablesleuth.svg)](https://pypi.org/project/tablesleuth/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![CI](https://github.com/jamesbconner/table-sleuth/workflows/CI/badge.svg)](https://github.com/jamesbconner/table-sleuth/actions)
+[![CI](https://github.com/jamesbconner/tablesleuth/workflows/CI/badge.svg)](https://github.com/jamesbconner/tablesleuth/actions)
+[![Publish to PyPI](https://github.com/jamesbconner/TableSleuth/actions/workflows/publish.yml/badge.svg)](https://github.com/jamesbconner/TableSleuth/actions/workflows/publish.yml)
 
 A powerful terminal-based tool for deep inspection of Parquet files and Apache Iceberg tables. Analyze file structure, metadata, row groups, column statistics, and table evolution with an intuitive TUI interface.
 
