@@ -20,14 +20,14 @@ def test_main_command_exists(cli_runner: CliRunner) -> None:
     """Test that main command exists."""
     result = cli_runner.invoke(main, ["--help"])
     assert result.exit_code == 0
-    assert "Table Sleuth" in result.output
+    assert "TableSleuth" in result.output
 
 
 def test_version_flag(cli_runner: CliRunner) -> None:
     """Test version flag."""
     result = cli_runner.invoke(main, ["--version"])
     assert result.exit_code == 0
-    assert "version" in result.output.lower() or "table sleuth" in result.output.lower()
+    assert "version" in result.output.lower() or "tablesleuth" in result.output.lower()
 
 
 def test_inspect_command_exists(cli_runner: CliRunner) -> None:

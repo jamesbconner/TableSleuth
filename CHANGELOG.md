@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] - 2025-01-16
+
+### Changed
+- **Package Renamed to `tablesleuth`** - Unified package name for PyPI distribution
+  - CLI command changed from `table-sleuth` to `tablesleuth`
+  - Package name now matches tablesleuth.com domain
+  - Improved discoverability on PyPI
+- **Version Management** - Consolidated version to single source of truth in `__init__.py`
+  - Removed hardcoded version from CLI
+  - Version now imported from package
+- **Enhanced PyPI Metadata**
+  - Upgraded development status from Alpha to Beta
+  - Added comprehensive classifiers for better discoverability
+  - Added project URLs including homepage, documentation, and changelog
+  - Added publishing tools (twine, build) to dev dependencies
+
+### Added
+- **GitHub Actions CI/CD** - Automated testing and publishing workflows
+  - Multi-platform testing (Ubuntu, macOS, Windows)
+  - Multi-version Python testing (3.13, 3.14)
+  - Automated quality checks (ruff, mypy, bandit)
+  - Automated PyPI publishing on release
+  - Support for PyPI Trusted Publishing
+- **PyPI Publishing Guide** - Comprehensive documentation for package publishing
+  - Step-by-step publishing instructions
+  - TestPyPI testing workflow
+  - Automated release process documentation
+  - Troubleshooting guide
+
 ## [0.3.0] - 2024-11-29
 
 ### Added

@@ -24,7 +24,7 @@ class TestCLI:
         """Test CLI help output."""
         result = runner.invoke(cli, ["--help"])
         assert result.exit_code == 0
-        assert "Table Sleuth" in result.output
+        assert "TableSleuth" in result.output
         assert "inspect" in result.output
 
     def test_cli_version(self, runner):

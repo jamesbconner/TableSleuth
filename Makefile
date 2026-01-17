@@ -2,7 +2,7 @@
 
 # Default target
 help:
-	@echo "Table Sleuth - Makefile Commands"
+	@echo "TableSleuth - Makefile Commands"
 	@echo "================================="
 	@echo "Setup:"
 	@echo "  make install          Install production dependencies"
@@ -23,7 +23,7 @@ help:
 	@echo ""
 	@echo "Build & Run:"
 	@echo "  make build            Build distribution packages"
-	@echo "  make run              Run table-sleuth CLI"
+	@echo "  make run              Run tablesleuth CLI"
 	@echo "  make zip              Create source code archive"
 	@echo ""
 	@echo "Cleanup:"
@@ -73,14 +73,14 @@ build:
 
 # Run the application
 run:
-	uv run table-sleuth
+	uv run tablesleuth
 
 # Create source archive (excludes .gitignore files and untracked files)
 zip:
 	@echo "Creating source code archive..."
 	@VERSION=$$(grep '^version = ' pyproject.toml | cut -d'"' -f2); \
-	ARCHIVE_NAME="table-sleuth-$$VERSION-src.zip"; \
-	git archive --format=zip --prefix=table-sleuth/ -o $$ARCHIVE_NAME HEAD; \
+	ARCHIVE_NAME="tablesleuth-$$VERSION-src.zip"; \
+	git archive --format=zip --prefix=tablesleuth/ -o $$ARCHIVE_NAME HEAD; \
 	echo "Created $$ARCHIVE_NAME (excludes .gitignore patterns)"
 
 # Cleanup

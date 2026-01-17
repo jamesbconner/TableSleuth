@@ -1,0 +1,43 @@
+name: Publish to PyPI
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/tablesleuth
+    permissions:
+      id-token: write  # Required for trusted publishing
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+    
+    - name: Install uv
+      run: pip install uv
+    
+    - name: Build package
+      run: uv build
+    
+    - name: Verify version matches tag
+      run: |
+        TAG_VERSION=${GITHUB_REF#refs/tags/v}
+        PKG_VERSION=$(grep '^version = ' pyproject.toml | cut -d'"' -f2)
+        if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+          echo "Tag version ($TAG_VERSION) does not match package version ($PKG_VERSION)"
+          exit 1
+        fi
+    
+    - name: Publish to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1

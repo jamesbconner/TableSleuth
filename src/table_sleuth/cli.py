@@ -6,6 +6,7 @@ from pathlib import Path
 
 import click
 
+from . import __version__
 from .config import load_config
 from .models import TableHandle
 from .models.file_ref import FileRef
@@ -18,14 +19,11 @@ from .tui.views.iceberg_view import IcebergView
 
 logger = logging.getLogger(__name__)
 
-# Version information
-__version__ = "0.3.0"
-
 
 @click.group()
-@click.version_option(version=__version__, prog_name="Table Sleuth")
+@click.version_option(version=__version__, prog_name="TableSleuth")
 def main() -> None:
-    """Table Sleuth - Parquet File Forensics and Iceberg Snapshot Analysis.
+    """TableSleuth - Parquet File Forensics and Iceberg Snapshot Analysis.
 
     A powerful TUI for inspecting Parquet files and analyzing Iceberg table snapshots.
 

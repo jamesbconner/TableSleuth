@@ -1,4 +1,9 @@
-# Table Sleuth
+# TableSleuth
+
+[![PyPI version](https://badge.fury.io/py/tablesleuth.svg)](https://badge.fury.io/py/tablesleuth)
+[![Python versions](https://img.shields.io/pypi/pyversions/tablesleuth.svg)](https://pypi.org/project/tablesleuth/)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![CI](https://github.com/jamesbconner/table-sleuth/workflows/CI/badge.svg)](https://github.com/jamesbconner/table-sleuth/actions)
 
 A powerful terminal-based tool for deep inspection of Parquet files and Apache Iceberg tables. Analyze file structure, metadata, row groups, column statistics, and table evolution with an intuitive TUI interface.
 
@@ -98,16 +103,16 @@ A powerful terminal-based tool for deep inspection of Parquet files and Apache I
 uv sync
 
 # Inspect a Parquet file
-table-sleuth inspect data/file.parquet
+tablesleuth inspect data/file.parquet
 
 # Inspect a directory (recursive)
-table-sleuth inspect data/warehouse/
+tablesleuth inspect data/warehouse/
 
 # Inspect an Iceberg table
-table-sleuth inspect db.table --catalog local
+tablesleuth inspect db.table --catalog local
 
 # Inspect AWS S3 Tables (using ARN)
-table-sleuth inspect "arn:aws:s3tables:us-east-2:123456789012:bucket/my-bucket/table/db.table"
+tablesleuth inspect "arn:aws:s3tables:us-east-2:123456789012:bucket/my-bucket/table/db.table"
 ```
 
 **📚 Documentation:**
@@ -120,13 +125,16 @@ table-sleuth inspect "arn:aws:s3tables:us-east-2:123456789012:bucket/my-bucket/t
 **Requirements:** Python 3.13+ and [uv](https://docs.astral.sh/uv/)
 
 ```bash
-# Clone and install
+# Install from PyPI
+pip install tablesleuth
+
+# Or install from source
 git clone https://github.com/jamesbconner/TableSleuth
 cd TableSleuth
 uv sync
 
 # Verify installation
-table-sleuth --version
+tablesleuth --version
 ```
 
 See [TABLESLEUTH_SETUP.md](TABLESLEUTH_SETUP.md) for detailed setup including AWS, GizmoSQL, and catalog configuration.
@@ -170,16 +178,16 @@ catalog:
 
 ```bash
 # Inspect Parquet files
-table-sleuth inspect file.parquet
-table-sleuth inspect directory/
-table-sleuth inspect s3://bucket/path/file.parquet
+tablesleuth inspect file.parquet
+tablesleuth inspect directory/
+tablesleuth inspect s3://bucket/path/file.parquet
 
 # Inspect Iceberg tables
-table-sleuth inspect db.table --catalog local
-table-sleuth inspect "arn:aws:s3tables:region:account:bucket/name/table/db.table"
+tablesleuth inspect db.table --catalog local
+tablesleuth inspect "arn:aws:s3tables:region:account:bucket/name/table/db.table"
 
 # Launch Iceberg viewer
-table-sleuth iceberg-viewer --catalog local
+tablesleuth iceberg-viewer --catalog local
 ```
 
 ### TUI Navigation
@@ -213,7 +221,7 @@ See [GizmoSQL Deployment Guide](docs/GIZMOSQL_DEPLOYMENT_GUIDE.md) for complete 
 
 ## Architecture
 
-Table Sleuth uses a layered architecture:
+TableSleuth uses a layered architecture:
 
 - **TUI Layer** - Textual-based terminal interface with rich visualizations
 - **Service Layer** - Business logic for file inspection, profiling, and discovery
@@ -258,7 +266,14 @@ See [Development Setup](DEVELOPMENT_SETUP.md) for complete development environme
 
 ## What's New
 
-### v0.3.0 (Current)
+### v0.4.0 (Current)
+- 🎉 **Now available on PyPI!** Install with `pip install tablesleuth`
+- 🔄 Package renamed to `tablesleuth` for consistency
+- 🤖 Automated CI/CD with GitHub Actions
+- 📦 Enhanced PyPI metadata and publishing workflow
+- ✅ All existing features from v0.3.0
+
+### v0.3.0
 - ✅ Parquet file inspection (local and S3)
 - ✅ Iceberg snapshot navigation and analysis
 - ✅ Delete file inspection and MOR forensics
