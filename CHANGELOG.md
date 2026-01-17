@@ -2,6 +2,51 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.2] - 2025-01-17
+
+### Added
+- **Configuration Management Commands**
+  - `tablesleuth init` - Interactive configuration file initialization
+    - Creates `tablesleuth.toml` and `.pyiceberg.yaml` with comprehensive templates
+    - Prompts for home directory (~/) or current directory (./) placement
+    - Includes `--force` flag to overwrite existing files
+    - Generates well-commented templates with multiple catalog examples
+  - `tablesleuth config-check` - Configuration validation and testing
+    - Validates all configuration files and syntax
+    - Tests GizmoSQL connection
+    - Checks PyIceberg catalog configuration
+    - Shows configuration precedence and active values
+    - Supports `-v/--verbose` flag for detailed output
+
+### Changed
+- **Configuration File Locations** - Simplified configuration paths
+  - Removed `~/.config/tablesleuth/` directory approach
+  - Now supports: `./tablesleuth.toml` (local) and `~/tablesleuth.toml` (home)
+  - PyIceberg config: `./.pyiceberg.yaml` (local) and `~/.pyiceberg.yaml` (home)
+  - Respects `PYICEBERG_HOME` environment variable for PyIceberg config location
+
+- **Configuration Priority** - Clear precedence order
+  1. Environment variables (`TABLESLEUTH_*`, `PYICEBERG_*`)
+  2. Local config files (current directory)
+  3. Home config files (home directory)
+  4. Built-in defaults
+
+- **Environment Variable Support**
+  - `TABLESLEUTH_CONFIG` - Override config file path
+  - Existing: `TABLESLEUTH_CATALOG_NAME`, `TABLESLEUTH_GIZMO_*`
+  - PyIceberg native: `PYICEBERG_HOME`
+
+- **Configuration File Renamed** - Consistency with package name
+  - `table_sleuth.toml` → `tablesleuth.toml`
+  - Updated all documentation and code references
+
+### Fixed
+- Improved error messages throughout CLI to suggest running `tablesleuth init`
+- Better handling of missing configuration files (graceful defaults)
+
+### Dependencies
+- Added `pyyaml>=6.0.0` for PyIceberg config validation
+
 ## [0.4.1] - 2025-01-17
 
 ### Changed

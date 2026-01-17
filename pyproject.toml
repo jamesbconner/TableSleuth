@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tablesleuth"
-version = "0.4.1"
+version = "0.4.2"
 description = "TableSleuth - a Textual TUI for Open Table Format forensics (OTF) with data profiling."
 readme = "README.md"
 requires-python = ">=3.13,<3.15"
@@ -65,6 +65,7 @@ dependencies = [
     "adbc-driver-flightsql>=1.7.0",
     "click>=8.1.0",
     "pydantic>=2.11.0",
+    "pyyaml>=6.0.0",
     "rich>=13.0.0",
     "sqlalchemy>=2.0.0",
     "duckdb>=1.1.0",
@@ -82,6 +83,7 @@ dev = [
     "mypy>=1.18.2,<2.0.0",
     "textual-dev>=1.7.0,<2.0.0",
     "types-toml",
+    "types-PyYAML",
     "pre-commit>=4.4.0,<5.0.0",
     "bandit[toml]>=1.8.6,<2.0.0",
     "twine>=5.0.0,<6.0.0",
@@ -93,10 +95,10 @@ tablesleuth = "tablesleuth.cli:entry_point"
 
 [project.urls]
 Homepage = "https://tablesleuth.com"
-Repository = "https://github.com/jamesbconner/table-sleuth"
-Documentation = "https://github.com/jamesbconner/table-sleuth/tree/main/docs"
-"Bug Reports" = "https://github.com/jamesbconner/table-sleuth/issues"
-Changelog = "https://github.com/jamesbconner/table-sleuth/blob/main/CHANGELOG.md"
+Repository = "https://github.com/jamesbconner/tablesleuth"
+Documentation = "https://github.com/jamesbconner/tablesleuth/tree/main/docs"
+"Bug Reports" = "https://github.com/jamesbconner/tablesleuth/issues"
+Changelog = "https://github.com/jamesbconner/tablesleuth/blob/main/CHANGELOG.md"
 
 # Hatchling configuration for src layout
 [tool.hatch.build.targets.wheel]
