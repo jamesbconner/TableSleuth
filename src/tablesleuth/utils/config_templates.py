@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 TABLESLEUTH_TOML_TEMPLATE = """# TableSleuth Configuration
-# 
+#
 # This file configures TableSleuth behavior including default Iceberg catalog
 # and GizmoSQL connection settings for profiling and performance testing.
 #
@@ -105,7 +105,7 @@ catalog:
     type: sql
     uri: sqlite:////tmp/iceberg_catalog.db
     warehouse: file:///tmp/iceberg_warehouse
-    
+
     # Optional: S3 configuration for data files
     # s3.endpoint: http://localhost:9000
     # s3.access-key-id: minioadmin
@@ -116,18 +116,18 @@ catalog:
   # ---------------------------------------------------------------------------
   glue:
     type: glue
-    
+
     # AWS region where Glue catalog is located
     # Can also be set via AWS_REGION or AWS_DEFAULT_REGION environment variables
     # region: us-east-1
-    
+
     # Optional: Glue catalog ID (defaults to AWS account ID)
     # catalog-id: "123456789012"
-    
+
     # Optional: S3 configuration
     # s3.region: us-east-1
     # s3.endpoint: https://s3.us-east-1.amazonaws.com
-    
+
     # AWS credentials are typically loaded from:
     # - Environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
     # - AWS credentials file (~/.aws/credentials)
@@ -138,11 +138,11 @@ catalog:
   # ---------------------------------------------------------------------------
   s3tables:
     type: glue
-    
+
     # S3 Tables uses Glue catalog under the hood
     # Configure region and credentials same as Glue catalog above
     # region: us-east-2
-    
+
     # S3 Tables specific configuration
     # Use S3 Tables ARNs when inspecting tables:
     # tablesleuth inspect "arn:aws:s3tables:region:account:bucket/name/table/db.table"
@@ -153,11 +153,11 @@ catalog:
   # rest:
   #   type: rest
   #   uri: https://catalog-server.example.com
-  #   
+  #
   #   # Optional: Authentication
   #   # credential: user:password
   #   # token: your-auth-token
-  #   
+  #
   #   # Optional: S3 configuration
   #   # s3.region: us-east-1
   #   # s3.endpoint: https://s3.amazonaws.com
@@ -168,7 +168,7 @@ catalog:
   # hive:
   #   type: hive
   #   uri: thrift://metastore-host:9083
-  #   
+  #
   #   # Optional: S3 configuration
   #   # s3.region: us-east-1
   #   # s3.access-key-id: your-key
@@ -212,7 +212,7 @@ catalog:
 
 def get_tablesleuth_template() -> str:
     """Get the tablesleuth.toml template content.
-    
+
     Returns:
         Template content as string
     """
@@ -221,7 +221,7 @@ def get_tablesleuth_template() -> str:
 
 def get_pyiceberg_template() -> str:
     """Get the .pyiceberg.yaml template content.
-    
+
     Returns:
         Template content as string
     """
