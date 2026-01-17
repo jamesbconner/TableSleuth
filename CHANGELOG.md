@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.4.2] - 2025-01-17
+## [0.4.2] - 2026-01-17
 
 ### Added
 - **Configuration Management Commands**
@@ -47,7 +47,7 @@ All notable changes to this project will be documented in this file.
 ### Dependencies
 - Added `pyyaml>=6.0.0` for PyIceberg config validation
 
-## [0.4.1] - 2025-01-17
+## [0.4.1] - 2026-01-17
 
 ### Changed
 - **Python Module Renamed to `tablesleuth`** - Complete consistency across package
@@ -68,7 +68,7 @@ from tablesleuth import __version__
 from tablesleuth.services import ParquetInspector
 ```
 
-## [0.4.0] - 2025-01-16 (Unreleased)
+## [0.4.0] - 2026-01-16 (Unreleased)
 
 ### Changed
 - **Package Renamed to `tablesleuth`** - Unified package name for PyPI distribution
@@ -97,7 +97,7 @@ from tablesleuth.services import ParquetInspector
   - Automated release process documentation
   - Troubleshooting guide
 
-## [0.3.0] - 2024-11-29
+## [0.3.0] - 2025-11-29
 
 ### Added
 - **Strict MyPy Type Checking** - Comprehensive type annotations across the codebase
