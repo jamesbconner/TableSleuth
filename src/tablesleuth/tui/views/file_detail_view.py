@@ -6,7 +6,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, Vertical
 from textual.widgets import Static
 
-from table_sleuth.models.parquet import ParquetFileInfo
+from tablesleuth.models.parquet import ParquetFileInfo
 
 
 class FileDetailView(Container):

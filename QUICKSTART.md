@@ -116,7 +116,7 @@ For production use with large datasets in S3, deploy to EC2 with pre-configured 
    }
    ```
 
-4. **Update `table_sleuth.toml`** (project root):
+4. **Update `tablesleuth.toml`** (project root):
    ```toml
    [gizmosql]
    # This config us used by the Table Sleuth service when tasked with performing
@@ -353,7 +353,7 @@ tmux source-file ~/.tmux.conf
    ```
 
 2. Verify credentials match in both files:
-   - `table_sleuth.toml`
+   - `tablesleuth.toml`
    - `resources/config.json`
 
 3. Test connection:

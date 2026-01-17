@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from table_sleuth.config import AppConfig, CatalogConfig, GizmoConfig
-from table_sleuth.models import TableHandle
-from table_sleuth.models.file_ref import FileRef
-from table_sleuth.services.formats.iceberg import IcebergAdapter
-from table_sleuth.tui.app import TableSleuthApp
+from tablesleuth.config import AppConfig, CatalogConfig, GizmoConfig
+from tablesleuth.models import TableHandle
+from tablesleuth.models.file_ref import FileRef
+from tablesleuth.services.formats.iceberg import IcebergAdapter
+from tablesleuth.tui.app import TableSleuthApp
 
 
 @pytest.fixture

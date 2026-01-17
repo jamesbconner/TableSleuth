@@ -4,9 +4,9 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from table_sleuth.models import ColumnProfile, FileRef, SnapshotInfo
-from table_sleuth.models.iceberg import QueryPerformanceMetrics
-from table_sleuth.services.profiling.gizmo_duckdb import (
+from tablesleuth.models import ColumnProfile, FileRef, SnapshotInfo
+from tablesleuth.models.iceberg import QueryPerformanceMetrics
+from tablesleuth.services.profiling.gizmo_duckdb import (
     GizmoDuckDbProfiler,
     _clean_file_path,
 )

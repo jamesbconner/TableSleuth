@@ -270,7 +270,7 @@ table-sleuth/
 │
 ├── pyproject.toml                      # Project configuration
 ├── uv.lock                             # Dependency lock file
-├── table_sleuth.toml                   # Application configuration
+├── tablesleuth.toml                    # Application configuration
 ├── Makefile                            # Development commands
 ├── README.md
 ├── QUICKSTART.md
@@ -660,7 +660,7 @@ class SparkProfiler:
 Update configuration to support the new backend:
 
 ```toml
-# table_sleuth.toml
+# tablesleuth.toml
 [profiling]
 backend = "spark"  # or "gizmosql"
 

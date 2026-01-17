@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pyarrow.fs as pafs
 import pytest
 
-from table_sleuth.services.filesystem import FileSystem
+from tablesleuth.services.filesystem import FileSystem
 
 
 class TestFileSystem:

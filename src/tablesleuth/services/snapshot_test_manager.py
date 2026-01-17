@@ -7,7 +7,7 @@ from pathlib import Path
 
 from pyiceberg.catalog import Catalog, load_catalog
 
-from table_sleuth.exceptions import CatalogError, SnapshotRegistrationError
+from tablesleuth.exceptions import CatalogError, SnapshotRegistrationError
 
 logger = logging.getLogger(__name__)
 

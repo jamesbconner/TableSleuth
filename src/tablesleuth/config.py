@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import Optional
 
 DEFAULT_CONFIG_PATHS = [
-    Path.cwd() / "table_sleuth.toml",
-    Path.home() / ".config" / "table_sleuth.toml",
+    Path.cwd() / "tablesleuth.toml",
+    Path.home() / ".config" / "tablesleuth.toml",
 ]
 
 
@@ -42,19 +42,19 @@ def _load_toml_config() -> dict:
 def load_config() -> AppConfig:
     raw = _load_toml_config()
 
-    catalog_default = os.getenv("TABLE_SLEUTH_CATALOG_NAME") or raw.get("catalog", {}).get(
+    catalog_default = os.getenv("TABLESLEUTH_CATALOG_NAME") or raw.get("catalog", {}).get(
         "default"
     )
 
     gizmo_section = raw.get("gizmosql", {})
 
     gizmo = GizmoConfig(
-        uri=os.getenv("TABLE_SLEUTH_GIZMO_URI", gizmo_section.get("uri", GizmoConfig.uri)),
+        uri=os.getenv("TABLESLEUTH_GIZMO_URI", gizmo_section.get("uri", GizmoConfig.uri)),
         username=os.getenv(
-            "TABLE_SLEUTH_GIZMO_USERNAME", gizmo_section.get("username", GizmoConfig.username)
+            "TABLESLEUTH_GIZMO_USERNAME", gizmo_section.get("username", GizmoConfig.username)
         ),
         password=os.getenv(
-            "TABLE_SLEUTH_GIZMO_PASSWORD", gizmo_section.get("password", GizmoConfig.password)
+            "TABLESLEUTH_GIZMO_PASSWORD", gizmo_section.get("password", GizmoConfig.password)
         ),
         tls_skip_verify=bool(gizmo_section.get("tls_skip_verify", GizmoConfig.tls_skip_verify)),
     )

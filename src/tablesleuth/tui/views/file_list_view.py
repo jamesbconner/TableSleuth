@@ -6,7 +6,7 @@ from textual.app import ComposeResult
 from textual.containers import Container
 from textual.widgets import DataTable, Static
 
-from table_sleuth.models.file_ref import FileRef
+from tablesleuth.models.file_ref import FileRef
 
 
 class FileListView(Container):

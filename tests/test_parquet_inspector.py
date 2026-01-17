@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from table_sleuth.services.parquet_service import ParquetInspector
+from tablesleuth.services.parquet_service import ParquetInspector
 
 
 @pytest.fixture
@@ -16,12 +16,9 @@ def inspector() -> ParquetInspector:
 
 
 @pytest.fixture
-def test_parquet_file() -> Path:
+def test_parquet_file(nested_parquet_file: Path) -> Path:
     """Get path to test Parquet file."""
-    test_file = Path("tests/data/nested_test.parquet")
-    if not test_file.exists():
-        pytest.skip("Test Parquet file not found")
-    return test_file
+    return nested_parquet_file
 
 
 def test_inspector_initialization(inspector: ParquetInspector) -> None:

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from table_sleuth.models.parquet import ColumnStats, ParquetFileInfo
-from table_sleuth.models.profiling import ColumnProfile
-from table_sleuth.tui.views import ProfileView
+from tablesleuth.models.parquet import ColumnStats, ParquetFileInfo
+from tablesleuth.models.profiling import ColumnProfile
+from tablesleuth.tui.views import ProfileView
 
 
 @pytest.fixture

@@ -7,8 +7,8 @@ from typing import Any
 import pyarrow.fs as pafs
 from pyarrow.parquet import ParquetFile
 
-from table_sleuth.models.parquet import ColumnStats, ParquetFileInfo, RowGroupInfo
-from table_sleuth.services.filesystem import FileSystem
+from tablesleuth.models.parquet import ColumnStats, ParquetFileInfo, RowGroupInfo
+from tablesleuth.services.filesystem import FileSystem
 
 logger = logging.getLogger(__name__)
 

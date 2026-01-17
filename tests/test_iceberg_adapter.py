@@ -1,4 +1,4 @@
-from table_sleuth.services.formats.iceberg import IcebergAdapter
+from tablesleuth.services.formats.iceberg import IcebergAdapter
 
 
 def test_adapter_instantiates() -> None:

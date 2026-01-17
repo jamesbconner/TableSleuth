@@ -7,8 +7,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from table_sleuth.models.file_ref import FileRef
-from table_sleuth.services.file_discovery import FileDiscoveryService
+from tablesleuth.models.file_ref import FileRef
+from tablesleuth.services.file_discovery import FileDiscoveryService
 
 
 @pytest.fixture
@@ -18,12 +18,9 @@ def discovery_service() -> FileDiscoveryService:
 
 
 @pytest.fixture
-def test_parquet_file() -> Path:
+def test_parquet_file(nested_parquet_file: Path) -> Path:
     """Get path to test Parquet file."""
-    test_file = Path("tests/data/nested_test.parquet")
-    if not test_file.exists():
-        pytest.skip("Test Parquet file not found")
-    return test_file
+    return nested_parquet_file
 
 
 def test_service_initialization() -> None:
@@ -87,13 +84,10 @@ def test_discover_from_path_invalid_file(
 
 def test_discover_from_path_directory(
     discovery_service: FileDiscoveryService,
+    multi_file_directory: Path,
 ) -> None:
     """Test discovering files from directory."""
-    test_dir = Path("tests/data")
-    if not test_dir.exists():
-        pytest.skip("Test data directory not found")
-
-    files = discovery_service.discover_from_path(test_dir)
+    files = discovery_service.discover_from_path(multi_file_directory)
 
     # Should find at least one Parquet file
     assert len(files) > 0

@@ -91,7 +91,7 @@ chmod 644 ~/.certs/cert0.pem
 
 ### 2. Configure Table Sleuth
 
-Create or edit `table_sleuth.toml` in your project root:
+Create or edit `tablesleuth.toml` in your project root:
 
 ```toml
 [gizmosql]
@@ -243,7 +243,7 @@ gizmosql_server -P gizmosql_password -Q --port 10502 \
   -T ~/.certs/cert0.pem ~/.certs/cert0.key
 ```
 
-Update `table_sleuth.toml`:
+Update `tablesleuth.toml`:
 ```toml
 [gizmosql]
 uri = "grpc+tls://localhost:10502"
@@ -311,7 +311,7 @@ gizmosql_server -P gizmosql_password -Q --port 10502 \
   -T ~/.certs/cert0.pem ~/.certs/cert0.key
 ```
 
-Update `table_sleuth.toml`:
+Update `tablesleuth.toml`:
 ```toml
 [gizmosql]
 uri = "grpc+tls://localhost:10502"
@@ -386,7 +386,7 @@ ls -la ~/.certs/
 
 2. **Check configuration**:
    ```bash
-   cat table_sleuth.toml
+   cat tablesleuth.toml
    ```
 
 3. **Test connection manually**:
@@ -644,7 +644,7 @@ gizmosql_server -P gizmosql_password -Q -T ~/.certs/cert0.pem ~/.certs/cert0.key
 
 ### Configuration Template
 
-**table_sleuth.toml**:
+**tablesleuth.toml**:
 ```toml
 [gizmosql]
 uri = "grpc+tls://localhost:31337"

@@ -8,8 +8,8 @@ from typing import Any, Optional
 from adbc_driver_flightsql import DatabaseOptions
 from adbc_driver_flightsql import dbapi as flightsql
 
-from table_sleuth.models import ColumnProfile, SnapshotInfo
-from table_sleuth.models.iceberg import QueryPerformanceMetrics
+from tablesleuth.models import ColumnProfile, SnapshotInfo
+from tablesleuth.models.iceberg import QueryPerformanceMetrics
 
 from .backend_base import ProfilingBackend
 
@@ -730,7 +730,7 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         """
         import json
 
-        from table_sleuth.services.filesystem import FileSystem
+        from tablesleuth.services.filesystem import FileSystem
 
         # Read metadata file
         fs = FileSystem()

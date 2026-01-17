@@ -10,13 +10,13 @@ from unittest.mock import Mock
 
 import pytest
 
-from table_sleuth.config import AppConfig, CatalogConfig, GizmoConfig
-from table_sleuth.models import TableHandle
-from table_sleuth.models.file_ref import FileRef
-from table_sleuth.services.file_discovery import FileDiscoveryService
-from table_sleuth.services.formats.iceberg import IcebergAdapter
-from table_sleuth.services.parquet_service import ParquetInspector
-from table_sleuth.tui.app import TableSleuthApp
+from tablesleuth.config import AppConfig, CatalogConfig, GizmoConfig
+from tablesleuth.models import TableHandle
+from tablesleuth.models.file_ref import FileRef
+from tablesleuth.services.file_discovery import FileDiscoveryService
+from tablesleuth.services.formats.iceberg import IcebergAdapter
+from tablesleuth.services.parquet_service import ParquetInspector
+from tablesleuth.tui.app import TableSleuthApp
 
 
 @pytest.fixture
@@ -40,13 +40,7 @@ def adapter() -> IcebergAdapter:
     return IcebergAdapter(default_catalog=None)
 
 
-@pytest.fixture
-def test_parquet_file() -> Path:
-    """Get path to test Parquet file."""
-    test_file = Path("tests/data/nested_test.parquet")
-    if not test_file.exists():
-        pytest.skip("Test Parquet file not found")
-    return test_file
+
 
 
 class TestEndToEndSingleFile:
@@ -57,9 +51,10 @@ class TestEndToEndSingleFile:
         app_config: AppConfig,
         table_handle: TableHandle,
         adapter: IcebergAdapter,
-        test_parquet_file: Path,
+        sample_parquet_file: Path,
     ) -> None:
         """Test complete flow: discover file -> inspect -> create app."""
+        test_parquet_file = sample_parquet_file
         # Step 1: Discover file
         discovery = FileDiscoveryService()
         files = discovery.discover_from_path(test_parquet_file)
@@ -87,9 +82,10 @@ class TestEndToEndSingleFile:
 
     def test_single_file_data_flow(
         self,
-        test_parquet_file: Path,
+        sample_parquet_file: Path,
     ) -> None:
         """Test data flows correctly through all layers."""
+        test_parquet_file = sample_parquet_file
         # Layer 1: File Discovery
         discovery = FileDiscoveryService()
         files = discovery.discover_from_path(test_parquet_file)
@@ -122,11 +118,10 @@ class TestEndToEndDirectory:
         app_config: AppConfig,
         table_handle: TableHandle,
         adapter: IcebergAdapter,
+        multi_file_directory: Path,
     ) -> None:
         """Test complete flow: discover directory -> inspect files -> create app."""
-        test_dir = Path("tests/data")
-        if not test_dir.exists():
-            pytest.skip("Test data directory not found")
+        test_dir = multi_file_directory
 
         # Step 1: Discover files in directory
         discovery = FileDiscoveryService()
@@ -150,11 +145,12 @@ class TestEndToEndDirectory:
 
         assert len(app._files) == len(files)
 
-    def test_directory_multiple_files_data_flow(self) -> None:
+    def test_directory_multiple_files_data_flow(
+        self,
+        multi_file_directory: Path,
+    ) -> None:
         """Test data flow with multiple files from directory."""
-        test_dir = Path("tests/data")
-        if not test_dir.exists():
-            pytest.skip("Test data directory not found")
+        test_dir = multi_file_directory
 
         # Discover all files
         discovery = FileDiscoveryService()
@@ -265,9 +261,10 @@ class TestEndToEndDataConsistency:
 
     def test_file_size_consistency(
         self,
-        test_parquet_file: Path,
+        sample_parquet_file: Path,
     ) -> None:
         """Test file size is consistent across layers."""
+        test_parquet_file = sample_parquet_file
         # Get actual file size
         actual_size = test_parquet_file.stat().st_size
 
@@ -283,9 +280,10 @@ class TestEndToEndDataConsistency:
 
     def test_row_count_consistency(
         self,
-        test_parquet_file: Path,
+        sample_parquet_file: Path,
     ) -> None:
         """Test row count is consistent across layers."""
+        test_parquet_file = sample_parquet_file
         # Discovery layer
         discovery = FileDiscoveryService()
         files = discovery.discover_from_path(test_parquet_file)
@@ -301,9 +299,10 @@ class TestEndToEndDataConsistency:
 
     def test_column_count_consistency(
         self,
-        test_parquet_file: Path,
+        sample_parquet_file: Path,
     ) -> None:
         """Test column count is consistent."""
+        test_parquet_file = sample_parquet_file
         inspector = ParquetInspector()
         file_info = inspector.inspect_file(test_parquet_file)
 
@@ -322,9 +321,10 @@ class TestEndToEndAppIntegration:
         app_config: AppConfig,
         table_handle: TableHandle,
         adapter: IcebergAdapter,
-        test_parquet_file: Path,
+        sample_parquet_file: Path,
     ) -> None:
         """Test app integrates with inspector correctly."""
+        test_parquet_file = sample_parquet_file
         # Discover and create app
         discovery = FileDiscoveryService()
         files = discovery.discover_from_path(test_parquet_file)
@@ -348,9 +348,10 @@ class TestEndToEndAppIntegration:
         app_config: AppConfig,
         table_handle: TableHandle,
         adapter: IcebergAdapter,
-        test_parquet_file: Path,
+        sample_parquet_file: Path,
     ) -> None:
         """Test app caching works end-to-end."""
+        test_parquet_file = sample_parquet_file
         discovery = FileDiscoveryService()
         files = discovery.discover_from_path(test_parquet_file)
 

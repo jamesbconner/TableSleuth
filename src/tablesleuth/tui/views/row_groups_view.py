@@ -9,7 +9,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, Vertical
 from textual.widgets import Collapsible, Static
 
-from table_sleuth.models.parquet import ColumnStats, ParquetFileInfo
+from tablesleuth.models.parquet import ColumnStats, ParquetFileInfo
 
 
 class RowGroupsView(Container):

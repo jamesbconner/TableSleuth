@@ -143,7 +143,7 @@ See [TABLESLEUTH_SETUP.md](TABLESLEUTH_SETUP.md) for detailed setup including AW
 
 ### Basic Configuration
 
-Create `table_sleuth.toml`:
+Create `tablesleuth.toml`:
 
 ```toml
 [catalog]

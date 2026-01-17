@@ -10,8 +10,8 @@ from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.message import Message
 from textual.widgets import Input, Static
 
-from table_sleuth.models.parquet import ParquetFileInfo
-from table_sleuth.models.profiling import ColumnProfile
+from tablesleuth.models.parquet import ParquetFileInfo
+from tablesleuth.models.profiling import ColumnProfile
 
 logger = logging.getLogger(__name__)
 

@@ -1,6 +1,6 @@
 """Tests for performance profiling models."""
 
-from table_sleuth.models import MergeOnReadPerformance, QueryPerformanceProfile
+from tablesleuth.models import MergeOnReadPerformance, QueryPerformanceProfile
 
 
 class TestQueryPerformanceProfile:

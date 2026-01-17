@@ -8,15 +8,15 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 import pytest
 from textual.widgets import Checkbox, DataTable
 
-from table_sleuth.models.iceberg import (
+from tablesleuth.models.iceberg import (
     IcebergSnapshotDetails,
     IcebergSnapshotInfo,
     IcebergTableInfo,
     SchemaField,
     SchemaInfo,
 )
-from table_sleuth.services.iceberg_metadata_service import IcebergMetadataService
-from table_sleuth.tui.views.iceberg_view import IcebergView, SnapshotListView
+from tablesleuth.services.iceberg_metadata_service import IcebergMetadataService
+from tablesleuth.tui.views.iceberg_view import IcebergView, SnapshotListView
 
 
 @pytest.fixture
@@ -90,7 +90,7 @@ def mock_snapshots() -> list[IcebergSnapshotInfo]:
 @pytest.fixture
 def mock_snapshot_details(mock_snapshots: list[IcebergSnapshotInfo]) -> IcebergSnapshotDetails:
     """Create mock snapshot details."""
-    from table_sleuth.models.iceberg import PartitionSpecInfo
+    from tablesleuth.models.iceberg import PartitionSpecInfo
 
     return IcebergSnapshotDetails(
         snapshot_info=mock_snapshots[0],

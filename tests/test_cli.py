@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from table_sleuth.cli import inspect, main
+from tablesleuth.cli import inspect, main
 
 
 @pytest.fixture
@@ -57,13 +57,8 @@ def test_inspect_with_verbose_flag(cli_runner: CliRunner) -> None:
     assert result.exit_code != 0
 
 
-def test_inspect_real_file(cli_runner: CliRunner) -> None:
+def test_inspect_real_file(cli_runner: CliRunner, sample_parquet_file: Path) -> None:
     """Test inspect with real test file."""
-    test_file = Path("tests/data/nested_test.parquet")
-
-    if not test_file.exists():
-        pytest.skip("Test file not found")
-
     # We can't actually run the TUI in tests, so we just verify
     # the file validation logic works by checking help
     # The actual TUI launch is tested manually
@@ -72,7 +67,7 @@ def test_inspect_real_file(cli_runner: CliRunner) -> None:
 
 def test_cli_has_version() -> None:
     """Test that CLI module has version."""
-    from table_sleuth import cli
+    from tablesleuth import cli
 
     assert hasattr(cli, "__version__")
     assert cli.__version__
@@ -105,7 +100,7 @@ def test_inspect_directory_nonexistent(cli_runner: CliRunner) -> None:
 
 def test_cli_entry_point_exists() -> None:
     """Test that entry point function exists."""
-    from table_sleuth import cli
+    from tablesleuth import cli
 
     assert hasattr(cli, "entry_point")
     assert callable(cli.entry_point)

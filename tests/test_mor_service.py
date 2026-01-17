@@ -2,8 +2,8 @@
 
 import pytest
 
-from table_sleuth.models import FileRef, SnapshotInfo
-from table_sleuth.services.mor_service import (
+from tablesleuth.models import FileRef, SnapshotInfo
+from tablesleuth.services.mor_service import (
     FileMorImpact,
     SnapshotMorSummary,
     _partition_key,

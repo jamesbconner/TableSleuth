@@ -7,16 +7,16 @@ from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical
 from textual.widgets import DataTable, Footer, Header, Static, TabbedContent, TabPane
 
-from table_sleuth.config import AppConfig
-from table_sleuth.models import TableHandle
-from table_sleuth.models.file_ref import FileRef
-from table_sleuth.models.parquet import ParquetFileInfo
-from table_sleuth.models.profiling import ColumnProfile
-from table_sleuth.services.formats.base import TableFormatAdapter
-from table_sleuth.services.parquet_service import ParquetInspector
-from table_sleuth.services.profiling.backend_base import ProfilingBackend
-from table_sleuth.services.profiling.gizmo_duckdb import GizmoDuckDbProfiler
-from table_sleuth.tui.views import (
+from tablesleuth.config import AppConfig
+from tablesleuth.models import TableHandle
+from tablesleuth.models.file_ref import FileRef
+from tablesleuth.models.parquet import ParquetFileInfo
+from tablesleuth.models.profiling import ColumnProfile
+from tablesleuth.services.formats.base import TableFormatAdapter
+from tablesleuth.services.parquet_service import ParquetInspector
+from tablesleuth.services.profiling.backend_base import ProfilingBackend
+from tablesleuth.services.profiling.gizmo_duckdb import GizmoDuckDbProfiler
+from tablesleuth.tui.views import (
     DataSampleView,
     FileDetailView,
     FileListView,
@@ -25,8 +25,8 @@ from table_sleuth.tui.views import (
     SchemaView,
     StructureView,
 )
-from table_sleuth.tui.views.profile_view import ProfileColumnRequested
-from table_sleuth.tui.widgets import LoadingIndicator, Notification
+from tablesleuth.tui.views.profile_view import ProfileColumnRequested
+from tablesleuth.tui.widgets import LoadingIndicator, Notification
 
 logger = logging.getLogger(__name__)
 
@@ -504,7 +504,7 @@ class TableSleuthApp(App):
                     "Please ensure:\n"
                     "1. The file is within your configured data directory\n"
                     "2. Docker volume mount matches your configuration\n"
-                    "3. Check local_data_path and docker_data_path in table_sleuth.toml"
+                    "3. Check local_data_path and docker_data_path in tablesleuth.toml"
                 )
 
             profile.show_error(error_msg)

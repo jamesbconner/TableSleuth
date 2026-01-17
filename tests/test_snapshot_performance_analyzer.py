@@ -6,8 +6,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from table_sleuth.models.iceberg import QueryPerformanceMetrics
-from table_sleuth.services.snapshot_performance_analyzer import (
+from tablesleuth.models.iceberg import QueryPerformanceMetrics
+from tablesleuth.services.snapshot_performance_analyzer import (
     SnapshotPerformanceAnalyzer,
 )
 
@@ -177,8 +177,8 @@ class TestSnapshotPerformanceAnalyzer:
 @pytest.fixture
 def profiler():
     """Provide a real profiling backend for integration tests."""
-    from table_sleuth.config import load_config
-    from table_sleuth.services.profiling.gizmo_duckdb import GizmoDuckDbProfiler
+    from tablesleuth.config import load_config
+    from tablesleuth.services.profiling.gizmo_duckdb import GizmoDuckDbProfiler
 
     config = load_config()
     try:

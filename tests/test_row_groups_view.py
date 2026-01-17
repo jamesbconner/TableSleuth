@@ -6,8 +6,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from table_sleuth.models.parquet import ColumnStats, ParquetFileInfo, RowGroupInfo
-from table_sleuth.tui.views.row_groups_view import RowGroupsView
+from tablesleuth.models.parquet import ColumnStats, ParquetFileInfo, RowGroupInfo
+from tablesleuth.tui.views.row_groups_view import RowGroupsView
 
 
 @pytest.fixture

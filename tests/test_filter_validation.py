@@ -2,7 +2,7 @@
 
 import pytest
 
-from table_sleuth.services.profiling.gizmo_duckdb import _validate_filter_expression
+from tablesleuth.services.profiling.gizmo_duckdb import _validate_filter_expression
 
 
 class TestFilterValidation:

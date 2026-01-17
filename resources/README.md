@@ -29,7 +29,7 @@ Before using the deployment scripts, create a configuration file:
    - `gizmosql_password`: Password for GizmoSQL server authentication
 
    **Important Notes:**
-   - The GizmoSQL credentials here should match those in `table_sleuth.toml` at the project root. Update both files if you change the username or password.
+   - The GizmoSQL credentials here should match those in `tablesleuth.toml` at the project root. Update both files if you change the username or password.
    - S3 Tables ARNs are only required if you're using AWS S3 Tables (managed Iceberg service). If you're using regular S3 buckets with Glue catalog or other Iceberg catalogs, you can omit these fields or set them to `null`.
 
 ## Usage

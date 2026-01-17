@@ -200,7 +200,7 @@ chmod 644 ~/.certs/cert0.pem
 
 ### 3. Configure Table Sleuth
 
-Edit `table_sleuth.toml` in the project root:
+Edit `tablesleuth.toml` in the project root:
 
 ```toml
 [gizmosql]

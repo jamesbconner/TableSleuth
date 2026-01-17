@@ -7,13 +7,13 @@ from datetime import datetime
 import pytest
 from textual.widgets import Button, Input, Select, Static
 
-from table_sleuth.models.iceberg import (
+from tablesleuth.models.iceberg import (
     IcebergSnapshotInfo,
     PerformanceComparison,
     QueryPerformanceMetrics,
     SnapshotComparison,
 )
-from table_sleuth.tui.views.snapshot_comparison_view import (
+from tablesleuth.tui.views.snapshot_comparison_view import (
     PerformanceTestView,
     SnapshotComparisonView,
 )

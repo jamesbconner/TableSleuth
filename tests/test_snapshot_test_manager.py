@@ -7,14 +7,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from table_sleuth.exceptions import CatalogError
-from table_sleuth.services.snapshot_test_manager import SnapshotTestManager
+from tablesleuth.exceptions import CatalogError
+from tablesleuth.services.snapshot_test_manager import SnapshotTestManager
 
 
 class TestSnapshotTestManager:
     """Tests for SnapshotTestManager."""
 
-    @patch("table_sleuth.services.snapshot_test_manager.load_catalog")
+    @patch("tablesleuth.services.snapshot_test_manager.load_catalog")
     def test_ensure_snapshot_namespace_loads_catalog(self, mock_load_catalog):
         """Test that ensure_snapshot_namespace loads the catalog from config."""
         mock_catalog = MagicMock()
@@ -27,7 +27,7 @@ class TestSnapshotTestManager:
         mock_load_catalog.assert_called_once_with("local")
         mock_catalog.create_namespace.assert_called_once_with("snapshot_tests")
 
-    @patch("table_sleuth.services.snapshot_test_manager.load_catalog")
+    @patch("tablesleuth.services.snapshot_test_manager.load_catalog")
     def test_ensure_snapshot_namespace_handles_existing_namespace(self, mock_load_catalog):
         """Test that ensure_snapshot_namespace handles existing namespace gracefully."""
         mock_catalog = MagicMock()
@@ -40,7 +40,7 @@ class TestSnapshotTestManager:
         # Should not raise, just log
         assert namespace == "snapshot_tests"
 
-    @patch("table_sleuth.services.snapshot_test_manager.load_catalog")
+    @patch("tablesleuth.services.snapshot_test_manager.load_catalog")
     def test_ensure_snapshot_namespace_idempotent(self, mock_load_catalog):
         """Test that calling ensure_snapshot_namespace multiple times is safe."""
         mock_catalog = MagicMock()
@@ -55,7 +55,7 @@ class TestSnapshotTestManager:
         # Should only load catalog once
         assert mock_load_catalog.call_count == 1
 
-    @patch("table_sleuth.services.snapshot_test_manager.load_catalog")
+    @patch("tablesleuth.services.snapshot_test_manager.load_catalog")
     def test_get_catalog_path_from_sqlite_uri(self, mock_load_catalog):
         """Test getting catalog path from SQLite URI."""
         mock_catalog = MagicMock()
@@ -67,7 +67,7 @@ class TestSnapshotTestManager:
 
         assert catalog_path == "/path/to/catalog.db"
 
-    @patch("table_sleuth.services.snapshot_test_manager.load_catalog")
+    @patch("tablesleuth.services.snapshot_test_manager.load_catalog")
     def test_get_catalog_path_raises_on_missing_uri(self, mock_load_catalog):
         """Test that get_catalog_path raises error when URI is not available."""
         mock_catalog = MagicMock()
@@ -79,7 +79,7 @@ class TestSnapshotTestManager:
         with pytest.raises(CatalogError, match="Could not determine catalog database path"):
             manager.get_catalog_path()
 
-    @patch("table_sleuth.services.snapshot_test_manager.load_catalog")
+    @patch("tablesleuth.services.snapshot_test_manager.load_catalog")
     def test_get_registered_tables_empty(self, mock_load_catalog):
         """Test getting registered tables when none exist."""
         mock_catalog = MagicMock()
@@ -92,7 +92,7 @@ class TestSnapshotTestManager:
         assert isinstance(tables, list)
         assert len(tables) == 0
 
-    @patch("table_sleuth.services.snapshot_test_manager.load_catalog")
+    @patch("tablesleuth.services.snapshot_test_manager.load_catalog")
     def test_cleanup_tables_with_no_tables(self, mock_load_catalog):
         """Test cleanup_tables when no tables exist."""
         mock_catalog = MagicMock()
@@ -104,7 +104,7 @@ class TestSnapshotTestManager:
         # Should not raise an error
         manager.cleanup_tables()
 
-    @patch("table_sleuth.services.snapshot_test_manager.load_catalog")
+    @patch("tablesleuth.services.snapshot_test_manager.load_catalog")
     def test_cleanup_tables_drops_registered_tables(self, mock_load_catalog):
         """Test that cleanup_tables drops all registered tables."""
         mock_catalog = MagicMock()
@@ -122,7 +122,7 @@ class TestSnapshotTestManager:
         assert mock_catalog.drop_table.call_count == 2
         assert len(manager._registered_tables) == 0
 
-    @patch("table_sleuth.services.snapshot_test_manager.load_catalog")
+    @patch("tablesleuth.services.snapshot_test_manager.load_catalog")
     def test_register_snapshot_prevents_duplicates(self, mock_load_catalog):
         """Test that registering the same snapshot multiple times doesn't create duplicates.
 

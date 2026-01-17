@@ -2,7 +2,7 @@
 
 import pytest
 
-from table_sleuth.services.formats.iceberg import IcebergAdapter
+from tablesleuth.services.formats.iceberg import IcebergAdapter
 
 
 class TestIcebergAdapterHelpers:
@@ -135,7 +135,7 @@ class TestIcebergAdapterARNPattern:
 
     def test_arn_pattern_matches_valid_arn(self):
         """Test ARN pattern matches valid ARN."""
-        from table_sleuth.services.formats.iceberg import IcebergAdapter
+        from tablesleuth.services.formats.iceberg import IcebergAdapter
 
         arn = "arn:aws:s3tables:us-east-1:123456789012:bucket/my-bucket/table/db.table"
         match = IcebergAdapter.S3_TABLES_ARN_PATTERN.match(arn)
@@ -148,7 +148,7 @@ class TestIcebergAdapterARNPattern:
 
     def test_arn_pattern_extracts_components(self):
         """Test ARN pattern extracts all components correctly."""
-        from table_sleuth.services.formats.iceberg import IcebergAdapter
+        from tablesleuth.services.formats.iceberg import IcebergAdapter
 
         arn = "arn:aws:s3tables:eu-west-2:999888777666:bucket/data-lake/table/analytics.events"
         match = IcebergAdapter.S3_TABLES_ARN_PATTERN.match(arn)
@@ -161,7 +161,7 @@ class TestIcebergAdapterARNPattern:
 
     def test_arn_pattern_rejects_invalid_arn(self):
         """Test ARN pattern rejects invalid ARN."""
-        from table_sleuth.services.formats.iceberg import IcebergAdapter
+        from tablesleuth.services.formats.iceberg import IcebergAdapter
 
         invalid_arns = [
             "arn:aws:s3:us-east-1:123456:bucket/my-bucket",

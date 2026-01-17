@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List
 
-from table_sleuth.models import FileRef, SnapshotInfo
+from tablesleuth.models import FileRef, SnapshotInfo
 
 
 @dataclass

@@ -8,7 +8,7 @@ from urllib.parse import unquote, urlparse
 from pyiceberg.catalog import load_catalog
 from pyiceberg.table import Snapshot, StaticTable, Table
 
-from table_sleuth.models import FileRef, SnapshotInfo, TableHandle
+from tablesleuth.models import FileRef, SnapshotInfo, TableHandle
 
 from .base import TableFormatAdapter
 

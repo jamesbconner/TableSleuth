@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from table_sleuth.services.profiling.gizmo_duckdb import GizmoDuckDbProfiler
+from tablesleuth.services.profiling.gizmo_duckdb import GizmoDuckDbProfiler
 
 # Mark all tests in this module as integration tests
 pytestmark = pytest.mark.integration
@@ -91,7 +91,7 @@ def test_profile_single_column(
     # Get a column name from the file
     # For this test, we'll use a known column or skip if not available
     try:
-        from table_sleuth.services.parquet_service import ParquetInspector
+        from tablesleuth.services.parquet_service import ParquetInspector
 
         inspector = ParquetInspector()
         file_info = inspector.inspect_file(test_parquet_file)
@@ -121,7 +121,7 @@ def test_profile_results_accuracy(
 ) -> None:
     """Test that profiling results are accurate."""
     try:
-        from table_sleuth.services.parquet_service import ParquetInspector
+        from tablesleuth.services.parquet_service import ParquetInspector
 
         inspector = ParquetInspector()
         file_info = inspector.inspect_file(test_parquet_file)
@@ -193,7 +193,7 @@ def test_profile_multiple_columns(
 ) -> None:
     """Test profiling multiple columns."""
     try:
-        from table_sleuth.services.parquet_service import ParquetInspector
+        from tablesleuth.services.parquet_service import ParquetInspector
 
         inspector = ParquetInspector()
         file_info = inspector.inspect_file(test_parquet_file)

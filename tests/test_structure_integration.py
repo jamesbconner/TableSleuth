@@ -7,13 +7,13 @@ from pathlib import Path
 import pytest
 from textual.widgets import TabbedContent, TabPane
 
-from table_sleuth.config import AppConfig, CatalogConfig, GizmoConfig
-from table_sleuth.models import TableHandle
-from table_sleuth.models.file_ref import FileRef
-from table_sleuth.services.formats.iceberg import IcebergAdapter
-from table_sleuth.services.parquet_service import ParquetInspector
-from table_sleuth.tui.app import TableSleuthApp
-from table_sleuth.tui.views.structure_view import StructureView
+from tablesleuth.config import AppConfig, CatalogConfig, GizmoConfig
+from tablesleuth.models import TableHandle
+from tablesleuth.models.file_ref import FileRef
+from tablesleuth.services.formats.iceberg import IcebergAdapter
+from tablesleuth.services.parquet_service import ParquetInspector
+from tablesleuth.tui.app import TableSleuthApp
+from tablesleuth.tui.views.structure_view import StructureView
 
 
 @pytest.fixture
@@ -38,21 +38,12 @@ def adapter() -> IcebergAdapter:
 
 
 @pytest.fixture
-def test_parquet_file() -> Path:
-    """Get path to test Parquet file."""
-    test_file = Path("tests/data/nested_test.parquet")
-    if not test_file.exists():
-        pytest.skip("Test Parquet file not found")
-    return test_file
-
-
-@pytest.fixture
-def sample_files(test_parquet_file: Path) -> list[FileRef]:
+def sample_files(sample_parquet_file: Path) -> list[FileRef]:
     """Create sample files for testing."""
     return [
         FileRef(
-            path=str(test_parquet_file),
-            file_size_bytes=test_parquet_file.stat().st_size,
+            path=str(sample_parquet_file),
+            file_size_bytes=sample_parquet_file.stat().st_size,
             record_count=100,
             source="direct",
         ),
@@ -143,7 +134,7 @@ async def test_structure_view_updates_on_file_selection(
     adapter: IcebergAdapter,
     app_config: AppConfig,
     sample_files: list[FileRef],
-    test_parquet_file: Path,
+    sample_parquet_file: Path,
 ) -> None:
     """Test that Structure view updates when a file is selected."""
     app = TableSleuthApp(
@@ -163,7 +154,7 @@ async def test_structure_view_updates_on_file_selection(
 
         # Verify structure view has file info
         assert structure_view._file_info is not None
-        assert structure_view._file_info.path == str(test_parquet_file)
+        assert structure_view._file_info.path == str(sample_parquet_file)
 
 
 async def test_structure_view_displays_on_tab_activation(
@@ -210,12 +201,12 @@ async def test_structure_view_with_real_parquet_file(
     adapter: IcebergAdapter,
     app_config: AppConfig,
     sample_files: list[FileRef],
-    test_parquet_file: Path,
+    sample_parquet_file: Path,
 ) -> None:
     """Test Structure view with actual Parquet file."""
     # First inspect the file to get expected data
     inspector = ParquetInspector()
-    file_info = inspector.inspect_file(test_parquet_file)
+    file_info = inspector.inspect_file(sample_parquet_file)
 
     app = TableSleuthApp(
         table_handle=table_handle,
@@ -340,12 +331,12 @@ async def test_structure_view_multiple_row_groups(
     adapter: IcebergAdapter,
     app_config: AppConfig,
     sample_files: list[FileRef],
-    test_parquet_file: Path,
+    sample_parquet_file: Path,
 ) -> None:
     """Test Structure view displays multiple row groups correctly."""
     # First inspect the file to get row group count
     inspector = ParquetInspector()
-    file_info = inspector.inspect_file(test_parquet_file)
+    file_info = inspector.inspect_file(sample_parquet_file)
 
     app = TableSleuthApp(
         table_handle=table_handle,
@@ -423,12 +414,12 @@ async def test_enhanced_column_stats_end_to_end(
     adapter: IcebergAdapter,
     app_config: AppConfig,
     sample_files: list[FileRef],
-    test_parquet_file: Path,
+    sample_parquet_file: Path,
 ) -> None:
     """Test end-to-end flow with enhanced column statistics."""
     # First inspect the file to verify new fields are populated
     inspector = ParquetInspector()
-    file_info = inspector.inspect_file(test_parquet_file)
+    file_info = inspector.inspect_file(sample_parquet_file)
 
     # Verify new fields are present in extracted metadata
     for col in file_info.columns:
@@ -467,12 +458,12 @@ async def test_enhanced_column_stats_multiple_row_groups(
     adapter: IcebergAdapter,
     app_config: AppConfig,
     sample_files: list[FileRef],
-    test_parquet_file: Path,
+    sample_parquet_file: Path,
 ) -> None:
     """Test that column statistics are aggregated correctly across row groups."""
     # Inspect the file
     inspector = ParquetInspector()
-    file_info = inspector.inspect_file(test_parquet_file)
+    file_info = inspector.inspect_file(sample_parquet_file)
 
     # If file has multiple row groups, verify aggregation
     if file_info.num_row_groups > 1:
@@ -515,7 +506,7 @@ async def test_row_groups_view_displays_enhanced_stats(
     sample_files: list[FileRef],
 ) -> None:
     """Test that Row Groups view displays enhanced statistics."""
-    from table_sleuth.tui.views.row_groups_view import RowGroupsView
+    from tablesleuth.tui.views.row_groups_view import RowGroupsView
 
     app = TableSleuthApp(
         table_handle=table_handle,

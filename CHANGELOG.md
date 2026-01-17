@@ -2,7 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.4.0] - 2025-01-16
+## [0.4.1] - 2025-01-17
+
+### Changed
+- **Python Module Renamed to `tablesleuth`** - Complete consistency across package
+  - Module directory renamed from `table_sleuth` to `tablesleuth`
+  - All imports now use `from tablesleuth import ...`
+  - Eliminates confusion between package name and import name
+  - **Breaking Change:** Update all imports from `table_sleuth` to `tablesleuth`
+
+### Migration
+If upgrading from v0.4.0 (unreleased), update your imports:
+```python
+# Old
+from table_sleuth import __version__
+from table_sleuth.services import ParquetInspector
+
+# New
+from tablesleuth import __version__
+from tablesleuth.services import ParquetInspector
+```
+
+## [0.4.0] - 2025-01-16 (Unreleased)
 
 ### Changed
 - **Package Renamed to `tablesleuth`** - Unified package name for PyPI distribution

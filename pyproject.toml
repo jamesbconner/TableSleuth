@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tablesleuth"
-version = "0.4.0"
+version = "0.4.1"
 description = "TableSleuth - a Textual TUI for Open Table Format forensics (OTF) with data profiling."
 readme = "README.md"
 requires-python = ">=3.13,<3.15"
@@ -89,7 +89,7 @@ dev = [
 ]
 
 [project.scripts]
-tablesleuth = "table_sleuth.cli:entry_point"
+tablesleuth = "tablesleuth.cli:entry_point"
 
 [project.urls]
 Homepage = "https://tablesleuth.com"
@@ -100,7 +100,7 @@ Changelog = "https://github.com/jamesbconner/table-sleuth/blob/main/CHANGELOG.md
 
 # Hatchling configuration for src layout
 [tool.hatch.build.targets.wheel]
-packages = ["src/table_sleuth"]
+packages = ["src/tablesleuth"]
 
 # Hatchling configuration for src layout
 # Removed to let hatchling auto determine the package in src
