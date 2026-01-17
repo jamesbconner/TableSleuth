@@ -77,7 +77,7 @@ class TestInitCommand:
             assert "--force" in result.output
 
     def test_init_force_overwrites_files(self, cli_runner: CliRunner, tmp_path: Path) -> None:
-        """Test init with --force overwrites existing files."""
+        """Test init with --force overwrites existing files without backup."""
         with cli_runner.isolated_filesystem(temp_dir=tmp_path):
             # Create existing files
             Path("tablesleuth.toml").write_text("existing")
@@ -87,17 +87,38 @@ class TestInitCommand:
             result = cli_runner.invoke(init_config, ["--force"], input="2\n")
 
             assert result.exit_code == 0
-            assert "Backed up existing" in result.output
             assert "Configuration files created successfully!" in result.output
+            # Should not mention backups
+            assert "Backed up" not in result.output
+            assert "backup" not in result.output.lower()
 
-            # Check backup files were created
-            assert Path("tablesleuth.toml.backup").exists()
-            assert Path(".pyiceberg.yaml.backup").exists()
+            # Check backup files were NOT created
+            assert not Path("tablesleuth.toml.backup").exists()
+            assert not Path(".pyiceberg.yaml.backup").exists()
 
-            # Check new files have template content
+            # Check new files have template content (not "existing")
             toml_content = Path("tablesleuth.toml").read_text()
             assert "[catalog]" in toml_content
             assert "existing" not in toml_content
+
+    def test_init_force_can_run_multiple_times(self, cli_runner: CliRunner, tmp_path: Path) -> None:
+        """Test init with --force can be run multiple times (Windows compatibility)."""
+        with cli_runner.isolated_filesystem(temp_dir=tmp_path):
+            # First init
+            result1 = cli_runner.invoke(init_config, ["--force"], input="2\n")
+            assert result1.exit_code == 0
+
+            # Modify files
+            Path("tablesleuth.toml").write_text("modified")
+
+            # Second init with --force should succeed (no backup file collision)
+            result2 = cli_runner.invoke(init_config, ["--force"], input="2\n")
+            assert result2.exit_code == 0
+
+            # Files should have template content again
+            toml_content = Path("tablesleuth.toml").read_text()
+            assert "[catalog]" in toml_content
+            assert "modified" not in toml_content
 
 
 class TestConfigCheckCommand:
@@ -257,6 +278,24 @@ catalog:
             assert "TABLESLEUTH_CONFIG" in result.output
             # Should not crash with unhandled exception
             assert "Traceback" not in result.output
+
+    def test_config_check_invalid_env_var_no_misleading_message(
+        self, cli_runner: CliRunner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test config-check doesn't show misleading 'No config file found' after error."""
+        with cli_runner.isolated_filesystem(temp_dir=tmp_path):
+            # Set TABLESLEUTH_CONFIG to non-existent file
+            monkeypatch.setenv("TABLESLEUTH_CONFIG", "/nonexistent/config.toml")
+
+            result = cli_runner.invoke(config_check)
+
+            assert result.exit_code == 1
+            # Should show the error about TABLESLEUTH_CONFIG
+            assert "TABLESLEUTH_CONFIG" in result.output
+            assert "non-existent" in result.output or "not found" in result.output.lower()
+            # Should NOT show the misleading "No config file found (using defaults)" message
+            assert "No config file found (using defaults)" not in result.output
+            assert "using defaults" not in result.output.lower()
 
 
 class TestCLIConfigErrorHandling:

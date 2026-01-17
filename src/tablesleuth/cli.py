@@ -448,7 +448,6 @@ def iceberg_viewer(
 
     except FileNotFoundError as e:
         click.echo(f"Error: File not found: {e}", err=True)
-        click.echo(_suggest_init_on_config_error(""), err=True)
         sys.exit(1)
     except ValueError as e:
         click.echo(f"Error: Invalid input: {e}", err=True)
@@ -562,12 +561,6 @@ def init_config(force: bool) -> None:
     created_files = []
     for path, content, name in files_to_create:
         try:
-            if path.exists() and force:
-                # Backup existing file
-                backup_path = path.with_suffix(path.suffix + ".backup")
-                path.rename(backup_path)
-                click.echo(f"  Backed up existing {name} to {backup_path.name}")
-
             path.write_text(content, encoding="utf-8")
             created_files.append(path)
             click.echo(f"  ✓ Created {path}")
@@ -643,6 +636,9 @@ def config_check(verbose: bool, with_gizmosql: bool) -> None:
     click.echo("1. TableSleuth Configuration (tablesleuth.toml)")
     click.echo("-" * 50)
 
+    config_path = None
+    config_path_error = False
+
     try:
         config_path = get_config_file_path()
     except FileNotFoundError as e:
@@ -653,7 +649,7 @@ def config_check(verbose: bool, with_gizmosql: bool) -> None:
         )
         click.echo("     Either fix the path or unset the variable", err=True)
         all_checks_passed = False
-        config_path = None
+        config_path_error = True
 
     if config_path:
         click.echo(f"   ✓ Config file found: {config_path}")
@@ -673,7 +669,8 @@ def config_check(verbose: bool, with_gizmosql: bool) -> None:
         except Exception as e:
             click.echo(f"   ✗ Config file error: {e}", err=True)
             all_checks_passed = False
-    else:
+    elif not config_path_error:
+        # Only show "no config found" if there wasn't an error with TABLESLEUTH_CONFIG
         click.echo("   ⚠ No config file found (using defaults)")
         click.echo("     Run 'tablesleuth init' to create configuration files")
 
