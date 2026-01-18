@@ -5,6 +5,7 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![CI](https://github.com/jamesbconner/TableSleuth/workflows/CI/badge.svg)](https://github.com/jamesbconner/TableSleuth/actions)
 [![Publish to PyPI](https://github.com/jamesbconner/TableSleuth/actions/workflows/publish.yml/badge.svg)](https://github.com/jamesbconner/TableSleuth/actions/workflows/publish.yml)
+[![codecov](https://codecov.io/gh/jamesbconner/TableSleuth/graph/badge.svg?token=SXREVJC93E)](https://codecov.io/gh/jamesbconner/TableSleuth)
 
 A powerful terminal-based tool for deep inspection of Parquet files and Apache Iceberg tables. Analyze file structure, metadata, row groups, column statistics, and table evolution with an intuitive TUI interface.
 
