@@ -46,6 +46,7 @@ logs/
 .coverage
 htmlcov/
 .tox/
+.hypothesis/
 coverage.xml
 
 # Type checking

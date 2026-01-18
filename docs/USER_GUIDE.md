@@ -86,7 +86,7 @@ catalog:
 ```bash
 # Show help
 tablesleuth --help
-tablesleuth inspect --help
+tablesleuth parquet --help
 
 # Show version
 tablesleuth --version
@@ -95,7 +95,7 @@ tablesleuth --version
 ### Inspect a Single File
 
 ```bash
-tablesleuth inspect data/file.parquet
+tablesleuth parquet data/file.parquet
 ```
 
 ### Inspect a Directory
@@ -103,13 +103,13 @@ tablesleuth inspect data/file.parquet
 Recursively scans for all `.parquet` files:
 
 ```bash
-tablesleuth inspect data/warehouse/
+tablesleuth parquet data/warehouse/
 ```
 
 ### Inspect an Iceberg Table
 
 ```bash
-tablesleuth inspect ratebeer.reviews --catalog local
+tablesleuth iceberg ratebeer.reviews --catalog local
 ```
 
 ### Verbose Mode
@@ -117,7 +117,7 @@ tablesleuth inspect ratebeer.reviews --catalog local
 Enable debug logging:
 
 ```bash
-tablesleuth inspect data/file.parquet --verbose
+tablesleuth parquet data/file.parquet --verbose
 ```
 
 ## TUI Navigation
@@ -167,7 +167,7 @@ tablesleuth inspect data/file.parquet --verbose
 
 1. Launch Table Sleuth:
    ```bash
-   tablesleuth inspect data/file.parquet
+   tablesleuth parquet data/file.parquet
    ```
 
 2. The file will be automatically selected and inspected
@@ -185,7 +185,7 @@ tablesleuth inspect data/file.parquet --verbose
 
 1. Launch with directory:
    ```bash
-   tablesleuth inspect data/warehouse/
+   tablesleuth parquet data/warehouse/
    ```
 
 2. Use arrow keys to navigate the file list
@@ -230,7 +230,7 @@ tablesleuth inspect data/file.parquet --verbose
 
 2. Launch with table identifier:
    ```bash
-   tablesleuth inspect ratebeer.reviews --catalog local
+   tablesleuth iceberg ratebeer.reviews --catalog local
    ```
 
 3. Navigate to the **Iceberg** tab to see:
@@ -334,7 +334,7 @@ export TABLESLEUTH_GIZMO_PASSWORD="gizmosql_password"
 
 1. Launch Table Sleuth with a file:
    ```bash
-   tablesleuth inspect data/sample.parquet
+   tablesleuth parquet data/sample.parquet
    ```
 
 2. Navigate to Schema tab and select a column
@@ -544,7 +544,7 @@ tls_skip_verify = false
 
 ```bash
 # Inspect the file
-tablesleuth inspect data/large_file.parquet
+tablesleuth parquet data/large_file.parquet
 ```
 
 **What to check:**
@@ -570,7 +570,7 @@ tablesleuth inspect data/large_file.parquet
 
 ```bash
 # Inspect the partition directory
-tablesleuth inspect data/warehouse/orders/
+tablesleuth parquet data/warehouse/orders/
 ```
 
 **What to check:**
@@ -595,7 +595,7 @@ tablesleuth inspect data/warehouse/orders/
 
 ```bash
 # Inspect with profiling
-tablesleuth inspect data/customer_data.parquet
+tablesleuth parquet data/customer_data.parquet
 ```
 
 **What to check:**
@@ -623,11 +623,11 @@ tablesleuth inspect data/customer_data.parquet
 
 ```bash
 # Inspect old version
-tablesleuth inspect data/v1/customers.parquet
+tablesleuth parquet data/v1/customers.parquet
 # Note columns in Schema tab
 
 # Quit and inspect new version
-tablesleuth inspect data/v2/customers.parquet
+tablesleuth parquet data/v2/customers.parquet
 # Compare columns in Schema tab
 ```
 
@@ -649,7 +649,7 @@ tablesleuth inspect data/v2/customers.parquet
 
 ```bash
 # Inspect the file
-tablesleuth inspect data/slow_query_table.parquet
+tablesleuth parquet data/slow_query_table.parquet
 ```
 
 **What to check:**
@@ -681,7 +681,7 @@ catalog:
 EOF
 
 # Inspect table
-tablesleuth inspect ratebeer.reviews --catalog local
+tablesleuth iceberg ratebeer.reviews --catalog local
 ```
 
 **What to check:**
@@ -738,24 +738,24 @@ tablesleuth inspect ratebeer.reviews --catalog local
 
 ```bash
 # Export to JSON
-tablesleuth inspect data/file.parquet --export json > metadata.json
+tablesleuth parquet data/file.parquet --export json > metadata.json
 
 # Export to Markdown
-tablesleuth inspect data/file.parquet --export markdown > report.md
+tablesleuth parquet data/file.parquet --export markdown > report.md
 ```
 
 ### Scripting with Table Sleuth
 
 ```bash
 # Check file validity
-if tablesleuth inspect data/file.parquet --validate; then
+if tablesleuth parquet data/file.parquet --validate; then
   echo "File is valid"
 else
   echo "File is invalid"
 fi
 
 # Get row count
-tablesleuth inspect data/file.parquet --format json | jq '.num_rows'
+tablesleuth parquet data/file.parquet --format json | jq '.num_rows'
 ```
 
 ### Integration with Data Pipelines

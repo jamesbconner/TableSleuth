@@ -423,7 +423,7 @@ tablesleuth iceberg --catalog tpch --table tpch.lineitem
 tablesleuth iceberg --catalog ratebeer --table ratebeer.reviews
 
 # Inspect Parquet files in S3
-tablesleuth inspect s3://your-bucket/path/to/file.parquet
+tablesleuth parquet s3://your-bucket/path/to/file.parquet
 ```
 
 ### Instance Control Commands

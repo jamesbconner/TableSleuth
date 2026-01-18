@@ -105,16 +105,16 @@ A powerful terminal-based tool for deep inspection of Parquet files and Apache I
 uv sync
 
 # Inspect a Parquet file
-tablesleuth inspect data/file.parquet
+tablesleuth parquet data/file.parquet
 
 # Inspect a directory (recursive)
-tablesleuth inspect data/warehouse/
+tablesleuth parquet data/warehouse/
 
 # Inspect an Iceberg table
-tablesleuth inspect db.table --catalog local
+tablesleuth iceberg db.table --catalog local
 
 # Inspect AWS S3 Tables (using ARN)
-tablesleuth inspect "arn:aws:s3tables:us-east-2:123456789012:bucket/my-bucket/table/db.table"
+tablesleuth iceberg "arn:aws:s3tables:us-east-2:123456789012:bucket/my-bucket/table/db.table"
 ```
 
 **📚 Documentation:**
@@ -158,7 +158,7 @@ tablesleuth init
 tablesleuth config-check
 
 # 4. Start inspecting files
-tablesleuth inspect data/file.parquet
+tablesleuth parquet data/file.parquet
 ```
 
 ## Configuration
@@ -222,13 +222,13 @@ tablesleuth config-check            # Validate configuration
 tablesleuth config-check -v         # Detailed validation
 
 # Inspect Parquet files
-tablesleuth inspect file.parquet
-tablesleuth inspect directory/
-tablesleuth inspect s3://bucket/path/file.parquet
+tablesleuth parquet file.parquet
+tablesleuth parquet directory/
+tablesleuth parquet s3://bucket/path/file.parquet
 
 # Inspect Iceberg tables
-tablesleuth inspect db.table --catalog local
-tablesleuth inspect "arn:aws:s3tables:region:account:bucket/name/table/db.table"
+tablesleuth iceberg db.table --catalog local
+tablesleuth iceberg "arn:aws:s3tables:region:account:bucket/name/table/db.table"
 
 # Launch Iceberg viewer
 tablesleuth iceberg --catalog local --table db.table

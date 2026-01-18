@@ -308,17 +308,17 @@ For detailed deployment steps, troubleshooting, and teardown instructions, see [
 
 ```bash
 # Test with sample Parquet file
-tablesleuth inspect tests/data/sample.parquet
+tablesleuth parquet tests/data/sample.parquet
 
 # Test directory scanning
-tablesleuth inspect tests/data/
+tablesleuth parquet tests/data/
 ```
 
 ### Test S3 Files
 
 ```bash
 # Test S3 Parquet file
-tablesleuth inspect s3://your-bucket/path/to/file.parquet
+tablesleuth parquet s3://your-bucket/path/to/file.parquet
 ```
 
 ### Test Iceberg Tables

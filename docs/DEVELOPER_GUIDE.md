@@ -44,7 +44,7 @@ Table Sleuth follows a layered architecture with clear separation of concerns:
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    CLI Layer                                │
-│  - inspect: Parquet file inspection                         │
+│  - parquet: Parquet file analysis                           │
 │  - iceberg: Snapshot analysis and comparison                │
 └─────────────────────────────────────────────────────────────┘
                             │
@@ -170,7 +170,7 @@ async def on_file_selected(self, file_ref: FileRef) -> None:
 tablesleuth/
 ├── src/tablesleuth/
 │   ├── __init__.py
-│   ├── cli.py                          # CLI entry point (inspect, iceberg commands)
+│   ├── cli.py                          # CLI entry point (parquet, iceberg commands)
 │   ├── config.py                       # Configuration loading and validation
 │   ├── exceptions.py                   # Custom exceptions
 │   │

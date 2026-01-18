@@ -99,7 +99,7 @@ def main() -> None:
     """
 
 
-@main.command("inspect")
+@main.command("parquet")
 @click.argument("path", type=str)
 @click.option(
     "--catalog",
@@ -114,7 +114,7 @@ def main() -> None:
     is_flag=True,
     help="Enable verbose logging.",
 )
-def inspect(path: str, catalog_name: str | None, verbose: bool) -> None:
+def parquet(path: str, catalog_name: str | None, verbose: bool) -> None:
     """Inspect Parquet files, directories, or Iceberg tables.
 
     Provides detailed forensic analysis of Parquet file metadata including schema,
@@ -133,19 +133,19 @@ def inspect(path: str, catalog_name: str | None, verbose: bool) -> None:
 
     \b
     # Inspect a local file
-    tablesleuth inspect data/file.parquet
+    tablesleuth parquet data/file.parquet
 
     \b
     # Inspect an S3 file
-    tablesleuth inspect s3://bucket/path/file.parquet
+    tablesleuth parquet s3://bucket/path/file.parquet
 
     \b
     # Inspect all files in a directory
-    tablesleuth inspect data/warehouse/
+    tablesleuth parquet data/warehouse/
 
     \b
     # Inspect Iceberg table data files
-    tablesleuth inspect --catalog ratebeer ratebeer.reviews
+    tablesleuth parquet --catalog ratebeer ratebeer.reviews
     """
     # Configure logging
     if verbose:

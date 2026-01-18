@@ -301,16 +301,16 @@ catalog:
 class TestCLIConfigErrorHandling:
     """Tests for configuration error handling in main CLI commands."""
 
-    def test_inspect_invalid_env_var(
+    def test_parquet_invalid_env_var(
         self, cli_runner: CliRunner, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Test inspect command handles invalid TABLESLEUTH_CONFIG gracefully."""
-        from tablesleuth.cli import inspect
+        """Test parquet command handles invalid TABLESLEUTH_CONFIG gracefully."""
+        from tablesleuth.cli import parquet
 
         # Set TABLESLEUTH_CONFIG to non-existent file
         monkeypatch.setenv("TABLESLEUTH_CONFIG", "/nonexistent/config.toml")
 
-        result = cli_runner.invoke(inspect, ["test.parquet"])
+        result = cli_runner.invoke(parquet, ["test.parquet"])
 
         assert result.exit_code == 1
         assert "TABLESLEUTH_CONFIG" in result.output

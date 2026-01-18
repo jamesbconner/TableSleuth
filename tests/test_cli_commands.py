@@ -7,8 +7,8 @@ from unittest.mock import Mock, patch
 import pytest
 from click.testing import CliRunner
 
-from tablesleuth.cli import inspect
 from tablesleuth.cli import main as cli
+from tablesleuth.cli import parquet
 from tablesleuth.models.file_ref import FileRef
 
 
@@ -25,7 +25,7 @@ class TestCLI:
         result = runner.invoke(cli, ["--help"])
         assert result.exit_code == 0
         assert "TableSleuth" in result.output
-        assert "inspect" in result.output
+        assert "parquet" in result.output
 
     def test_cli_version(self, runner):
         """Test CLI version output."""
@@ -34,8 +34,8 @@ class TestCLI:
         assert "version" in result.output.lower()
 
 
-class TestInspectCommand:
-    """Tests for inspect command."""
+class TestParquetCommand:
+    """Tests for parquet command."""
 
     @pytest.fixture
     def runner(self):
@@ -54,28 +54,28 @@ class TestInspectCommand:
         pq.write_table(table, file_path)
         return file_path
 
-    def test_inspect_help(self, runner):
-        """Test inspect command help."""
-        result = runner.invoke(inspect, ["--help"])
+    def test_parquet_help(self, runner):
+        """Test parquet command help."""
+        result = runner.invoke(parquet, ["--help"])
         assert result.exit_code == 0
         assert "Inspect Parquet files" in result.output
         assert "--catalog" in result.output
         assert "--verbose" in result.output
 
-    def test_inspect_nonexistent_file(self, runner):
+    def test_parquet_nonexistent_file(self, runner):
         """Test inspecting nonexistent file."""
-        result = runner.invoke(inspect, ["/nonexistent/file.parquet"])
+        result = runner.invoke(parquet, ["/nonexistent/file.parquet"])
         assert result.exit_code == 1
         assert "does not exist" in result.output
 
     @patch("tablesleuth.cli.TableSleuthApp")
-    def test_inspect_single_file(self, mock_app, runner, temp_parquet_file):
+    def test_parquet_single_file(self, mock_app, runner, temp_parquet_file):
         """Test inspecting a single parquet file."""
         # Mock the TUI app
         mock_app_instance = Mock()
         mock_app.return_value = mock_app_instance
 
-        result = runner.invoke(inspect, [str(temp_parquet_file)])
+        result = runner.invoke(parquet, [str(temp_parquet_file)])
 
         # Should succeed
         assert result.exit_code == 0
@@ -86,32 +86,32 @@ class TestInspectCommand:
         mock_app_instance.run.assert_called_once()
 
     @patch("tablesleuth.cli.TableSleuthApp")
-    def test_inspect_directory(self, mock_app, runner, temp_parquet_file):
+    def test_parquet_directory(self, mock_app, runner, temp_parquet_file):
         """Test inspecting a directory."""
         mock_app_instance = Mock()
         mock_app.return_value = mock_app_instance
 
         # Use the parent directory
         directory = temp_parquet_file.parent
-        result = runner.invoke(inspect, [str(directory)])
+        result = runner.invoke(parquet, [str(directory)])
 
         assert result.exit_code == 0
         mock_app.assert_called_once()
 
-    def test_inspect_with_verbose_flag(self, runner, temp_parquet_file):
-        """Test inspect with verbose logging."""
+    def test_parquet_with_verbose_flag(self, runner, temp_parquet_file):
+        """Test parquet with verbose logging."""
         with patch("tablesleuth.cli.TableSleuthApp") as mock_app:
             mock_app_instance = Mock()
             mock_app.return_value = mock_app_instance
 
-            result = runner.invoke(inspect, ["--verbose", str(temp_parquet_file)])
+            result = runner.invoke(parquet, ["--verbose", str(temp_parquet_file)])
 
             assert result.exit_code == 0
 
     @patch("tablesleuth.cli.IcebergAdapter")
     @patch("tablesleuth.cli.FileDiscoveryService")
     @patch("tablesleuth.cli.TableSleuthApp")
-    def test_inspect_iceberg_table(self, mock_app, mock_discovery, mock_adapter, runner):
+    def test_parquet_iceberg_table(self, mock_app, mock_discovery, mock_adapter, runner):
         """Test inspecting an Iceberg table."""
         # Setup mocks
         mock_adapter_instance = Mock()
@@ -133,7 +133,7 @@ class TestInspectCommand:
         mock_app.return_value = mock_app_instance
 
         # Execute
-        result = runner.invoke(inspect, ["--catalog", "test_catalog", "db.table"])
+        result = runner.invoke(parquet, ["--catalog", "test_catalog", "db.table"])
 
         # Verify
         assert result.exit_code == 0
@@ -148,7 +148,7 @@ class TestInspectCommand:
     @patch("tablesleuth.cli.IcebergAdapter")
     @patch("tablesleuth.cli.FileDiscoveryService")
     @patch("tablesleuth.cli.TableSleuthApp")
-    def test_inspect_s3_tables_arn(self, mock_app, mock_discovery, mock_adapter, runner):
+    def test_parquet_s3_tables_arn(self, mock_app, mock_discovery, mock_adapter, runner):
         """Test inspecting S3 Tables using ARN."""
         # Setup mocks
         mock_adapter_instance = Mock()
@@ -174,7 +174,7 @@ class TestInspectCommand:
 
         # Execute
         arn = "arn:aws:s3tables:us-east-1:123456789012:bucket/my-bucket/table/db.table"
-        result = runner.invoke(inspect, [arn])
+        result = runner.invoke(parquet, [arn])
 
         # Verify
         assert result.exit_code == 0
@@ -182,7 +182,7 @@ class TestInspectCommand:
         assert "Found 1 data files" in result.output
 
     @patch("tablesleuth.cli.IcebergAdapter")
-    def test_inspect_s3_tables_invalid_arn(self, mock_adapter, runner):
+    def test_parquet_s3_tables_invalid_arn(self, mock_adapter, runner):
         """Test inspecting with invalid S3 Tables ARN."""
         mock_adapter_instance = Mock()
         mock_adapter.return_value = mock_adapter_instance
@@ -191,14 +191,14 @@ class TestInspectCommand:
         mock_adapter_instance._parse_s3_tables_arn.return_value = None
 
         arn = "arn:aws:s3tables:invalid"
-        result = runner.invoke(inspect, [arn])
+        result = runner.invoke(parquet, [arn])
 
         assert result.exit_code == 1
         assert "Invalid S3 Tables ARN" in result.output
 
     @patch("tablesleuth.cli.IcebergAdapter")
     @patch("tablesleuth.cli.FileDiscoveryService")
-    def test_inspect_iceberg_table_error(self, mock_discovery, mock_adapter, runner):
+    def test_parquet_iceberg_table_error(self, mock_discovery, mock_adapter, runner):
         """Test error handling when loading Iceberg table fails."""
         mock_adapter_instance = Mock()
         mock_adapter.return_value = mock_adapter_instance
@@ -206,21 +206,21 @@ class TestInspectCommand:
         # Simulate error
         mock_adapter_instance.open_table.side_effect = Exception("Table not found")
 
-        result = runner.invoke(inspect, ["--catalog", "test", "db.table"])
+        result = runner.invoke(parquet, ["--catalog", "test", "db.table"])
 
         assert result.exit_code == 1
         assert "Error" in result.output or "Table not found" in result.output
 
 
-class TestInspectCommandErrorHandling:
-    """Tests for inspect command error handling."""
+class TestParquetCommandErrorHandling:
+    """Tests for parquet command error handling."""
 
     @pytest.fixture
     def runner(self):
         """Create CLI test runner."""
         return CliRunner()
 
-    def test_inspect_non_parquet_file_warning(self, runner, tmp_path):
+    def test_parquet_non_parquet_file_warning(self, runner, tmp_path):
         """Test warning for non-parquet file extension."""
         # Create a file with wrong extension
         test_file = tmp_path / "data.txt"
@@ -230,20 +230,20 @@ class TestInspectCommandErrorHandling:
             mock_app_instance = Mock()
             mock_app.return_value = mock_app_instance
 
-            result = runner.invoke(cli, ["inspect", str(test_file)])
+            result = runner.invoke(cli, ["parquet", str(test_file)])
 
             # Should show warning but still proceed
             assert "Warning" in result.output or "does not have .parquet extension" in result.output
 
-    def test_inspect_empty_directory(self, runner, tmp_path):
+    def test_parquet_empty_directory(self, runner, tmp_path):
         """Test inspecting empty directory."""
-        result = runner.invoke(cli, ["inspect", str(tmp_path)])
+        result = runner.invoke(cli, ["parquet", str(tmp_path)])
 
         assert result.exit_code == 1
         assert "No Parquet files found" in result.output
 
     @patch("tablesleuth.cli.FileDiscoveryService")
-    def test_inspect_discovery_error(self, mock_discovery, runner, tmp_path):
+    def test_parquet_discovery_error(self, mock_discovery, runner, tmp_path):
         """Test error handling when file discovery fails."""
         test_file = tmp_path / "test.parquet"
         test_file.write_text("fake parquet")
@@ -252,12 +252,12 @@ class TestInspectCommandErrorHandling:
         mock_discovery.return_value = mock_discovery_instance
         mock_discovery_instance.discover_from_path.side_effect = Exception("Discovery failed")
 
-        result = runner.invoke(cli, ["inspect", str(test_file)])
+        result = runner.invoke(cli, ["parquet", str(test_file)])
 
         assert result.exit_code == 1
         assert "Error" in result.output
 
-    def test_inspect_verbose_logging(self, runner, tmp_path):
+    def test_parquet_verbose_logging(self, runner, tmp_path):
         """Test verbose flag enables debug logging."""
         test_file = tmp_path / "test.parquet"
         test_file.write_text("fake")
@@ -267,13 +267,13 @@ class TestInspectCommandErrorHandling:
             mock_app.return_value = mock_app_instance
 
             with patch("tablesleuth.cli.logging.basicConfig") as mock_logging:
-                result = runner.invoke(cli, ["inspect", "--verbose", str(test_file)])
+                result = runner.invoke(cli, ["parquet", "--verbose", str(test_file)])
 
                 # Verify debug logging was configured
                 mock_logging.assert_called()
 
     @patch("tablesleuth.cli.FileDiscoveryService")
-    def test_inspect_file_not_found_error(self, mock_discovery, runner, tmp_path):
+    def test_parquet_file_not_found_error(self, mock_discovery, runner, tmp_path):
         """Test FileNotFoundError handling."""
         test_file = tmp_path / "test.parquet"
         test_file.write_text("fake")
@@ -282,13 +282,13 @@ class TestInspectCommandErrorHandling:
         mock_discovery.return_value = mock_discovery_instance
         mock_discovery_instance.discover_from_path.side_effect = FileNotFoundError("File missing")
 
-        result = runner.invoke(cli, ["inspect", str(test_file)])
+        result = runner.invoke(cli, ["parquet", str(test_file)])
 
         assert result.exit_code == 1
         assert "File not found" in result.output
 
     @patch("tablesleuth.cli.FileDiscoveryService")
-    def test_inspect_value_error(self, mock_discovery, runner, tmp_path):
+    def test_parquet_value_error(self, mock_discovery, runner, tmp_path):
         """Test ValueError handling."""
         test_file = tmp_path / "test.parquet"
         test_file.write_text("fake")
@@ -297,13 +297,13 @@ class TestInspectCommandErrorHandling:
         mock_discovery.return_value = mock_discovery_instance
         mock_discovery_instance.discover_from_path.side_effect = ValueError("Invalid format")
 
-        result = runner.invoke(cli, ["inspect", str(test_file)])
+        result = runner.invoke(cli, ["parquet", str(test_file)])
 
         assert result.exit_code == 1
         assert "Invalid input" in result.output
 
     @patch("tablesleuth.cli.FileDiscoveryService")
-    def test_inspect_generic_error_with_verbose(self, mock_discovery, runner, tmp_path):
+    def test_parquet_generic_error_with_verbose(self, mock_discovery, runner, tmp_path):
         """Test generic exception handling with verbose flag."""
         test_file = tmp_path / "test.parquet"
         test_file.write_text("fake")
@@ -313,14 +313,14 @@ class TestInspectCommandErrorHandling:
         mock_discovery_instance.discover_from_path.side_effect = RuntimeError("Unexpected error")
 
         with patch("tablesleuth.cli.logger") as mock_logger:
-            result = runner.invoke(cli, ["inspect", "--verbose", str(test_file)])
+            result = runner.invoke(cli, ["parquet", "--verbose", str(test_file)])
 
             assert result.exit_code == 1
             assert "Error" in result.output
             # Verify logger.exception was called for verbose mode
             mock_logger.exception.assert_called_once()
 
-    def test_inspect_special_file_type(self, runner, tmp_path):
+    def test_parquet_special_file_type(self, runner, tmp_path):
         """Test handling of special file types (not file or directory)."""
         # This is hard to test portably, but we can test the error path
         # by mocking Path.is_file and Path.is_dir
@@ -330,7 +330,7 @@ class TestInspectCommandErrorHandling:
         with patch("pathlib.Path.is_file", return_value=False):
             with patch("pathlib.Path.is_dir", return_value=False):
                 with patch("pathlib.Path.exists", return_value=True):
-                    result = runner.invoke(cli, ["inspect", str(test_path)])
+                    result = runner.invoke(cli, ["parquet", str(test_path)])
 
                     assert result.exit_code == 1
                     assert "neither a file nor directory" in result.output
