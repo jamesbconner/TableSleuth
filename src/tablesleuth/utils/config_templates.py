@@ -166,11 +166,11 @@ catalog:
 
     # Usage examples:
     # Using ARN without --catalog (uses "s3tables" catalog name by default):
-    #   tablesleuth inspect "arn:aws:s3tables:us-east-2:123456789012:bucket/my-bucket/table/db.table"
+    #   tablesleuth parquet "arn:aws:s3tables:us-east-2:123456789012:bucket/my-bucket/table/db.table"
     # Using ARN with --catalog to specify which S3 Tables catalog:
-    #   tablesleuth inspect "arn:aws:s3tables:..." --catalog my-dataset-s3tables
+    #   tablesleuth parquet "arn:aws:s3tables:..." --catalog my-dataset-s3tables
     # Using catalog name explicitly:
-    #   tablesleuth inspect db.table --catalog s3tables
+    #   tablesleuth parquet db.table --catalog s3tables
 
   # ---------------------------------------------------------------------------
   # REST Catalog (for custom catalog servers)

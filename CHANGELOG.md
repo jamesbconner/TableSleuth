@@ -2,6 +2,39 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0] - 2026-01-18
+
+### Changed
+
+- **⚠️ BREAKING CHANGE: CLI Command Renamed** - `inspect` command renamed to `parquet`
+  - The Parquet file analysis command has been renamed from `inspect` to `parquet` to establish a consistent format-oriented command structure
+  - This change aligns the CLI with a clear pattern where top-level commands correspond to table format types
+  - All functionality remains identical - only the command name has changed
+
+### Migration Guide
+
+**Update your command invocations:**
+
+```bash
+# Old (v0.4.x and earlier)
+tablesleuth inspect data.parquet
+
+# New (v0.5.0 and later)
+tablesleuth parquet data.parquet
+```
+
+**Update your scripts and automation:**
+- Replace all instances of `tablesleuth inspect` with `tablesleuth parquet`
+- All command-line arguments and options remain unchanged
+- Output format and behavior are identical
+
+**Rationale:**
+This change establishes a consistent, format-oriented command structure that improves clarity and supports future extensibility. The CLI now follows a clear pattern:
+- `tablesleuth parquet <path>` - Analyze Parquet files
+- `tablesleuth iceberg <metadata>` - Analyze Iceberg tables
+
+This naming pattern makes it immediately clear which command analyzes which table format, improving the user experience and making the tool more intuitive for new users.
+
 ## [0.4.2.post1] - 2026-01-17
 
 ### Fixed

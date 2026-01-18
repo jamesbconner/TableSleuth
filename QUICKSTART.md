@@ -252,16 +252,16 @@ tablesleuth iceberg --catalog dataset1 --table dataset1.table1
 
 ```bash
 # Single file (local)
-tablesleuth inspect data/file.parquet
+tablesleuth parquet data/file.parquet
 
 # Single file (S3)
-tablesleuth inspect s3://bucket/path/file.parquet
+tablesleuth parquet s3://bucket/path/file.parquet
 
 # Directory (recursive)
-tablesleuth inspect data/warehouse/
+tablesleuth parquet data/warehouse/
 
 # Iceberg table files
-tablesleuth inspect --catalog ratebeer ratebeer.reviews
+tablesleuth iceberg --catalog ratebeer ratebeer.reviews
 ```
 
 ### Navigate the TUI
@@ -422,10 +422,10 @@ This can happen if DuckDB's EXPLAIN ANALYZE doesn't expose file counts. The fall
 
 ```bash
 # Local Parquet file
-tablesleuth inspect data/file.parquet
+tablesleuth parquet data/file.parquet
 
 # S3 Parquet file
-tablesleuth inspect s3://bucket/path/file.parquet
+tablesleuth parquet s3://bucket/path/file.parquet
 
 # Iceberg table (Glue catalog)
 tablesleuth iceberg --catalog ratebeer --table ratebeer.reviews

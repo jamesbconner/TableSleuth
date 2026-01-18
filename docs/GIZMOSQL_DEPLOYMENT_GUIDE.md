@@ -153,7 +153,7 @@ Expected output: `1`
 
 ```bash
 # Open a Parquet file
-tablesleuth inspect data/your-file.parquet
+tablesleuth parquet data/your-file.parquet
 
 # Navigate to Profile tab and click on a column
 # If profiling works, GizmoSQL is configured correctly
@@ -167,7 +167,7 @@ tablesleuth inspect data/your-file.parquet
 
 **Step 2**: Open a Parquet file in Table Sleuth
 ```bash
-tablesleuth inspect data/your-file.parquet
+tablesleuth parquet data/your-file.parquet
 ```
 
 **Step 3**: Navigate to the "Profile" tab
@@ -531,7 +531,7 @@ export TABLESLEUTH_GIZMO_USERNAME="gizmosql_username"
 export TABLESLEUTH_GIZMO_PASSWORD="gizmosql_password"
 
 # Run Table Sleuth
-tablesleuth inspect data/your-file.parquet
+tablesleuth parquet data/your-file.parquet
 ```
 
 ## Running as a Background Service

@@ -16,7 +16,7 @@ This document provides a comprehensive overview of the system architecture, desi
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                          CLI Layer                                      │
 │  ┌──────────────────┐  ┌──────────────────┐                             │
-│  │ inspect command  │  │ iceberg command  │                             │
+│  │ parquet command  │  │ iceberg command  │                             │
 │  │ - Parquet files  │  │ - Snapshot view  │                             │
 │  │ - Directories    │  │ - Comparison     │                             │
 │  │ - Iceberg tables │  │ - Performance    │                             │
@@ -161,28 +161,28 @@ This document provides a comprehensive overview of the system architecture, desi
 
 ## CLI Commands
 
-Table Sleuth provides two main commands:
+Table Sleuth provides two main commands following a **format-oriented design pattern**. Each command corresponds to a specific table format type, establishing a consistent and extensible structure for future format support (e.g., Delta Lake).
 
-### 1. `inspect` Command
+### 1. `parquet` Command
 
-**Purpose**: Inspect Parquet files, directories, or Iceberg table data files
+**Purpose**: Analyze Parquet files, directories, or Iceberg table data files
 
 **Usage**:
 ```bash
-# Inspect local Parquet file
-tablesleuth inspect data/file.parquet
+# Analyze local Parquet file
+tablesleuth parquet data/file.parquet
 
-# Inspect S3 Parquet file
-tablesleuth inspect s3://bucket/path/file.parquet
+# Analyze S3 Parquet file
+tablesleuth parquet s3://bucket/path/file.parquet
 
-# Inspect directory (recursive)
-tablesleuth inspect data/warehouse/
+# Analyze directory (recursive)
+tablesleuth parquet data/warehouse/
 
-# Inspect Iceberg table data files
-tablesleuth inspect --catalog ratebeer ratebeer.reviews
+# Analyze Iceberg table data files
+tablesleuth parquet --catalog ratebeer ratebeer.reviews
 
-# Inspect S3 Tables Iceberg table (ARN)
-tablesleuth inspect "arn:aws:s3tables:us-east-2:123456789012:bucket/my-bucket/table/db.table"
+# Analyze S3 Tables Iceberg table (ARN)
+tablesleuth parquet "arn:aws:s3tables:us-east-2:123456789012:bucket/my-bucket/table/db.table"
 ```
 
 **Features**:
@@ -1256,7 +1256,7 @@ tests/
 tablesleuth/
 ├── src/tablesleuth/
 │   ├── __init__.py
-│   ├── cli.py                          # CLI entry point (inspect, iceberg commands)
+│   ├── cli.py                          # CLI entry point (parquet, iceberg commands)
 │   ├── config.py                       # Configuration management
 │   ├── exceptions.py                   # Custom exceptions
 │   │

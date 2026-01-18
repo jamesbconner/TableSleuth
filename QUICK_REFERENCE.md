@@ -16,19 +16,19 @@ uv sync
 
 ```bash
 # Inspect a Parquet file
-tablesleuth inspect file.parquet
+tablesleuth parquet file.parquet
 
 # Inspect a directory
-tablesleuth inspect /path/to/data/
+tablesleuth parquet /path/to/data/
 
 # Inspect S3 file
-tablesleuth inspect s3://bucket/path/file.parquet
+tablesleuth parquet s3://bucket/path/file.parquet
 
 # Inspect Iceberg table
-tablesleuth inspect db.table --catalog local
+tablesleuth iceberg db.table --catalog local
 
 # Inspect AWS S3 Tables
-tablesleuth inspect "arn:aws:s3tables:region:account:bucket/name/table/db.table"
+tablesleuth iceberg "arn:aws:s3tables:region:account:bucket/name/table/db.table"
 ```
 
 ## Development Commands
