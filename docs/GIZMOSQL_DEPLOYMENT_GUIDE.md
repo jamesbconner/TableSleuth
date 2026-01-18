@@ -153,7 +153,7 @@ Expected output: `1`
 
 ```bash
 # Open a Parquet file
-table-sleuth inspect data/your-file.parquet
+tablesleuth inspect data/your-file.parquet
 
 # Navigate to Profile tab and click on a column
 # If profiling works, GizmoSQL is configured correctly
@@ -167,7 +167,7 @@ table-sleuth inspect data/your-file.parquet
 
 **Step 2**: Open a Parquet file in Table Sleuth
 ```bash
-table-sleuth inspect data/your-file.parquet
+tablesleuth inspect data/your-file.parquet
 ```
 
 **Step 3**: Navigate to the "Profile" tab
@@ -188,10 +188,10 @@ table-sleuth inspect data/your-file.parquet
 **Step 2**: Open an Iceberg table
 ```bash
 # From Glue catalog
-table-sleuth iceberg --catalog ratebeer --table ratebeer.reviews
+tablesleuth iceberg --catalog ratebeer --table ratebeer.reviews
 
 # From S3 Tables
-table-sleuth iceberg --catalog tpch --table tpch.lineitem
+tablesleuth iceberg --catalog tpch --table tpch.lineitem
 ```
 
 **Step 3**: Navigate to snapshot comparison view
@@ -526,12 +526,12 @@ You can override configuration via environment variables:
 
 ```bash
 # Connection settings
-export TABLE_SLEUTH_GIZMO_URI="grpc+tls://localhost:31337"
-export TABLE_SLEUTH_GIZMO_USERNAME="gizmosql_username"
-export TABLE_SLEUTH_GIZMO_PASSWORD="gizmosql_password"
+export TABLESLEUTH_GIZMO_URI="grpc+tls://localhost:31337"
+export TABLESLEUTH_GIZMO_USERNAME="gizmosql_username"
+export TABLESLEUTH_GIZMO_PASSWORD="gizmosql_password"
 
 # Run Table Sleuth
-table-sleuth inspect data/your-file.parquet
+tablesleuth inspect data/your-file.parquet
 ```
 
 ## Running as a Background Service
@@ -667,9 +667,9 @@ tls_skip_verify = true
 
 ```bash
 # Override configuration
-export TABLE_SLEUTH_GIZMO_URI="grpc+tls://localhost:31337"
-export TABLE_SLEUTH_GIZMO_USERNAME="gizmosql_username"
-export TABLE_SLEUTH_GIZMO_PASSWORD="gizmosql_password"
+export TABLESLEUTH_GIZMO_URI="grpc+tls://localhost:31337"
+export TABLESLEUTH_GIZMO_USERNAME="gizmosql_username"
+export TABLESLEUTH_GIZMO_PASSWORD="gizmosql_password"
 
 # AWS credentials (for S3 access)
 export AWS_ACCESS_KEY_ID="your_key"

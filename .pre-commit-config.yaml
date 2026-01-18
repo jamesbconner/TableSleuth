@@ -1,4 +1,4 @@
-# Pre-commit hooks for table-sleuth
+# Pre-commit hooks for tablesleuth
 # Install: uv run pre-commit install
 # Run manually: uv run pre-commit run --all-files
 

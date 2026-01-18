@@ -13,7 +13,7 @@ Usage:
     python examples/inspect_s3_tables.py
 """
 
-from table_sleuth.services.formats.iceberg import IcebergAdapter
+from tablesleuth.services.formats.iceberg import IcebergAdapter
 
 
 def inspect_s3_table_by_arn():

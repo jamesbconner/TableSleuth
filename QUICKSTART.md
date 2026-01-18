@@ -241,7 +241,7 @@ source .venv/bin/activate
 uv sync --all-extras
 
 # Run TableSleuth
-table-sleuth iceberg --catalog dataset1 --table dataset1.table1
+tablesleuth iceberg --catalog dataset1 --table dataset1.table1
 ```
 
 ---
@@ -252,16 +252,16 @@ table-sleuth iceberg --catalog dataset1 --table dataset1.table1
 
 ```bash
 # Single file (local)
-table-sleuth inspect data/file.parquet
+tablesleuth inspect data/file.parquet
 
 # Single file (S3)
-table-sleuth inspect s3://bucket/path/file.parquet
+tablesleuth inspect s3://bucket/path/file.parquet
 
 # Directory (recursive)
-table-sleuth inspect data/warehouse/
+tablesleuth inspect data/warehouse/
 
 # Iceberg table files
-table-sleuth inspect --catalog ratebeer ratebeer.reviews
+tablesleuth inspect --catalog ratebeer ratebeer.reviews
 ```
 
 ### Navigate the TUI
@@ -291,10 +291,10 @@ q       - Quit
 
 ```bash
 # Using Glue catalog as defined in the ~/.pyiceberg.yaml
-table-sleuth iceberg --catalog dataset1 --table dataset1.table1
+tablesleuth iceberg --catalog dataset1 --table dataset1.table1
 
 # Using S3 Tables catalog as defined in the ~/.pyiceberg.yaml
-table-sleuth iceberg --catalog dataset2 --table dataset2.table1
+tablesleuth iceberg --catalog dataset2 --table dataset2.table1
 ```
 
 ### Snapshot Tabs
@@ -422,17 +422,17 @@ This can happen if DuckDB's EXPLAIN ANALYZE doesn't expose file counts. The fall
 
 ```bash
 # Local Parquet file
-table-sleuth inspect data/file.parquet
+tablesleuth inspect data/file.parquet
 
 # S3 Parquet file
-table-sleuth inspect s3://bucket/path/file.parquet
+tablesleuth inspect s3://bucket/path/file.parquet
 
 # Iceberg table (Glue catalog)
-table-sleuth iceberg --catalog ratebeer --table ratebeer.reviews
+tablesleuth iceberg --catalog ratebeer --table ratebeer.reviews
 
 # Iceberg table (S3 Tables)
-table-sleuth iceberg --catalog tpch --table tpch.lineitem
+tablesleuth iceberg --catalog tpch --table tpch.lineitem
 
 # Verbose logging
-table-sleuth iceberg --catalog ratebeer --table ratebeer.reviews -v
+tablesleuth iceberg --catalog ratebeer --table ratebeer.reviews -v
 ```

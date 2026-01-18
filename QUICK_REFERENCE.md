@@ -43,7 +43,7 @@ pytest
 
 # Run tests with coverage
 make test-cov
-pytest --cov=table_sleuth --cov-report=html
+pytest --cov=tablesleuth --cov-report=html
 
 # Run linter
 make lint
@@ -97,13 +97,13 @@ git push origin v0.4.0
 
 ```bash
 # Update version (edit this file only)
-vim src/table_sleuth/__init__.py
+vim src/tablesleuth/__init__.py
 
 # Update changelog
 vim CHANGELOG.md
 
 # Verify version
-python -c "from table_sleuth import __version__; print(__version__)"
+python -c "from tablesleuth import __version__; print(__version__)"
 
 # Build and verify
 uv build
@@ -246,7 +246,7 @@ pip install tablesleuth
 grep -r "0\.4\.0" .
 
 # Update version in __init__.py
-vim src/table_sleuth/__init__.py
+vim src/tablesleuth/__init__.py
 
 # Rebuild
 make clean
@@ -256,9 +256,9 @@ uv build
 ## Useful Links
 
 - **PyPI**: https://pypi.org/project/tablesleuth/
-- **Repository**: https://github.com/jamesbconner/table-sleuth
-- **Documentation**: https://github.com/jamesbconner/table-sleuth/tree/main/docs
-- **Issues**: https://github.com/jamesbconner/table-sleuth/issues
+- **Repository**: https://github.com/jamesbconner/TableSleuth
+- **Documentation**: https://github.com/jamesbconner/TableSleuth/tree/main/docs
+- **Issues**: https://github.com/jamesbconner/TableSleuth/issues
 - **Homepage**: https://tablesleuth.com
 
 ## Documentation Files

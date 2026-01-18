@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tablesleuth"
-version = "0.4.2.post1"
+version = "0.4.3"
 description = "TableSleuth - a Textual TUI for Open Table Format forensics (OTF) with data profiling."
 readme = "README.md"
 requires-python = ">=3.13,<3.15"
@@ -95,10 +95,10 @@ tablesleuth = "tablesleuth.cli:entry_point"
 
 [project.urls]
 Homepage = "https://tablesleuth.com"
-Repository = "https://github.com/jamesbconner/tablesleuth"
-Documentation = "https://github.com/jamesbconner/tablesleuth/tree/main/docs"
-"Bug Reports" = "https://github.com/jamesbconner/tablesleuth/issues"
-Changelog = "https://github.com/jamesbconner/tablesleuth/blob/main/CHANGELOG.md"
+Repository = "https://github.com/jamesbconner/TableSleuth"
+Documentation = "https://github.com/jamesbconner/TableSleuth/tree/main/docs"
+"Bug Reports" = "https://github.com/jamesbconner/TableSleuth/issues"
+Changelog = "https://github.com/jamesbconner/TableSleuth/blob/main/CHANGELOG.md"
 
 # Hatchling configuration for src layout
 [tool.hatch.build.targets.wheel]

@@ -21,7 +21,7 @@ Table Sleuth is a Parquet file forensics and Iceberg table analysis tool with a 
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd table-sleuth
+cd TableSleuth
 
 # Install dependencies with uv
 uv sync
@@ -34,7 +34,7 @@ source .venv/bin/activate  # On macOS/Linux
 ### Verify Installation
 
 ```bash
-table-sleuth --version
+tablesleuth --version
 ```
 
 ## Configuration
@@ -59,10 +59,10 @@ tls_skip_verify = false
 You can override configuration with environment variables:
 
 ```bash
-export TABLE_SLEUTH_CATALOG_NAME="local"
-export TABLE_SLEUTH_GIZMO_URI="grpc+tls://localhost:31337"
-export TABLE_SLEUTH_GIZMO_USERNAME="gizmosql_username"
-export TABLE_SLEUTH_GIZMO_PASSWORD="gizmosql_password"
+export TABLESLEUTH_CATALOG_NAME="local"
+export TABLESLEUTH_GIZMO_URI="grpc+tls://localhost:31337"
+export TABLESLEUTH_GIZMO_USERNAME="gizmosql_username"
+export TABLESLEUTH_GIZMO_PASSWORD="gizmosql_password"
 ```
 
 ### PyIceberg Configuration (Required for Iceberg Features)
@@ -85,17 +85,17 @@ catalog:
 
 ```bash
 # Show help
-table-sleuth --help
-table-sleuth inspect --help
+tablesleuth --help
+tablesleuth inspect --help
 
 # Show version
-table-sleuth --version
+tablesleuth --version
 ```
 
 ### Inspect a Single File
 
 ```bash
-table-sleuth inspect data/file.parquet
+tablesleuth inspect data/file.parquet
 ```
 
 ### Inspect a Directory
@@ -103,13 +103,13 @@ table-sleuth inspect data/file.parquet
 Recursively scans for all `.parquet` files:
 
 ```bash
-table-sleuth inspect data/warehouse/
+tablesleuth inspect data/warehouse/
 ```
 
 ### Inspect an Iceberg Table
 
 ```bash
-table-sleuth inspect ratebeer.reviews --catalog local
+tablesleuth inspect ratebeer.reviews --catalog local
 ```
 
 ### Verbose Mode
@@ -117,7 +117,7 @@ table-sleuth inspect ratebeer.reviews --catalog local
 Enable debug logging:
 
 ```bash
-table-sleuth inspect data/file.parquet --verbose
+tablesleuth inspect data/file.parquet --verbose
 ```
 
 ## TUI Navigation
@@ -167,7 +167,7 @@ table-sleuth inspect data/file.parquet --verbose
 
 1. Launch Table Sleuth:
    ```bash
-   table-sleuth inspect data/file.parquet
+   tablesleuth inspect data/file.parquet
    ```
 
 2. The file will be automatically selected and inspected
@@ -185,7 +185,7 @@ table-sleuth inspect data/file.parquet --verbose
 
 1. Launch with directory:
    ```bash
-   table-sleuth inspect data/warehouse/
+   tablesleuth inspect data/warehouse/
    ```
 
 2. Use arrow keys to navigate the file list
@@ -230,7 +230,7 @@ table-sleuth inspect data/file.parquet --verbose
 
 2. Launch with table identifier:
    ```bash
-   table-sleuth inspect ratebeer.reviews --catalog local
+   tablesleuth inspect ratebeer.reviews --catalog local
    ```
 
 3. Navigate to the **Iceberg** tab to see:
@@ -325,16 +325,16 @@ tls_skip_verify = false
 Or use environment variables:
 
 ```bash
-export TABLE_SLEUTH_GIZMO_URI="grpc+tls://localhost:31337"
-export TABLE_SLEUTH_GIZMO_USERNAME="gizmosql_username"
-export TABLE_SLEUTH_GIZMO_PASSWORD="gizmosql_password"
+export TABLESLEUTH_GIZMO_URI="grpc+tls://localhost:31337"
+export TABLESLEUTH_GIZMO_USERNAME="gizmosql_username"
+export TABLESLEUTH_GIZMO_PASSWORD="gizmosql_password"
 ```
 
 ### Test Connection
 
 1. Launch Table Sleuth with a file:
    ```bash
-   table-sleuth inspect data/sample.parquet
+   tablesleuth inspect data/sample.parquet
    ```
 
 2. Navigate to Schema tab and select a column
@@ -371,7 +371,7 @@ nc -zv localhost 31337
 cat tablesleuth.toml
 
 # Check environment variables
-env | grep TABLE_SLEUTH_GIZMO
+env | grep TABLESLEUTH_GIZMO
 
 # Verify password matches in both places
 echo $GIZMOSQL_PASSWORD
@@ -544,7 +544,7 @@ tls_skip_verify = false
 
 ```bash
 # Inspect the file
-table-sleuth inspect data/large_file.parquet
+tablesleuth inspect data/large_file.parquet
 ```
 
 **What to check:**
@@ -570,7 +570,7 @@ table-sleuth inspect data/large_file.parquet
 
 ```bash
 # Inspect the partition directory
-table-sleuth inspect data/warehouse/orders/
+tablesleuth inspect data/warehouse/orders/
 ```
 
 **What to check:**
@@ -595,7 +595,7 @@ table-sleuth inspect data/warehouse/orders/
 
 ```bash
 # Inspect with profiling
-table-sleuth inspect data/customer_data.parquet
+tablesleuth inspect data/customer_data.parquet
 ```
 
 **What to check:**
@@ -623,11 +623,11 @@ table-sleuth inspect data/customer_data.parquet
 
 ```bash
 # Inspect old version
-table-sleuth inspect data/v1/customers.parquet
+tablesleuth inspect data/v1/customers.parquet
 # Note columns in Schema tab
 
 # Quit and inspect new version
-table-sleuth inspect data/v2/customers.parquet
+tablesleuth inspect data/v2/customers.parquet
 # Compare columns in Schema tab
 ```
 
@@ -649,7 +649,7 @@ table-sleuth inspect data/v2/customers.parquet
 
 ```bash
 # Inspect the file
-table-sleuth inspect data/slow_query_table.parquet
+tablesleuth inspect data/slow_query_table.parquet
 ```
 
 **What to check:**
@@ -681,7 +681,7 @@ catalog:
 EOF
 
 # Inspect table
-table-sleuth inspect ratebeer.reviews --catalog local
+tablesleuth inspect ratebeer.reviews --catalog local
 ```
 
 **What to check:**
@@ -738,31 +738,31 @@ table-sleuth inspect ratebeer.reviews --catalog local
 
 ```bash
 # Export to JSON
-table-sleuth inspect data/file.parquet --export json > metadata.json
+tablesleuth inspect data/file.parquet --export json > metadata.json
 
 # Export to Markdown
-table-sleuth inspect data/file.parquet --export markdown > report.md
+tablesleuth inspect data/file.parquet --export markdown > report.md
 ```
 
 ### Scripting with Table Sleuth
 
 ```bash
 # Check file validity
-if table-sleuth inspect data/file.parquet --validate; then
+if tablesleuth inspect data/file.parquet --validate; then
   echo "File is valid"
 else
   echo "File is invalid"
 fi
 
 # Get row count
-table-sleuth inspect data/file.parquet --format json | jq '.num_rows'
+tablesleuth inspect data/file.parquet --format json | jq '.num_rows'
 ```
 
 ### Integration with Data Pipelines
 
 ```python
 # Python integration (future API)
-from table_sleuth import ParquetInspector
+from tablesleuth import ParquetInspector
 
 inspector = ParquetInspector()
 info = inspector.inspect_file("data/file.parquet")

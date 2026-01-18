@@ -4,7 +4,7 @@
 
 Table Sleuth is a Python-based Parquet file forensics and Iceberg table analysis tool built with a layered architecture that separates concerns between presentation, business logic, and data access. The system provides comprehensive inspection of Parquet files and Iceberg tables with support for multiple catalog types (local SQL, AWS Glue, AWS S3 Tables), column profiling via GizmoSQL/DuckDB, and performance testing across Iceberg snapshots.
 
-**Current Version**: 0.3.0
+**Current Version**: 0.4.2.post1
 
 This document provides a comprehensive overview of the system architecture, design patterns, and key technical decisions.
 
@@ -170,19 +170,19 @@ Table Sleuth provides two main commands:
 **Usage**:
 ```bash
 # Inspect local Parquet file
-table-sleuth inspect data/file.parquet
+tablesleuth inspect data/file.parquet
 
 # Inspect S3 Parquet file
-table-sleuth inspect s3://bucket/path/file.parquet
+tablesleuth inspect s3://bucket/path/file.parquet
 
 # Inspect directory (recursive)
-table-sleuth inspect data/warehouse/
+tablesleuth inspect data/warehouse/
 
 # Inspect Iceberg table data files
-table-sleuth inspect --catalog ratebeer ratebeer.reviews
+tablesleuth inspect --catalog ratebeer ratebeer.reviews
 
 # Inspect S3 Tables Iceberg table (ARN)
-table-sleuth inspect "arn:aws:s3tables:us-east-2:123456789012:bucket/my-bucket/table/db.table"
+tablesleuth inspect "arn:aws:s3tables:us-east-2:123456789012:bucket/my-bucket/table/db.table"
 ```
 
 **Features**:
@@ -200,16 +200,16 @@ table-sleuth inspect "arn:aws:s3tables:us-east-2:123456789012:bucket/my-bucket/t
 **Usage**:
 ```bash
 # View snapshots from Glue catalog
-table-sleuth iceberg --catalog ratebeer --table ratebeer.reviews
+tablesleuth iceberg --catalog ratebeer --table ratebeer.reviews
 
 # View snapshots from S3 Tables catalog
-table-sleuth iceberg --catalog tpch --table tpch.lineitem
+tablesleuth iceberg --catalog tpch --table tpch.lineitem
 
 # View from metadata file
-table-sleuth iceberg s3://bucket/warehouse/table/metadata/metadata.json
+tablesleuth iceberg s3://bucket/warehouse/table/metadata/metadata.json
 
 # With verbose logging
-table-sleuth iceberg --catalog ratebeer --table ratebeer.reviews -v
+tablesleuth iceberg --catalog ratebeer --table ratebeer.reviews -v
 ```
 
 **Features**:
@@ -1171,7 +1171,7 @@ tests/
 3. Add CLI option
 4. Add tests
 
-## Current Features (v0.3.0)
+## Current Features (v0.4.2)
 
 ### Parquet Inspection
 - **File Discovery**:
@@ -1253,8 +1253,8 @@ tests/
 ## Project Structure
 
 ```
-table-sleuth/
-├── src/table_sleuth/
+tablesleuth/
+├── src/tablesleuth/
 │   ├── __init__.py
 │   ├── cli.py                          # CLI entry point (inspect, iceberg commands)
 │   ├── config.py                       # Configuration management

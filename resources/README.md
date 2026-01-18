@@ -100,7 +100,7 @@ cd ~/Code/TableSleuth
 source .venv/bin/activate
 
 # Inspect S3 Tables using ARN
-table-sleuth inspect "arn:aws:s3tables:us-east-2:835323357340:bucket/tpch-sf100/table/tpch.customer"
+tablesleuth inspect "arn:aws:s3tables:us-east-2:835323357340:bucket/tpch-sf100/table/tpch.customer"
 ```
 
 See [../docs/s3_tables_guide.md](../docs/s3_tables_guide.md) for more details.
