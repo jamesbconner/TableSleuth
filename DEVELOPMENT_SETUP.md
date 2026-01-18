@@ -55,7 +55,7 @@ make check            # Run all quality checks
 ### Build & Run
 ```bash
 make build            # Build distribution packages
-make run              # Run table-sleuth CLI
+make run              # Run tablesleuth CLI
 ```
 
 ### Cleanup
@@ -148,13 +148,13 @@ gizmosql_server -P test_password -Q -T ~/.certs/test.pem ~/.certs/test.key
 
 ```bash
 # Run from source (development mode)
-python -m table_sleuth.cli inspect data/sample.parquet
+python -m tablesleuth.cli inspect data/sample.parquet
 
 # Or use the installed command
-table-sleuth inspect data/sample.parquet
+tablesleuth inspect data/sample.parquet
 
 # Run with verbose logging for debugging
-table-sleuth inspect data/sample.parquet -v
+tablesleuth inspect data/sample.parquet -v
 ```
 
 ## Testing
@@ -169,7 +169,7 @@ pytest tests/unit/ -v
 pytest tests/test_parquet_service.py::test_inspect_file -v
 
 # Run with coverage
-pytest --cov=src/table_sleuth --cov-report=html --cov-report=term-missing
+pytest --cov=src/tablesleuth --cov-report=html --cov-report=term-missing
 ```
 
 ### Integration Tests
@@ -206,10 +206,10 @@ pytest -m "not slow"
 
 ```bash
 # Run with debug logging
-table-sleuth inspect file.parquet -v
+tablesleuth inspect file.parquet -v
 
 # Enable Python debugging
-PYTHONPATH=src python -m pdb -m table_sleuth.cli inspect file.parquet
+PYTHONPATH=src python -m pdb -m tablesleuth.cli inspect file.parquet
 
 # Use debugger in tests
 pytest --pdb tests/test_specific.py
@@ -227,11 +227,11 @@ logging.basicConfig(level=logging.DEBUG)
 
 ```bash
 # Run TUI with console logging
-table-sleuth inspect file.parquet -v 2> debug.log
+tablesleuth inspect file.parquet -v 2> debug.log
 
 # Use textual development console
 textual console
-# Then run table-sleuth in another terminal
+# Then run tablesleuth in another terminal
 ```
 
 ## Contributing

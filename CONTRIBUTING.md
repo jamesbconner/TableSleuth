@@ -47,14 +47,14 @@ We are committed to providing a welcoming and inclusive environment for all cont
 
    ```bash
    # Fork on GitHub, then clone your fork
-   git clone https://github.com/YOUR_USERNAME/table-sleuth.git
-   cd table-sleuth
+   git clone https://github.com/YOUR_USERNAME/TableSleuth.git
+   cd TableSleuth
    ```
 
 2. **Add Upstream Remote**
 
    ```bash
-   git remote add upstream https://github.com/ORIGINAL_OWNER/table-sleuth.git
+   git remote add upstream https://github.com/jamesbconner/TableSleuth.git
    ```
 
 3. **Install Dependencies**
@@ -85,7 +85,7 @@ We are committed to providing a welcoming and inclusive environment for all cont
 
    # Check code quality
    ruff check .
-   mypy src/table_sleuth
+   mypy src/tablesleuth
    ```
 
 ## Development Workflow
@@ -124,7 +124,7 @@ git checkout -b feature/your-feature-name
 pytest
 
 # Run with coverage
-pytest --cov=src/table_sleuth --cov-report=html
+pytest --cov=src/tablesleuth --cov-report=html
 
 # Run specific test file
 pytest tests/test_parquet_inspector.py
@@ -145,7 +145,7 @@ ruff format .
 ruff check .
 
 # Type checking
-mypy src/table_sleuth
+mypy src/tablesleuth
 
 # Run all checks
 pre-commit run --all-files
@@ -341,7 +341,7 @@ logger.debug("Executing query", extra={"query": query, "view": view_name})
 ```python
 # tests/test_parquet_inspector.py
 import pytest
-from table_sleuth.services.parquet_service import ParquetInspector
+from tablesleuth.services.parquet_service import ParquetInspector
 
 class TestParquetInspector:
     """Tests for ParquetInspector service."""
@@ -398,7 +398,7 @@ def test_parquet_file(tmp_path: Path) -> Path:
 pytest
 
 # Run with coverage
-pytest --cov=src/table_sleuth --cov-report=html
+pytest --cov=src/tablesleuth --cov-report=html
 
 # Run specific test file
 pytest tests/test_parquet_inspector.py
@@ -525,7 +525,7 @@ We follow [Semantic Versioning](https://semver.org/):
 - [Developer Guide](docs/DEVELOPER_GUIDE.md) - Architecture and design
 - [User Guide](docs/USER_GUIDE.md) - Usage documentation
 - [Architecture](docs/ARCHITECTURE.md) - System architecture and technical details
-- [GitHub Issues](https://github.com/OWNER/table-sleuth/issues) - Bug reports and features
+- [GitHub Issues](https://github.com/jamesbconner/TableSleuth/issues) - Bug reports and features
 
 ### Communication
 

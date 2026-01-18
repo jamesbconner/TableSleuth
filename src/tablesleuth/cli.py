@@ -133,19 +133,19 @@ def inspect(path: str, catalog_name: str | None, verbose: bool) -> None:
 
     \b
     # Inspect a local file
-    table-sleuth inspect data/file.parquet
+    tablesleuth inspect data/file.parquet
 
     \b
     # Inspect an S3 file
-    table-sleuth inspect s3://bucket/path/file.parquet
+    tablesleuth inspect s3://bucket/path/file.parquet
 
     \b
     # Inspect all files in a directory
-    table-sleuth inspect data/warehouse/
+    tablesleuth inspect data/warehouse/
 
     \b
     # Inspect Iceberg table data files
-    table-sleuth inspect --catalog ratebeer ratebeer.reviews
+    tablesleuth inspect --catalog ratebeer ratebeer.reviews
     """
     # Configure logging
     if verbose:
@@ -323,8 +323,8 @@ def iceberg_viewer(
 
     \b
     Usage:
-    - From metadata file: table-sleuth iceberg /path/to/metadata.json
-    - From catalog: table-sleuth iceberg --catalog CATALOG --table database.table
+    - From metadata file: tablesleuth iceberg /path/to/metadata.json
+    - From catalog: tablesleuth iceberg --catalog CATALOG --table database.table
 
     Features:
 
@@ -340,19 +340,19 @@ def iceberg_viewer(
 
     \b
     # View snapshots from Glue catalog
-    table-sleuth iceberg --catalog ratebeer --table ratebeer.reviews
+    tablesleuth iceberg --catalog ratebeer --table ratebeer.reviews
 
     \b
     # View snapshots from S3 Tables catalog
-    table-sleuth iceberg --catalog tpch --table tpch.lineitem
+    tablesleuth iceberg --catalog tpch --table tpch.lineitem
 
     \b
     # View from metadata file (local or S3)
-    table-sleuth iceberg s3://bucket/warehouse/table/metadata/metadata.json
+    tablesleuth iceberg s3://bucket/warehouse/table/metadata/metadata.json
 
     \b
     # View with verbose logging (shows debug info)
-    table-sleuth iceberg --catalog ratebeer --table ratebeer.reviews -v
+    tablesleuth iceberg --catalog ratebeer --table ratebeer.reviews -v
     """
     # Configure logging
     if verbose:
@@ -419,7 +419,7 @@ def iceberg_viewer(
                 "Error: Must provide either METADATA_PATH or both --catalog and --table",
                 err=True,
             )
-            click.echo("Try 'table-sleuth iceberg --help' for more information.", err=True)
+            click.echo("Try 'tablesleuth iceberg --help' for more information.", err=True)
             sys.exit(1)
 
         click.echo(f"Table UUID: {table_info.table_uuid}")

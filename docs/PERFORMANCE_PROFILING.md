@@ -1,6 +1,6 @@
 # Performance Profiling and Snapshot Comparison
 
-**Version**: 0.3.0
+**Version**: 0.4.2
 
 ## Overview
 
@@ -107,13 +107,13 @@ class PerformanceComparison:
 
 ```bash
 # Open table from Glue catalog
-table-sleuth iceberg --catalog ratebeer --table ratebeer.reviews
+tablesleuth iceberg --catalog ratebeer --table ratebeer.reviews
 
 # Open table from S3 Tables
-table-sleuth iceberg --catalog tpch --table tpch.lineitem
+tablesleuth iceberg --catalog tpch --table tpch.lineitem
 
 # Open from metadata file
-table-sleuth iceberg s3://bucket/warehouse/table/metadata/metadata.json
+tablesleuth iceberg s3://bucket/warehouse/table/metadata/metadata.json
 ```
 
 ### Step 2: Navigate to Snapshot Comparison
@@ -144,9 +144,9 @@ Table Sleuth provides common query templates:
 ### Programmatic Performance Testing
 
 ```python
-from table_sleuth.services.snapshot_test_manager import SnapshotTestManager
-from table_sleuth.services.snapshot_performance_analyzer import SnapshotPerformanceAnalyzer
-from table_sleuth.services.profiling.gizmo_duckdb import GizmoDuckDbProfiler
+from tablesleuth.services.snapshot_test_manager import SnapshotTestManager
+from tablesleuth.services.snapshot_performance_analyzer import SnapshotPerformanceAnalyzer
+from tablesleuth.services.profiling.gizmo_duckdb import GizmoDuckDbProfiler
 from pyiceberg.catalog import load_catalog
 
 # Load table and snapshots
@@ -573,6 +573,6 @@ Potential improvements for future versions:
 - [USER_GUIDE.md](USER_GUIDE.md) - Complete user documentation
 - [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md) - Developer guide and API reference
 - [EC2_DEPLOYMENT_GUIDE.md](EC2_DEPLOYMENT_GUIDE.md) - AWS EC2 deployment
-- [Snapshot Performance Analyzer](../src/table_sleuth/services/snapshot_performance_analyzer.py) - Source code
-- [Snapshot Test Manager](../src/table_sleuth/services/snapshot_test_manager.py) - Source code
-- [Performance Models](../src/table_sleuth/models/performance.py) - Data models
+- [Snapshot Performance Analyzer](../src/tablesleuth/services/snapshot_performance_analyzer.py) - Source code
+- [Snapshot Test Manager](../src/tablesleuth/services/snapshot_test_manager.py) - Source code
+- [Performance Models](../src/tablesleuth/models/performance.py) - Data models

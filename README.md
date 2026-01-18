@@ -3,8 +3,9 @@
 [![PyPI version](https://badge.fury.io/py/tablesleuth.svg)](https://badge.fury.io/py/tablesleuth)
 [![Python versions](https://img.shields.io/pypi/pyversions/tablesleuth.svg)](https://pypi.org/project/tablesleuth/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![CI](https://github.com/jamesbconner/tablesleuth/workflows/CI/badge.svg)](https://github.com/jamesbconner/tablesleuth/actions)
+[![CI](https://github.com/jamesbconner/TableSleuth/workflows/CI/badge.svg)](https://github.com/jamesbconner/TableSleuth/actions)
 [![Publish to PyPI](https://github.com/jamesbconner/TableSleuth/actions/workflows/publish.yml/badge.svg)](https://github.com/jamesbconner/TableSleuth/actions/workflows/publish.yml)
+[![codecov](https://codecov.io/gh/jamesbconner/TableSleuth/graph/badge.svg?token=SXREVJC93E)](https://codecov.io/gh/jamesbconner/TableSleuth)
 
 A powerful terminal-based tool for deep inspection of Parquet files and Apache Iceberg tables. Analyze file structure, metadata, row groups, column statistics, and table evolution with an intuitive TUI interface.
 
@@ -309,12 +310,19 @@ See [Development Setup](DEVELOPMENT_SETUP.md) for complete development environme
 
 ## What's New
 
-### v0.4.0 (Current)
-- 🎉 **Now available on PyPI!** Install with `pip install tablesleuth`
+### v0.4.2 (Current)
+- 🎉 **Available on PyPI!** Install with `pip install tablesleuth`
 - 🔄 Package renamed to `tablesleuth` for consistency
 - 🤖 Automated CI/CD with GitHub Actions
 - 📦 Enhanced PyPI metadata and publishing workflow
-- ✅ All existing features from v0.3.0
+- 🐛 Bug fixes and stability improvements
+- ✅ All features from v0.4.0 and v0.3.0
+
+### v0.4.0
+- 🎉 PyPI release
+- 🔄 Package renamed to `tablesleuth`
+- 🤖 Automated CI/CD with GitHub Actions
+- 📦 Enhanced PyPI metadata and publishing workflow
 
 ### v0.3.0
 - ✅ Parquet file inspection (local and S3)

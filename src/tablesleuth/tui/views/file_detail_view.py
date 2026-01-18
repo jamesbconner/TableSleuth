@@ -102,7 +102,7 @@ class FileDetailView(Container):
             content_lines.append("[bold cyan]Iceberg File[/bold cyan]")
             content_lines.append("  This file is part of an Iceberg table")
             content_lines.append(
-                "  [dim]Use 'table-sleuth iceberg <metadata>' to view snapshots[/dim]"
+                "  [dim]Use 'tablesleuth iceberg <metadata>' to view snapshots[/dim]"
             )
             content_lines.append("")
 

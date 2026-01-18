@@ -417,13 +417,13 @@ cd ~/Code/TableSleuth
 source .venv/bin/activate
 
 # Inspect Iceberg table from S3 Tables
-table-sleuth iceberg --catalog tpch --table tpch.lineitem
+tablesleuth iceberg --catalog tpch --table tpch.lineitem
 
 # Inspect Iceberg table from Glue
-table-sleuth iceberg --catalog ratebeer --table ratebeer.reviews
+tablesleuth iceberg --catalog ratebeer --table ratebeer.reviews
 
 # Inspect Parquet files in S3
-table-sleuth inspect s3://your-bucket/path/to/file.parquet
+tablesleuth inspect s3://your-bucket/path/to/file.parquet
 ```
 
 ### Instance Control Commands

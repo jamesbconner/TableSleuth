@@ -1,6 +1,6 @@
 # Table Sleuth Developer Guide
 
-**Version**: 0.3.0
+**Version**: 0.4.2
 
 ## Overview
 
@@ -167,8 +167,8 @@ async def on_file_selected(self, file_ref: FileRef) -> None:
 ## Project Structure
 
 ```
-table-sleuth/
-├── src/table_sleuth/
+tablesleuth/
+├── src/tablesleuth/
 │   ├── __init__.py
 │   ├── cli.py                          # CLI entry point (inspect, iceberg commands)
 │   ├── config.py                       # Configuration loading and validation
@@ -262,11 +262,11 @@ table-sleuth/
 │   └── images/                         # Screenshots
 │
 ├── .kiro/specs/                        # Feature specifications
-│   ├── table-sleuth-mvp-0/
+│   ├── tablesleuth-mvp-0/
 │   │   ├── requirements.md
 │   │   ├── design.md
 │   │   └── tasks.md
-│   └── table-sleuth-mvp-v1/
+│   └── tablesleuth-mvp-v1/
 │
 ├── pyproject.toml                      # Project configuration
 ├── uv.lock                             # Dependency lock file
@@ -600,13 +600,13 @@ class SnapshotPerformanceAnalyzer:
 
 ### Step 1: Implement the Protocol
 
-Create a new file in `src/table_sleuth/services/profiling/`:
+Create a new file in `src/tablesleuth/services/profiling/`:
 
 ```python
-# src/table_sleuth/services/profiling/spark_backend.py
+# src/tablesleuth/services/profiling/spark_backend.py
 from typing import Sequence
-from table_sleuth.models.profiling import ColumnProfile
-from table_sleuth.services.profiling.base import ProfilingBackend
+from tablesleuth.models.profiling import ColumnProfile
+from tablesleuth.services.profiling.base import ProfilingBackend
 
 class SparkProfiler:
     """PySpark-based profiling backend."""
@@ -666,13 +666,13 @@ backend = "spark"  # or "gizmosql"
 
 [spark]
 master = "local[*]"
-app_name = "table-sleuth"
+app_name = "tablesleuth"
 ```
 
 ### Step 3: Update Backend Factory
 
 ```python
-# src/table_sleuth/services/profiling/__init__.py
+# src/tablesleuth/services/profiling/__init__.py
 def create_profiling_backend(config: Config) -> ProfilingBackend | None:
     backend_type = config.profiling.backend
 
@@ -695,7 +695,7 @@ def create_profiling_backend(config: Config) -> ProfilingBackend | None:
 ```python
 # tests/test_spark_profiling.py
 import pytest
-from table_sleuth.services.profiling.spark_backend import SparkProfiler
+from tablesleuth.services.profiling.spark_backend import SparkProfiler
 
 @pytest.fixture
 def spark_session():
@@ -883,7 +883,7 @@ def gizmosql_config():
 def gizmosql_available(gizmosql_config):
     """Check if GizmoSQL server is available."""
     try:
-        from table_sleuth.services.profiling.gizmo_duckdb import GizmoDuckDbProfiler
+        from tablesleuth.services.profiling.gizmo_duckdb import GizmoDuckDbProfiler
         profiler = GizmoDuckDbProfiler(**gizmosql_config)
         # Try a simple query
         profiler._get_connection()
@@ -907,7 +907,7 @@ pytest
 
 **With Coverage**:
 ```bash
-pytest --cov=src/table_sleuth --cov-report=html --cov-report=term-missing
+pytest --cov=src/tablesleuth --cov-report=html --cov-report=term-missing
 ```
 
 **Specific Test Categories**:
@@ -1046,7 +1046,7 @@ logger.debug("Executing query", extra={"query": query, "view": view_name})
 1. **Fork and Clone**:
    ```bash
    git clone <your-fork-url>
-   cd table-sleuth
+   cd TableSleuth
    ```
 
 2. **Create Feature Branch**:
@@ -1068,14 +1068,14 @@ logger.debug("Executing query", extra={"query": query, "view": view_name})
 5. **Run Tests**:
    ```bash
    pytest
-   pytest --cov=src/table_sleuth --cov-report=html
+   pytest --cov=src/tablesleuth --cov-report=html
    ```
 
 6. **Check Code Quality**:
    ```bash
    ruff format .
    ruff check .
-   mypy src/table_sleuth
+   mypy src/tablesleuth
    ```
 
 7. **Commit Changes**:
@@ -1140,7 +1140,7 @@ Fixes #456
 - [ ] Performance impact considered
 - [ ] Security implications reviewed
 
-## Current Status (v0.3.0)
+## Current Status (v0.4.2)
 
 ### Completed Features
 

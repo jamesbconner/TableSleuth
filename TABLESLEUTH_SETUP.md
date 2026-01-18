@@ -295,7 +295,7 @@ gizmosvr
 # Run Table Sleuth
 cd ~/Code/TableSleuth
 source .venv/bin/activate
-table-sleuth iceberg --catalog your-catalog --table your.table
+tablesleuth iceberg --catalog your-catalog --table your.table
 ```
 
 For detailed deployment steps, troubleshooting, and teardown instructions, see [docs/EC2_DEPLOYMENT_GUIDE.md](docs/EC2_DEPLOYMENT_GUIDE.md).
@@ -308,30 +308,30 @@ For detailed deployment steps, troubleshooting, and teardown instructions, see [
 
 ```bash
 # Test with sample Parquet file
-table-sleuth inspect tests/data/sample.parquet
+tablesleuth inspect tests/data/sample.parquet
 
 # Test directory scanning
-table-sleuth inspect tests/data/
+tablesleuth inspect tests/data/
 ```
 
 ### Test S3 Files
 
 ```bash
 # Test S3 Parquet file
-table-sleuth inspect s3://your-bucket/path/to/file.parquet
+tablesleuth inspect s3://your-bucket/path/to/file.parquet
 ```
 
 ### Test Iceberg Tables
 
 ```bash
 # Test Glue catalog
-table-sleuth iceberg --catalog your-glue-catalog --table database.table
+tablesleuth iceberg --catalog your-glue-catalog --table database.table
 
 # Test S3 Tables catalog
-table-sleuth iceberg --catalog your-s3tables-catalog --table namespace.table
+tablesleuth iceberg --catalog your-s3tables-catalog --table namespace.table
 
 # Test local catalog
-table-sleuth iceberg --catalog local --table test.table
+tablesleuth iceberg --catalog local --table test.table
 ```
 
 ### Test GizmoSQL Integration
