@@ -18,11 +18,9 @@ All notable changes to this project will be documented in this file.
 ```bash
 # Old (v0.4.x and earlier)
 tablesleuth inspect data.parquet
-tablesleuth inspect data.parquet --profile
 
 # New (v0.5.0 and later)
 tablesleuth parquet data.parquet
-tablesleuth parquet data.parquet --profile
 ```
 
 **Update your scripts and automation:**
@@ -34,7 +32,6 @@ tablesleuth parquet data.parquet --profile
 This change establishes a consistent, format-oriented command structure that improves clarity and supports future extensibility. The CLI now follows a clear pattern:
 - `tablesleuth parquet <path>` - Analyze Parquet files
 - `tablesleuth iceberg <metadata>` - Analyze Iceberg tables
-- Future: `tablesleuth delta <path>` - Analyze Delta Lake tables (planned for v1.0.0)
 
 This naming pattern makes it immediately clear which command analyzes which table format, improving the user experience and making the tool more intuitive for new users.
 
