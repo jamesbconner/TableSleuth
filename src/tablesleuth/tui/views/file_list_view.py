@@ -95,8 +95,11 @@ class FileListView(Container):
             # This preserves partition information while keeping display manageable
             display_path = file_ref.path
 
-            # For S3 paths, show path relative to bucket
-            if display_path.startswith("s3://"):
+            # For S3 paths, show path relative to bucket (handle both s3:// and s3a://)
+            if display_path.startswith("s3a://"):
+                # Remove s3a:// prefix and show from bucket onwards
+                display_path = display_path[6:]  # Remove "s3a://"
+            elif display_path.startswith("s3://"):
                 # Remove s3:// prefix and show from bucket onwards
                 display_path = display_path[5:]  # Remove "s3://"
 

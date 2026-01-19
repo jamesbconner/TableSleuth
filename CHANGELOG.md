@@ -26,8 +26,9 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - S3 path discovery now properly handles S3 URIs (s3://bucket/path) for both single files and directories
-- **s3a:// URI scheme support** - S3 paths using `s3a://` scheme (common in Spark/EMR) are now properly handled alongside `s3://` paths
+- **s3a:// URI scheme support** - S3 paths using `s3a://` scheme (common in Spark/EMR) are now properly handled alongside `s3://` paths in all components (CLI, file discovery, and TUI display)
 - **Non-Parquet S3 file error handling** - S3 files without `.parquet` or `.pq` extensions now raise a clear `ValueError` instead of silently returning an empty list
+- **File list display consistency** - TUI file list now correctly strips both `s3://` and `s3a://` prefixes for consistent path display
 - Glue Hive tables with S3 locations are now correctly discovered and inspected
 - S3 file discovery now reads Parquet metadata to populate row counts (previously showed as None)
 - File list view now displays partition directories in paths instead of just filenames, making it easier to distinguish files in partitioned tables
