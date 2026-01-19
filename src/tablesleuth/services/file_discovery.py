@@ -163,7 +163,7 @@ class FileDiscoveryService:
             from botocore.exceptions import ClientError
         except ImportError as e:
             raise ImportError(
-                "boto3 is required for Glue catalog access. " "Install with: pip install boto3"
+                "boto3 is required for Glue catalog access. Install with: pip install boto3"
             ) from e
 
         # Parse table identifier
