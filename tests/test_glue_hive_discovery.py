@@ -324,3 +324,127 @@ class TestS3PathDiscovery:
             service.discover_from_path("s3://bucket/nonexistent/")
 
         assert "S3 path not found" in str(exc_info.value)
+
+    @patch("pyarrow.parquet.ParquetFile")
+    @patch("pyarrow.fs.S3FileSystem")
+    @patch("pyarrow.fs.FileType")
+    def test_discover_from_s3a_single_file(self, mock_filetype, mock_s3fs_class, mock_pf_class):
+        """Test discovering a single Parquet file from S3 using s3a:// scheme."""
+        # Mock S3 filesystem
+        mock_s3fs = MagicMock()
+        mock_s3fs_class.return_value = mock_s3fs
+
+        # Mock FileType enum
+        mock_filetype.File = "File"
+        mock_filetype.Directory = "Directory"
+        mock_filetype.NotFound = "NotFound"
+
+        # Mock file info for single file
+        mock_file_info = MagicMock()
+        mock_file_info.type = "File"
+        mock_file_info.size = 2048
+        mock_s3fs.get_file_info.return_value = mock_file_info
+
+        # Mock ParquetFile to return row count
+        mock_pf = MagicMock()
+        mock_pf.metadata.num_rows = 750
+        mock_pf_class.return_value = mock_pf
+
+        # Test discovery with s3a:// scheme
+        service = FileDiscoveryService(region="us-east-2")
+        files = service.discover_from_path("s3a://bucket/path/file.parquet")
+
+        assert len(files) == 1
+        assert files[0].path == "s3a://bucket/path/file.parquet"
+        assert files[0].file_size_bytes == 2048
+        assert files[0].record_count == 750
+        assert files[0].source == "s3"
+
+    @patch("pyarrow.parquet.ParquetFile")
+    @patch("pyarrow.fs.S3FileSystem")
+    @patch("pyarrow.fs.FileType")
+    @patch("pyarrow.fs.FileSelector")
+    def test_discover_from_s3a_directory(
+        self, mock_selector, mock_filetype, mock_s3fs_class, mock_pf_class
+    ):
+        """Test discovering Parquet files from S3 directory using s3a:// scheme."""
+        # Mock S3 filesystem
+        mock_s3fs = MagicMock()
+        mock_s3fs_class.return_value = mock_s3fs
+
+        # Mock FileType enum
+        mock_filetype.File = "File"
+        mock_filetype.Directory = "Directory"
+        mock_filetype.NotFound = "NotFound"
+
+        # Mock directory file info
+        mock_dir_info = MagicMock()
+        mock_dir_info.type = "Directory"
+
+        # Mock file infos for files in directory
+        mock_file1 = MagicMock()
+        mock_file1.type = "File"
+        mock_file1.path = "bucket/data/file1.parquet"
+        mock_file1.size = 512
+
+        mock_file2 = MagicMock()
+        mock_file2.type = "File"
+        mock_file2.path = "bucket/data/file2.parquet"
+        mock_file2.size = 1024
+
+        # Setup mock to return directory info first, then file list
+        mock_s3fs.get_file_info.side_effect = [mock_dir_info, [mock_file1, mock_file2]]
+
+        # Mock ParquetFile to return row counts
+        mock_pf1 = MagicMock()
+        mock_pf1.metadata.num_rows = 50
+        mock_pf2 = MagicMock()
+        mock_pf2.metadata.num_rows = 100
+        mock_pf_class.side_effect = [mock_pf1, mock_pf2]
+
+        # Test discovery with s3a:// scheme
+        service = FileDiscoveryService(region="us-east-2")
+        files = service.discover_from_path("s3a://bucket/data/")
+
+        assert len(files) == 2
+        # Verify paths preserve s3a:// scheme
+        assert files[0].path == "s3a://bucket/data/file1.parquet"
+        assert files[0].record_count == 50
+        assert files[1].path == "s3a://bucket/data/file2.parquet"
+        assert files[1].record_count == 100
+
+    @patch("pyarrow.fs.S3FileSystem")
+    @patch("pyarrow.fs.FileType")
+    def test_discover_from_s3_non_parquet_file_error(self, mock_filetype, mock_s3fs_class):
+        """Test that non-parquet S3 files raise ValueError instead of returning empty list."""
+        # Mock S3 filesystem
+        mock_s3fs = MagicMock()
+        mock_s3fs_class.return_value = mock_s3fs
+
+        # Mock FileType enum
+        mock_filetype.File = "File"
+        mock_filetype.Directory = "Directory"
+        mock_filetype.NotFound = "NotFound"
+
+        # Mock file info for non-parquet file
+        mock_file_info = MagicMock()
+        mock_file_info.type = "File"
+        mock_file_info.size = 1024
+        mock_s3fs.get_file_info.return_value = mock_file_info
+
+        service = FileDiscoveryService(region="us-east-2")
+
+        # Test with .csv file
+        with pytest.raises(ValueError) as exc_info:
+            service.discover_from_path("s3://bucket/path/data.csv")
+
+        error_msg = str(exc_info.value)
+        assert "File is not a Parquet file" in error_msg
+        assert ".parquet or .pq extension" in error_msg
+
+        # Test with .json file
+        with pytest.raises(ValueError) as exc_info:
+            service.discover_from_path("s3://bucket/path/data.json")
+
+        error_msg = str(exc_info.value)
+        assert "File is not a Parquet file" in error_msg

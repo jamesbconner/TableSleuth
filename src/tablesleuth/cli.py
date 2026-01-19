@@ -287,8 +287,8 @@ def parquet(path: str, catalog_name: str | None, region: str | None, verbose: bo
         else:
             # Treat as file or directory path (local or S3)
 
-            # Check if it's an S3 path
-            if path.startswith("s3://"):
+            # Check if it's an S3 path (both s3:// and s3a:// schemes)
+            if path.startswith("s3://") or path.startswith("s3a://"):
                 click.echo(f"Loading from S3: {path}")
                 discovery = FileDiscoveryService(region=region)
                 files = discovery.discover_from_path(path)

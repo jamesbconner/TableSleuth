@@ -75,7 +75,7 @@ class FileDiscoveryService:
     def discover_from_path(self, path: str | Path) -> list[FileRef]:
         """Discover Parquet files from a file or directory path.
 
-        Supports both local paths and S3 paths (s3://bucket/path).
+        Supports both local paths and S3 paths (s3:// or s3a:// schemes).
 
         Args:
             path: Path to file or directory (local or S3)
@@ -89,8 +89,8 @@ class FileDiscoveryService:
         """
         path_str = str(path)
 
-        # Handle S3 paths
-        if path_str.startswith("s3://"):
+        # Handle S3 paths (both s3:// and s3a:// schemes)
+        if path_str.startswith("s3://") or path_str.startswith("s3a://"):
             return self._discover_from_s3_path(path_str)
 
         # Handle local paths
@@ -241,13 +241,14 @@ class FileDiscoveryService:
         """Discover Parquet files from an S3 path.
 
         Args:
-            s3_path: S3 path (s3://bucket/path)
+            s3_path: S3 path (s3://bucket/path or s3a://bucket/path)
 
         Returns:
             List of FileRef objects for discovered Parquet files
 
         Raises:
             FileNotFoundError: If S3 path doesn't exist
+            ValueError: If S3 file is not a Parquet file
             ImportError: If required S3 dependencies not available
         """
         try:
@@ -258,8 +259,16 @@ class FileDiscoveryService:
                 "pyarrow is required for S3 access. Install with: pip install pyarrow"
             ) from e
 
-        # Remove s3:// prefix for PyArrow
-        normalized_path = s3_path[5:] if s3_path.startswith("s3://") else s3_path
+        # Normalize S3 path - remove s3:// or s3a:// prefix for PyArrow
+        if s3_path.startswith("s3a://"):
+            normalized_path = s3_path[6:]  # Remove "s3a://"
+            original_scheme = "s3a://"
+        elif s3_path.startswith("s3://"):
+            normalized_path = s3_path[5:]  # Remove "s3://"
+            original_scheme = "s3://"
+        else:
+            normalized_path = s3_path
+            original_scheme = "s3://"
 
         # Create S3 filesystem
         try:
@@ -280,24 +289,29 @@ class FileDiscoveryService:
         parquet_files: list[FileRef] = []
 
         if file_info.type == pafs.FileType.File:
-            # Single file
-            if normalized_path.endswith((".parquet", ".pq")):
-                # Read row count from Parquet metadata
-                record_count = None
-                try:
-                    pf = ParquetFile(normalized_path, filesystem=s3_fs)
-                    record_count = pf.metadata.num_rows
-                except Exception as e:
-                    logger.debug(f"Could not read record count from {s3_path}: {e}")
-
-                parquet_files.append(
-                    FileRef(
-                        path=s3_path,
-                        file_size_bytes=file_info.size,
-                        record_count=record_count,
-                        source="s3",
-                    )
+            # Single file - check if it's a Parquet file
+            if not normalized_path.endswith((".parquet", ".pq")):
+                raise ValueError(
+                    f"File is not a Parquet file: {s3_path}\n"
+                    f"File must have .parquet or .pq extension"
                 )
+
+            # Read row count from Parquet metadata
+            record_count = None
+            try:
+                pf = ParquetFile(normalized_path, filesystem=s3_fs)
+                record_count = pf.metadata.num_rows
+            except Exception as e:
+                logger.debug(f"Could not read record count from {s3_path}: {e}")
+
+            parquet_files.append(
+                FileRef(
+                    path=s3_path,
+                    file_size_bytes=file_info.size,
+                    record_count=record_count,
+                    source="s3",
+                )
+            )
         elif file_info.type == pafs.FileType.Directory:
             # Directory - scan recursively
             selector = pafs.FileSelector(normalized_path, recursive=True)
@@ -305,8 +319,8 @@ class FileDiscoveryService:
                 file_infos = s3_fs.get_file_info(selector)
                 for info in file_infos:
                     if info.type == pafs.FileType.File and info.path.endswith((".parquet", ".pq")):
-                        # Reconstruct full S3 path
-                        full_s3_path = f"s3://{info.path}"
+                        # Reconstruct full S3 path with original scheme
+                        full_s3_path = f"{original_scheme}{info.path}"
                         logger.debug(f"Discovered S3 file: {full_s3_path}")
 
                         # Read row count from Parquet metadata
