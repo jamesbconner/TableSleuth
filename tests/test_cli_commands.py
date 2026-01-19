@@ -284,6 +284,56 @@ class TestParquetCommand:
         # Should see the original error
         assert "does not exist" in result.output
 
+    @patch("tablesleuth.cli.TableSleuthApp")
+    @patch("boto3.client")
+    @patch("tablesleuth.cli.FileDiscoveryService")
+    @patch("tablesleuth.cli.IcebergAdapter")
+    def test_parquet_catalog_missing_mixed_case(
+        self, mock_adapter, mock_discovery, mock_boto3_client, mock_app, runner, tmp_path
+    ):
+        """Test that Glue fallback works with mixed-case catalog names."""
+        # Create test Parquet file
+        test_file = tmp_path / "test.parquet"
+        test_file.write_bytes(b"PAR1" + b"\x00" * 100 + b"PAR1")
+
+        # Mock adapter
+        mock_adapter_instance = Mock()
+        mock_adapter.return_value = mock_adapter_instance
+
+        # Simulate catalog not found with mixed-case name
+        # PyIceberg might lowercase the catalog name in error messages
+        mock_adapter_instance.open_table.side_effect = Exception(
+            "Catalog 'ratebeer' does not exist"
+        )
+
+        # Mock FileDiscoveryService
+        mock_discovery_instance = Mock()
+        mock_discovery.return_value = mock_discovery_instance
+        mock_discovery_instance.discover_from_glue_database.return_value = [
+            FileRef(
+                path=str(test_file),
+                file_size_bytes=1024,
+                record_count=100,
+                source="glue",
+            )
+        ]
+
+        # Mock Glue client
+        mock_glue_client = Mock()
+        mock_boto3_client.return_value = mock_glue_client
+
+        # Mock TUI app
+        mock_app_instance = Mock()
+        mock_app.return_value = mock_app_instance
+
+        # Execute with mixed-case catalog name
+        result = runner.invoke(parquet, ["--catalog", "RateBeer", "RateBeer.reviews"])
+
+        # Should trigger Glue fallback despite case mismatch
+        assert result.exit_code == 0
+        assert "trying Glue database" in result.output
+        mock_discovery_instance.discover_from_glue_database.assert_called_once()
+
 
 class TestParquetCommandErrorHandling:
     """Tests for parquet command error handling."""

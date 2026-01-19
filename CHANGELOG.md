@@ -31,6 +31,7 @@ All notable changes to this project will be documented in this file.
 - File list view now displays partition directories in paths instead of just filenames, making it easier to distinguish files in partitioned tables
 - Direct S3 path inspection now works correctly (e.g., `tablesleuth parquet s3://bucket/path/file.parquet`)
 - Glue fallback error detection is now more specific - only triggers when catalog is missing from `.pyiceberg.yaml`, not when tables don't exist in a configured catalog
+- Glue fallback now works correctly with mixed-case catalog names (e.g., "RateBeer")
 
 ### Migration Guide
 

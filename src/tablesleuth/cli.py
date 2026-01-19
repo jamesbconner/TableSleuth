@@ -231,13 +231,14 @@ def parquet(path: str, catalog_name: str | None, region: str | None, verbose: bo
                 # Check if it's specifically a catalog configuration error
                 # Only trigger Glue fallback if the catalog itself is not configured
                 error_msg = str(iceberg_error).lower()
+                catalog_name_lower = catalog_name.lower()
 
                 # Specific patterns that indicate catalog is not configured
                 is_catalog_missing = (
                     "no such catalog" in error_msg
                     or "catalog not found" in error_msg
-                    or f"catalog '{catalog_name}' does not exist" in error_msg
-                    or f"catalog {catalog_name} does not exist" in error_msg
+                    or f"catalog '{catalog_name_lower}' does not exist" in error_msg
+                    or f"catalog {catalog_name_lower} does not exist" in error_msg
                     or "uri missing" in error_msg  # PyIceberg error when catalog not configured
                 )
 
