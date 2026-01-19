@@ -109,17 +109,23 @@ def main() -> None:
     help="Catalog name for Iceberg tables (e.g., 'local'). If provided, PATH is treated as a table identifier.",
 )
 @click.option(
+    "--region",
+    type=str,
+    default=None,
+    help="AWS region for Glue catalog queries. Defaults to AWS_REGION, AWS_DEFAULT_REGION, or us-east-2.",
+)
+@click.option(
     "--verbose",
     "-v",
     is_flag=True,
     help="Enable verbose logging.",
 )
-def parquet(path: str, catalog_name: str | None, verbose: bool) -> None:
+def parquet(path: str, catalog_name: str | None, region: str | None, verbose: bool) -> None:
     """Inspect Parquet files, directories, or Iceberg tables.
 
     Provides detailed forensic analysis of Parquet file metadata including schema,
     row groups, column statistics, and data samples. Supports local files, S3 paths,
-    and Iceberg table data files.
+    Iceberg tables, and Glue Hive tables.
 
     PATH can be:
 
@@ -128,6 +134,7 @@ def parquet(path: str, catalog_name: str | None, verbose: bool) -> None:
     - S3 Parquet file: s3://bucket/path/file.parquet
     - Directory: data/warehouse/ (recursively scans for .parquet files)
     - Iceberg table: database.table (requires --catalog, inspects data files)
+    - Glue Hive table: database.table (requires --catalog, auto-detects if not in .pyiceberg.yaml)
 
     Examples:
 
@@ -146,6 +153,14 @@ def parquet(path: str, catalog_name: str | None, verbose: bool) -> None:
     \b
     # Inspect Iceberg table data files
     tablesleuth parquet --catalog ratebeer ratebeer.reviews
+
+    \b
+    # Inspect Glue Hive table (auto-detects if not in .pyiceberg.yaml)
+    tablesleuth parquet --catalog mydb mydb.mytable
+
+    \b
+    # Specify AWS region for Glue catalog queries
+    tablesleuth parquet --catalog mydb --region us-east-2 mydb.mytable
     """
     # Configure logging
     if verbose:
@@ -187,7 +202,7 @@ def parquet(path: str, catalog_name: str | None, verbose: bool) -> None:
             table_handle = adapter.open_table(path, catalog_name)
 
             # Discover files from table
-            discovery = FileDiscoveryService(iceberg_adapter=adapter)
+            discovery = FileDiscoveryService(iceberg_adapter=adapter, region=region)
             # Extract table identifier from ARN for discovery
             arn_info = adapter._parse_s3_tables_arn(path, catalog_name)
             if arn_info:
@@ -200,48 +215,118 @@ def parquet(path: str, catalog_name: str | None, verbose: bool) -> None:
             click.echo(f"Found {len(files)} data files in table")
 
         elif catalog_name:
-            # Treat as Iceberg table identifier
-            click.echo(f"Loading Iceberg table: {path} (catalog: {catalog_name})")
+            # Treat as Iceberg table identifier (or Glue Hive table as fallback)
+            click.echo(f"Loading table: {path} (catalog: {catalog_name})")
 
-            # Open table
-            table_handle = adapter.open_table(path, catalog_name)
+            # Initialize discovery service with region
+            discovery = FileDiscoveryService(iceberg_adapter=adapter, region=region)
 
-            # Discover files from table
-            discovery = FileDiscoveryService(iceberg_adapter=adapter)
-            files = discovery.discover_from_table(path, catalog_name)
+            try:
+                # Try Iceberg first
+                table_handle = adapter.open_table(path, catalog_name)
+                files = discovery.discover_from_table(path, catalog_name)
+                click.echo(f"Found {len(files)} data files in Iceberg table")
 
-            click.echo(f"Found {len(files)} data files in table")
+            except Exception as iceberg_error:
+                # Check if it's specifically a catalog configuration error
+                # Only trigger Glue fallback if the catalog itself is not configured
+                error_msg = str(iceberg_error).lower()
+                catalog_name_lower = catalog_name.lower()
 
-        else:
-            # Treat as file or directory path
-            path_obj = Path(path)
+                # Specific patterns that indicate catalog is not configured
+                is_catalog_missing = (
+                    "no such catalog" in error_msg
+                    or "catalog not found" in error_msg
+                    or f"catalog '{catalog_name_lower}' does not exist" in error_msg
+                    or f"catalog {catalog_name_lower} does not exist" in error_msg
+                    or "uri missing" in error_msg  # PyIceberg error when catalog not configured
+                )
 
-            if not path_obj.exists():
-                click.echo(f"Error: Path does not exist: {path}", err=True)
-                sys.exit(1)
-
-            if path_obj.is_file():
-                # Single file
-                if not path.endswith((".parquet", ".pq")):
+                if is_catalog_missing:
+                    # Try Glue Hive table fallback
                     click.echo(
-                        f"Warning: File does not have .parquet extension: {path}",
-                        err=True,
+                        f"Catalog '{catalog_name}' not in .pyiceberg.yaml, trying Glue database..."
                     )
 
-                click.echo(f"Loading Parquet file: {path}")
-                discovery = FileDiscoveryService()
+                    try:
+                        files = discovery.discover_from_glue_database(catalog_name, path)
+                        click.echo(f"Found {len(files)} Parquet files in Glue Hive table")
+
+                        # Create a dummy table handle for Hive table
+                        table_handle = TableHandle(native=None, format_name="parquet")
+
+                    except Exception as glue_error:
+                        # Both failed, provide helpful error
+                        click.echo(f"Error: Could not load table '{path}'", err=True)
+                        click.echo("", err=True)
+                        click.echo("Tried:", err=True)
+                        click.echo(
+                            f"  1. Iceberg catalog '{catalog_name}' in .pyiceberg.yaml: {iceberg_error}",
+                            err=True,
+                        )
+                        click.echo(f"  2. Glue database '{catalog_name}': {glue_error}", err=True)
+                        click.echo("", err=True)
+                        click.echo("Suggestions:", err=True)
+                        click.echo(
+                            "  - For Iceberg tables: Add catalog to .pyiceberg.yaml", err=True
+                        )
+                        click.echo(
+                            "  - For Glue tables: Verify table exists with 'aws glue get-table'",
+                            err=True,
+                        )
+                        click.echo(
+                            f"  - Try different region with --region flag (current: {discovery._resolved_region})",
+                            err=True,
+                        )
+                        sys.exit(1)
+                else:
+                    # Some other error (e.g., table not found in configured catalog)
+                    # Don't try Glue fallback, just report the error
+                    raise
+
+        else:
+            # Treat as file or directory path (local or S3)
+
+            # Check if it's an S3 path (both s3:// and s3a:// schemes)
+            if path.startswith("s3://") or path.startswith("s3a://"):
+                click.echo(f"Loading from S3: {path}")
+                discovery = FileDiscoveryService(region=region)
                 files = discovery.discover_from_path(path)
 
-            elif path_obj.is_dir():
-                # Directory
-                click.echo(f"Scanning directory: {path}")
-                discovery = FileDiscoveryService()
-                files = discovery.discover_from_path(path)
-                click.echo(f"Found {len(files)} Parquet files")
-
+                if len(files) == 1:
+                    click.echo("Found 1 Parquet file")
+                else:
+                    click.echo(f"Found {len(files)} Parquet files")
             else:
-                click.echo(f"Error: Path is neither a file nor directory: {path}", err=True)
-                sys.exit(1)
+                # Local path
+                path_obj = Path(path)
+
+                if not path_obj.exists():
+                    click.echo(f"Error: Path does not exist: {path}", err=True)
+                    sys.exit(1)
+
+                if path_obj.is_file():
+                    # Single file
+                    if not path.endswith((".parquet", ".pq")):
+                        click.echo(
+                            f"Warning: File does not have .parquet extension: {path}",
+                            err=True,
+                        )
+
+                    click.echo(f"Loading Parquet file: {path}")
+                    discovery = FileDiscoveryService()
+                    files = discovery.discover_from_path(path)
+
+                elif path_obj.is_dir():
+                    # Directory
+                    click.echo(f"Scanning directory: {path}")
+                    discovery = FileDiscoveryService()
+                    files = discovery.discover_from_path(path)
+                    click.echo(f"Found {len(files)} Parquet files")
+
+                else:
+                    click.echo(f"Error: Path is neither a file nor directory: {path}", err=True)
+                    sys.exit(1)
 
             # Create a dummy table handle for file-based inspection
             table_handle = TableHandle(native=None, format_name="parquet")

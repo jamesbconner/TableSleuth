@@ -137,8 +137,8 @@ class TestParquetCommand:
 
         # Verify
         assert result.exit_code == 0
-        assert "Loading Iceberg table" in result.output
-        assert "Found 2 data files" in result.output
+        assert "Loading table" in result.output
+        assert "Found 2 data files in Iceberg table" in result.output
 
         mock_adapter_instance.open_table.assert_called_once_with("db.table", "test_catalog")
         mock_discovery_instance.discover_from_table.assert_called_once_with(
@@ -197,19 +197,142 @@ class TestParquetCommand:
         assert "Invalid S3 Tables ARN" in result.output
 
     @patch("tablesleuth.cli.IcebergAdapter")
+    @patch("tablesleuth.cli.TableSleuthApp")
+    @patch("boto3.client")
     @patch("tablesleuth.cli.FileDiscoveryService")
-    def test_parquet_iceberg_table_error(self, mock_discovery, mock_adapter, runner):
+    def test_parquet_iceberg_table_error(
+        self, mock_discovery, mock_boto3_client, mock_app, mock_adapter, runner
+    ):
         """Test error handling when loading Iceberg table fails."""
         mock_adapter_instance = Mock()
         mock_adapter.return_value = mock_adapter_instance
 
-        # Simulate error
-        mock_adapter_instance.open_table.side_effect = Exception("Table not found")
+        # Simulate Iceberg error
+        mock_adapter_instance.open_table.side_effect = Exception("Catalog not found")
+
+        # Mock FileDiscoveryService to also fail on Glue fallback
+        mock_discovery_instance = Mock()
+        mock_discovery.return_value = mock_discovery_instance
+        mock_discovery_instance._resolved_region = "us-east-2"
+        mock_discovery_instance.discover_from_glue_database.side_effect = Exception(
+            "Glue table not found"
+        )
 
         result = runner.invoke(parquet, ["--catalog", "test", "db.table"])
 
         assert result.exit_code == 1
-        assert "Error" in result.output or "Table not found" in result.output
+        assert "Error" in result.output
+        # Should not launch TUI
+        mock_app.assert_not_called()
+
+    @patch("tablesleuth.cli.TableSleuthApp")
+    @patch("tablesleuth.cli.FileDiscoveryService")
+    @patch("tablesleuth.cli.IcebergAdapter")
+    def test_parquet_s3_path(self, mock_adapter, mock_discovery, mock_app, runner):
+        """Test inspecting S3 path directly."""
+        # Mock adapter
+        mock_adapter_instance = Mock()
+        mock_adapter.return_value = mock_adapter_instance
+
+        # Mock FileDiscoveryService
+        mock_discovery_instance = Mock()
+        mock_discovery.return_value = mock_discovery_instance
+
+        # Mock discovered files
+        test_file = FileRef(
+            path="s3://bucket/path/file.parquet",
+            file_size_bytes=1024,
+            record_count=100,
+            source="s3",
+        )
+        mock_discovery_instance.discover_from_path.return_value = [test_file]
+
+        # Mock TUI app
+        mock_app_instance = Mock()
+        mock_app.return_value = mock_app_instance
+
+        # Execute
+        result = runner.invoke(parquet, ["s3://bucket/path/file.parquet"])
+
+        # Verify
+        assert result.exit_code == 0
+        assert "Loading from S3" in result.output
+        assert "Found 1 Parquet file" in result.output
+        mock_discovery_instance.discover_from_path.assert_called_once_with(
+            "s3://bucket/path/file.parquet"
+        )
+        mock_app.assert_called_once()
+
+    @patch("tablesleuth.cli.IcebergAdapter")
+    def test_parquet_table_not_found_in_configured_catalog(self, mock_adapter, runner):
+        """Test that table not found in configured catalog doesn't trigger Glue fallback."""
+        mock_adapter_instance = Mock()
+        mock_adapter.return_value = mock_adapter_instance
+
+        # Simulate table not found error (not catalog missing)
+        mock_adapter_instance.open_table.side_effect = Exception(
+            "Table 'db.nonexistent' does not exist"
+        )
+
+        result = runner.invoke(parquet, ["--catalog", "ratebeer", "db.nonexistent"])
+
+        # Should fail without trying Glue fallback
+        assert result.exit_code == 1
+        assert "Error" in result.output
+        # Should NOT see "trying Glue database" message
+        assert "trying Glue database" not in result.output
+        # Should see the original error
+        assert "does not exist" in result.output
+
+    @patch("tablesleuth.cli.TableSleuthApp")
+    @patch("boto3.client")
+    @patch("tablesleuth.cli.FileDiscoveryService")
+    @patch("tablesleuth.cli.IcebergAdapter")
+    def test_parquet_catalog_missing_mixed_case(
+        self, mock_adapter, mock_discovery, mock_boto3_client, mock_app, runner, tmp_path
+    ):
+        """Test that Glue fallback works with mixed-case catalog names."""
+        # Create test Parquet file
+        test_file = tmp_path / "test.parquet"
+        test_file.write_bytes(b"PAR1" + b"\x00" * 100 + b"PAR1")
+
+        # Mock adapter
+        mock_adapter_instance = Mock()
+        mock_adapter.return_value = mock_adapter_instance
+
+        # Simulate catalog not found with mixed-case name
+        # PyIceberg might lowercase the catalog name in error messages
+        mock_adapter_instance.open_table.side_effect = Exception(
+            "Catalog 'ratebeer' does not exist"
+        )
+
+        # Mock FileDiscoveryService
+        mock_discovery_instance = Mock()
+        mock_discovery.return_value = mock_discovery_instance
+        mock_discovery_instance.discover_from_glue_database.return_value = [
+            FileRef(
+                path=str(test_file),
+                file_size_bytes=1024,
+                record_count=100,
+                source="glue",
+            )
+        ]
+
+        # Mock Glue client
+        mock_glue_client = Mock()
+        mock_boto3_client.return_value = mock_glue_client
+
+        # Mock TUI app
+        mock_app_instance = Mock()
+        mock_app.return_value = mock_app_instance
+
+        # Execute with mixed-case catalog name
+        result = runner.invoke(parquet, ["--catalog", "RateBeer", "RateBeer.reviews"])
+
+        # Should trigger Glue fallback despite case mismatch
+        assert result.exit_code == 0
+        assert "trying Glue database" in result.output
+        mock_discovery_instance.discover_from_glue_database.assert_called_once()
 
 
 class TestParquetCommandErrorHandling:

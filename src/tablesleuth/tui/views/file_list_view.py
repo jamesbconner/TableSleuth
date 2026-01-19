@@ -91,8 +91,24 @@ class FileListView(Container):
 
         # Add rows for each file
         for file_ref in files:
-            # Extract filename from path
-            filename = file_ref.path.split("/")[-1]
+            # For display, show relative path from common prefix or full path
+            # This preserves partition information while keeping display manageable
+            display_path = file_ref.path
+
+            # For S3 paths, show path relative to bucket (handle both s3:// and s3a://)
+            if display_path.startswith("s3a://"):
+                # Remove s3a:// prefix and show from bucket onwards
+                display_path = display_path[6:]  # Remove "s3a://"
+            elif display_path.startswith("s3://"):
+                # Remove s3:// prefix and show from bucket onwards
+                display_path = display_path[5:]  # Remove "s3://"
+
+            # For very long paths, show the last few segments to include partitions
+            # but not the full absolute path
+            path_parts = display_path.split("/")
+            if len(path_parts) > 4:
+                # Show last 4 segments (typically: table/partition1/partition2/file.parquet)
+                display_path = "/".join(path_parts[-4:])
 
             # Format file size
             size_str = self._format_size(file_ref.file_size_bytes)
@@ -100,7 +116,7 @@ class FileListView(Container):
             # Format record count
             rows_str = f"{file_ref.record_count:,}" if file_ref.record_count is not None else "?"
 
-            self._table.add_row(filename, size_str, rows_str)
+            self._table.add_row(display_path, size_str, rows_str)
 
     def get_selected_file(self) -> FileRef | None:
         """Get the currently selected file.
