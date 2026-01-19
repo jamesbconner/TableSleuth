@@ -4,12 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [0.5.0] - 2026-01-18
 
+### Added
+
+- **Glue Hive Table Support** - `parquet` command now supports AWS Glue Hive tables
+  - Added `--region` flag to specify AWS region for Glue catalog queries
+  - Automatic fallback from Iceberg to Glue Hive tables when catalog not found in `.pyiceberg.yaml`
+  - Region resolution follows AWS conventions: `--region` flag > `AWS_REGION` env > `AWS_DEFAULT_REGION` env > default (`us-east-2`)
+  - Helpful error messages when tables not found, with suggestions for troubleshooting
+  - Detects Iceberg tables in Glue and provides configuration guidance
+  - Caution: This is very slow to load if operated against a large table due to reading files for row counts.
+
 ### Changed
 
 - **⚠️ BREAKING CHANGE: CLI Command Renamed** - `inspect` command renamed to `parquet`
   - The Parquet file analysis command has been renamed from `inspect` to `parquet` to establish a consistent format-oriented command structure
   - This change aligns the CLI with a clear pattern where top-level commands correspond to table format types
   - All functionality remains identical - only the command name has changed
+- `parquet` command now tries Iceberg catalog first, then falls back to Glue database lookup
+- Enhanced error messages for catalog-related failures with actionable suggestions
+
+### Fixed
+
+- S3 path discovery now properly handles S3 URIs (s3://bucket/path) for both single files and directories
+- Glue Hive tables with S3 locations are now correctly discovered and inspected
+- S3 file discovery now reads Parquet metadata to populate row counts (previously showed as None)
+- File list view now displays partition directories in paths instead of just filenames, making it easier to distinguish files in partitioned tables
+- Direct S3 path inspection now works correctly (e.g., `tablesleuth parquet s3://bucket/path/file.parquet`)
 
 ### Migration Guide
 

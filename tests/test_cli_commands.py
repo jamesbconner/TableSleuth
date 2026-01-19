@@ -137,8 +137,8 @@ class TestParquetCommand:
 
         # Verify
         assert result.exit_code == 0
-        assert "Loading Iceberg table" in result.output
-        assert "Found 2 data files" in result.output
+        assert "Loading table" in result.output
+        assert "Found 2 data files in Iceberg table" in result.output
 
         mock_adapter_instance.open_table.assert_called_once_with("db.table", "test_catalog")
         mock_discovery_instance.discover_from_table.assert_called_once_with(
@@ -197,19 +197,71 @@ class TestParquetCommand:
         assert "Invalid S3 Tables ARN" in result.output
 
     @patch("tablesleuth.cli.IcebergAdapter")
+    @patch("tablesleuth.cli.TableSleuthApp")
+    @patch("boto3.client")
     @patch("tablesleuth.cli.FileDiscoveryService")
-    def test_parquet_iceberg_table_error(self, mock_discovery, mock_adapter, runner):
+    def test_parquet_iceberg_table_error(
+        self, mock_discovery, mock_boto3_client, mock_app, mock_adapter, runner
+    ):
         """Test error handling when loading Iceberg table fails."""
         mock_adapter_instance = Mock()
         mock_adapter.return_value = mock_adapter_instance
 
-        # Simulate error
-        mock_adapter_instance.open_table.side_effect = Exception("Table not found")
+        # Simulate Iceberg error
+        mock_adapter_instance.open_table.side_effect = Exception("Catalog not found")
+
+        # Mock FileDiscoveryService to also fail on Glue fallback
+        mock_discovery_instance = Mock()
+        mock_discovery.return_value = mock_discovery_instance
+        mock_discovery_instance._resolved_region = "us-east-2"
+        mock_discovery_instance.discover_from_glue_database.side_effect = Exception(
+            "Glue table not found"
+        )
 
         result = runner.invoke(parquet, ["--catalog", "test", "db.table"])
 
         assert result.exit_code == 1
-        assert "Error" in result.output or "Table not found" in result.output
+        assert "Error" in result.output
+        # Should not launch TUI
+        mock_app.assert_not_called()
+
+    @patch("tablesleuth.cli.TableSleuthApp")
+    @patch("tablesleuth.cli.FileDiscoveryService")
+    @patch("tablesleuth.cli.IcebergAdapter")
+    def test_parquet_s3_path(self, mock_adapter, mock_discovery, mock_app, runner):
+        """Test inspecting S3 path directly."""
+        # Mock adapter
+        mock_adapter_instance = Mock()
+        mock_adapter.return_value = mock_adapter_instance
+
+        # Mock FileDiscoveryService
+        mock_discovery_instance = Mock()
+        mock_discovery.return_value = mock_discovery_instance
+
+        # Mock discovered files
+        test_file = FileRef(
+            path="s3://bucket/path/file.parquet",
+            file_size_bytes=1024,
+            record_count=100,
+            source="s3",
+        )
+        mock_discovery_instance.discover_from_path.return_value = [test_file]
+
+        # Mock TUI app
+        mock_app_instance = Mock()
+        mock_app.return_value = mock_app_instance
+
+        # Execute
+        result = runner.invoke(parquet, ["s3://bucket/path/file.parquet"])
+
+        # Verify
+        assert result.exit_code == 0
+        assert "Loading from S3" in result.output
+        assert "Found 1 Parquet file" in result.output
+        mock_discovery_instance.discover_from_path.assert_called_once_with(
+            "s3://bucket/path/file.parquet"
+        )
+        mock_app.assert_called_once()
 
 
 class TestParquetCommandErrorHandling:
