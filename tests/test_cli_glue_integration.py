@@ -32,9 +32,7 @@ class TestGlueHiveIntegration:
         # Mock Iceberg adapter to fail (catalog not found)
         mock_adapter_instance = Mock()
         mock_adapter.return_value = mock_adapter_instance
-        mock_adapter_instance.open_table.side_effect = Exception(
-            "Catalog 'testdb' not found"
-        )
+        mock_adapter_instance.open_table.side_effect = Exception("No such catalog: testdb")
 
         # Mock Glue response
         mock_glue_client = Mock()
@@ -65,16 +63,12 @@ class TestGlueHiveIntegration:
     @patch("tablesleuth.cli.TableSleuthApp")
     @patch("boto3.client")
     @patch("tablesleuth.cli.IcebergAdapter")
-    def test_glue_iceberg_table_detection(
-        self, mock_adapter, mock_boto3_client, mock_app, runner
-    ):
+    def test_glue_iceberg_table_detection(self, mock_adapter, mock_boto3_client, mock_app, runner):
         """Test that Iceberg tables in Glue are detected and provide helpful error."""
         # Mock Iceberg adapter to fail (catalog not found)
         mock_adapter_instance = Mock()
         mock_adapter.return_value = mock_adapter_instance
-        mock_adapter_instance.open_table.side_effect = Exception(
-            "Catalog 'testdb' not found"
-        )
+        mock_adapter_instance.open_table.side_effect = Exception("No such catalog: testdb")
 
         # Mock Glue response with Iceberg table
         mock_glue_client = Mock()
@@ -106,9 +100,7 @@ class TestGlueHiveIntegration:
         # Mock Iceberg adapter to fail
         mock_adapter_instance = Mock()
         mock_adapter.return_value = mock_adapter_instance
-        mock_adapter_instance.open_table.side_effect = Exception(
-            "Catalog 'testdb' not found"
-        )
+        mock_adapter_instance.open_table.side_effect = Exception("No such catalog: testdb")
 
         # Mock Glue client error
         mock_glue_client = Mock()
@@ -144,9 +136,7 @@ class TestGlueHiveIntegration:
         # Mock Iceberg adapter to fail
         mock_adapter_instance = Mock()
         mock_adapter.return_value = mock_adapter_instance
-        mock_adapter_instance.open_table.side_effect = Exception(
-            "Catalog 'testdb' not found"
-        )
+        mock_adapter_instance.open_table.side_effect = Exception("No such catalog: testdb")
 
         # Mock boto3 at the module level to capture region
         with patch("boto3.client") as mock_boto3_client:

@@ -73,9 +73,7 @@ class TestGlueHiveDiscovery:
 
         assert len(files) == 1
         assert files[0].path == str(test_file)
-        mock_client.get_table.assert_called_once_with(
-            DatabaseName="testdb", Name="testtable"
-        )
+        mock_client.get_table.assert_called_once_with(DatabaseName="testdb", Name="testtable")
 
     @patch("boto3.client")
     def test_discover_from_glue_database_table_only(self, mock_boto3_client, tmp_path):
@@ -153,9 +151,7 @@ class TestGlueHiveDiscovery:
         # Mock Glue response without Location
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
-        mock_client.get_table.return_value = {
-            "Table": {"Parameters": {}, "StorageDescriptor": {}}
-        }
+        mock_client.get_table.return_value = {"Table": {"Parameters": {}, "StorageDescriptor": {}}}
 
         service = FileDiscoveryService(region="us-east-2")
 

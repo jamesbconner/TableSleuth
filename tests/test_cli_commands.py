@@ -263,6 +263,27 @@ class TestParquetCommand:
         )
         mock_app.assert_called_once()
 
+    @patch("tablesleuth.cli.IcebergAdapter")
+    def test_parquet_table_not_found_in_configured_catalog(self, mock_adapter, runner):
+        """Test that table not found in configured catalog doesn't trigger Glue fallback."""
+        mock_adapter_instance = Mock()
+        mock_adapter.return_value = mock_adapter_instance
+
+        # Simulate table not found error (not catalog missing)
+        mock_adapter_instance.open_table.side_effect = Exception(
+            "Table 'db.nonexistent' does not exist"
+        )
+
+        result = runner.invoke(parquet, ["--catalog", "ratebeer", "db.nonexistent"])
+
+        # Should fail without trying Glue fallback
+        assert result.exit_code == 1
+        assert "Error" in result.output
+        # Should NOT see "trying Glue database" message
+        assert "trying Glue database" not in result.output
+        # Should see the original error
+        assert "does not exist" in result.output
+
 
 class TestParquetCommandErrorHandling:
     """Tests for parquet command error handling."""

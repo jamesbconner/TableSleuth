@@ -228,11 +228,20 @@ def parquet(path: str, catalog_name: str | None, region: str | None, verbose: bo
                 click.echo(f"Found {len(files)} data files in Iceberg table")
 
             except Exception as iceberg_error:
-                # Check if it's a catalog not found error
-                if (
-                    "catalog" in str(iceberg_error).lower()
-                    or "not found" in str(iceberg_error).lower()
-                ):
+                # Check if it's specifically a catalog configuration error
+                # Only trigger Glue fallback if the catalog itself is not configured
+                error_msg = str(iceberg_error).lower()
+
+                # Specific patterns that indicate catalog is not configured
+                is_catalog_missing = (
+                    "no such catalog" in error_msg
+                    or "catalog not found" in error_msg
+                    or f"catalog '{catalog_name}' does not exist" in error_msg
+                    or f"catalog {catalog_name} does not exist" in error_msg
+                    or "uri missing" in error_msg  # PyIceberg error when catalog not configured
+                )
+
+                if is_catalog_missing:
                     # Try Glue Hive table fallback
                     click.echo(
                         f"Catalog '{catalog_name}' not in .pyiceberg.yaml, trying Glue database..."
@@ -270,7 +279,8 @@ def parquet(path: str, catalog_name: str | None, region: str | None, verbose: bo
                         )
                         sys.exit(1)
                 else:
-                    # Some other error, re-raise
+                    # Some other error (e.g., table not found in configured catalog)
+                    # Don't try Glue fallback, just report the error
                     raise
 
         else:
