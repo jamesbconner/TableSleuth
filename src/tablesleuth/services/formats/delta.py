@@ -364,6 +364,10 @@ class DeltaAdapter:
     def get_schema_at_version(self, table: TableHandle, version: int) -> dict[str, str]:
         """Get the schema at a specific version.
 
+        Delta Lake only writes metaData entries when the schema changes, typically
+        in version 0. This method searches backwards from the requested version to
+        find the most recent metaData entry.
+
         Args:
             table: TableHandle containing DeltaTable
             version: Version number to get schema for
@@ -372,7 +376,7 @@ class DeltaAdapter:
             Dictionary mapping column names to data types
 
         Raises:
-            ValueError: If version number is out of range
+            ValueError: If version number is out of range or no schema found
         """
         dt: DeltaTable = table.native
         
@@ -410,37 +414,51 @@ class DeltaAdapter:
                     f"No version files found"
                 )
         
-        # Parse the version file to extract schema from metadata
+        # Search backwards from requested version to find most recent metaData entry
+        # Delta Lake only writes metaData when schema changes (typically version 0)
         schema_dict: dict[str, str] = {}
         
-        with open(version_file, "r") as f:
-            for line in f:
-                try:
-                    entry = json.loads(line.strip())
-                    
-                    # Look for metaData entry
-                    if "metaData" in entry:
-                        metadata = entry["metaData"]
-                        schema_string = metadata.get("schemaString", "{}")
-                        schema_json = json.loads(schema_string)
+        for v in range(version, -1, -1):
+            v_file = delta_log_path / f"{v:020d}.json"
+            
+            if not v_file.exists():
+                continue
+            
+            with open(v_file) as f:
+                for line in f:
+                    try:
+                        entry = json.loads(line.strip())
                         
-                        # Extract fields from schema
-                        fields = schema_json.get("fields", [])
-                        for field in fields:
-                            field_name = field["name"]
-                            field_type = field["type"]
+                        # Look for metaData entry
+                        if "metaData" in entry:
+                            metadata = entry["metaData"]
+                            schema_string = metadata.get("schemaString", "{}")
+                            schema_json = json.loads(schema_string)
                             
-                            # Handle complex types (struct, array, map)
-                            if isinstance(field_type, dict):
-                                field_type = field_type.get("type", str(field_type))
+                            # Extract fields from schema
+                            fields = schema_json.get("fields", [])
+                            for field in fields:
+                                field_name = field["name"]
+                                field_type = field["type"]
+                                
+                                # Handle complex types (struct, array, map)
+                                if isinstance(field_type, dict):
+                                    field_type = field_type.get("type", str(field_type))
+                                
+                                schema_dict[field_name] = str(field_type)
                             
-                            schema_dict[field_name] = str(field_type)
-                        
-                        break  # Found schema, no need to continue
-                        
-                except json.JSONDecodeError:
-                    continue
+                            # Found schema, return immediately
+                            logger.debug(
+                                f"Found schema at version {v} for requested version {version}: "
+                                f"{len(schema_dict)} columns"
+                            )
+                            return schema_dict
+                            
+                    except json.JSONDecodeError:
+                        continue
         
+        # If we get here, no schema was found in any version
+        logger.warning(f"No schema found for version {version} (searched back to version 0)")
         return schema_dict
 
     def compare_schemas(
@@ -498,8 +516,72 @@ class DeltaAdapter:
 
         return changes
 
+    def get_versions_with_metadata(self, table: TableHandle) -> set[int]:
+        """Get set of version numbers that have metaData entries (schema changes).
+
+        Args:
+            table: TableHandle containing DeltaTable
+
+        Returns:
+            Set of version numbers that contain metaData entries
+        """
+        dt: DeltaTable = table.native
+        
+        # Get the table URI to find all version files
+        table_uri = dt.table_uri
+        
+        # Handle file URI prefix
+        if table_uri.startswith("file:///"):
+            table_uri = table_uri[8:]
+        elif table_uri.startswith("file://"):
+            table_uri = table_uri[7:]
+        elif table_uri.startswith("file:\\"):
+            table_uri = table_uri[6:].lstrip("\\")
+            
+        delta_log_path = Path(table_uri) / "_delta_log"
+        
+        # Find all version files
+        version_files = list(delta_log_path.glob("[0-9]*.json"))
+        if not version_files:
+            return set()
+        
+        current_version = max(
+            int(f.stem) for f in version_files 
+            if f.stem.isdigit()
+        )
+        
+        versions_with_metadata: set[int] = set()
+        
+        # Scan each version file for metaData entries
+        for version in range(current_version + 1):
+            version_file = delta_log_path / f"{version:020d}.json"
+            
+            if not version_file.exists():
+                continue
+            
+            try:
+                with open(version_file) as f:
+                    for line in f:
+                        try:
+                            entry = json.loads(line.strip())
+                            if "metaData" in entry:
+                                versions_with_metadata.add(version)
+                                break  # Found metaData, move to next version
+                        except json.JSONDecodeError:
+                            continue
+            except Exception as e:
+                logger.warning(f"Failed to scan version {version} for metaData: {e}")
+                continue
+        
+        return versions_with_metadata
+
     def get_schema_evolution(self, table: TableHandle) -> list[dict[str, Any]]:
         """Build schema evolution timeline across all versions.
+
+        This method efficiently detects schema changes by scanning for metaData entries
+        in the transaction log. Delta Lake only writes metaData when:
+        1. The table is created (version 0)
+        2. The schema is explicitly changed (ALTER TABLE, schema_mode="merge", etc.)
 
         Args:
             table: TableHandle containing DeltaTable
@@ -539,29 +621,71 @@ class DeltaAdapter:
         evolution: list[dict[str, Any]] = []
         previous_schema: dict[str, str] | None = None
 
+        # Scan each version file for metaData entries (schema changes)
         for version in range(current_version + 1):
+            version_file = delta_log_path / f"{version:020d}.json"
+            
+            if not version_file.exists():
+                continue
+            
+            # Look for metaData entry in this version
+            schema_dict: dict[str, str] = {}
+            has_metadata = False
+            
             try:
-                # Get schema at this version
-                schema = self.get_schema_at_version(table, version)
-
-                # Compare with previous version
-                if previous_schema is not None:
-                    changes = self.compare_schemas(previous_schema, schema)
-                    
-                    if changes:
-                        # Get timestamp for this version
-                        snapshot = self._build_snapshot_info(dt, version)
+                with open(version_file) as f:
+                    for line in f:
+                        try:
+                            entry = json.loads(line.strip())
+                            
+                            # Look for metaData entry (indicates schema change)
+                            if "metaData" in entry:
+                                has_metadata = True
+                                metadata = entry["metaData"]
+                                schema_string = metadata.get("schemaString", "{}")
+                                schema_json = json.loads(schema_string)
+                                
+                                # Extract fields from schema
+                                fields = schema_json.get("fields", [])
+                                for field in fields:
+                                    field_name = field["name"]
+                                    field_type = field["type"]
+                                    
+                                    # Handle complex types (struct, array, map)
+                                    if isinstance(field_type, dict):
+                                        field_type = field_type.get("type", str(field_type))
+                                    
+                                    schema_dict[field_name] = str(field_type)
+                                
+                                break  # Found metaData, no need to continue
+                                
+                        except json.JSONDecodeError:
+                            continue
+                
+                # If we found a metaData entry, this version has a schema change
+                if has_metadata and schema_dict:
+                    # Compare with previous schema (if any)
+                    if previous_schema is not None:
+                        changes = self.compare_schemas(previous_schema, schema_dict)
                         
-                        evolution.append({
-                            "version": version,
-                            "changes": changes,
-                            "timestamp_ms": snapshot.timestamp_ms,
-                        })
-
-                previous_schema = schema
+                        if changes:
+                            # Get timestamp for this version
+                            snapshot = self._build_snapshot_info(dt, version)
+                            
+                            evolution.append({
+                                "version": version,
+                                "changes": changes,
+                                "timestamp_ms": snapshot.timestamp_ms,
+                            })
+                    else:
+                        # Version 0 - initial schema (no changes to report)
+                        logger.debug(f"Version {version}: Initial schema with {len(schema_dict)} columns")
+                    
+                    # Update previous schema for next iteration
+                    previous_schema = schema_dict
 
             except Exception as e:
-                logger.warning(f"Failed to get schema for version {version}: {e}")
+                logger.warning(f"Failed to parse version {version} for schema evolution: {e}")
                 continue
 
         return evolution

@@ -699,14 +699,25 @@ def delta(
         snapshots = adapter.list_snapshots(table_handle)
         click.echo(f"Found {len(snapshots)} versions (0 to {len(snapshots) - 1})")
 
-        # Launch TUI with the table handle
+        # Launch Delta-specific TUI
         click.echo("Launching TUI...")
-        app = TableSleuthApp(
-            table_handle=table_handle,
-            adapter=adapter,
-            config=config,
-            files=snapshot.data_files,
-        )
+        from textual.app import App
+
+        from .tui.views.delta_view import DeltaView
+
+        class DeltaViewerApp(App):
+            """Wrapper app for DeltaView screen."""
+
+            def on_mount(self) -> None:
+                """Push the DeltaView screen on mount."""
+                self.push_screen(
+                    DeltaView(
+                        table_handle=table_handle,
+                        adapter=adapter,
+                    )
+                )
+
+        app = DeltaViewerApp()
         app.run()
 
     except ImportError as e:

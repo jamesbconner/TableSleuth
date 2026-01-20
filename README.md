@@ -7,7 +7,7 @@
 [![Publish to PyPI](https://github.com/jamesbconner/TableSleuth/actions/workflows/publish.yml/badge.svg)](https://github.com/jamesbconner/TableSleuth/actions/workflows/publish.yml)
 [![codecov](https://codecov.io/gh/jamesbconner/TableSleuth/graph/badge.svg?token=SXREVJC93E)](https://codecov.io/gh/jamesbconner/TableSleuth)
 
-A powerful terminal-based tool for deep inspection of Parquet files and Apache Iceberg tables. Analyze file structure, metadata, row groups, column statistics, and table evolution with an intuitive TUI interface.
+A powerful terminal-based tool for deep inspection of Parquet files, Apache Iceberg tables, and Delta Lake tables. Analyze file structure, metadata, row groups, column statistics, and table evolution with an intuitive TUI interface.
 
 ## Key Features
 
@@ -25,9 +25,18 @@ A powerful terminal-based tool for deep inspection of Parquet files and Apache I
 - **Schema Evolution** - Track schema changes over time
 - **Catalog Support** - Local SQLite, AWS Glue, and AWS S3 Tables
 
+### Delta Lake Analysis
+- **Version History** - Navigate through Delta table versions and time travel
+- **File Size Analysis** - Identify small file problems and optimization opportunities
+- **Storage Waste** - Track tombstoned files and reclaimable storage
+- **DML Forensics** - Analyze MERGE, UPDATE, DELETE operations and rewrite amplification
+- **Z-Order Effectiveness** - Monitor data skipping and clustering degradation
+- **Checkpoint Health** - Assess transaction log health and maintenance needs
+- **Optimization Recommendations** - Get prioritized suggestions for OPTIMIZE, VACUUM, and ZORDER
+
 ### Interface
 - **Interactive TUI** - Keyboard-driven navigation with rich visualizations
-- **Multi-Source Support** - Local files, S3, and Iceberg catalogs
+- **Multi-Source Support** - Local files, S3, Iceberg catalogs, and Delta tables
 - **Performance Optimized** - Async operations, caching, and lazy loading
 
 ## Screenshots
@@ -232,6 +241,11 @@ tablesleuth iceberg "arn:aws:s3tables:region:account:bucket/name/table/db.table"
 
 # Launch Iceberg viewer
 tablesleuth iceberg --catalog local --table db.table
+
+# Inspect Delta Lake tables
+tablesleuth delta path/to/delta/table
+tablesleuth delta s3://bucket/path/to/delta/table
+tablesleuth delta path/to/delta/table --version 5  # Time travel to version 5
 ```
 
 ### TUI Navigation
@@ -332,13 +346,16 @@ See [Development Setup](DEVELOPMENT_SETUP.md) for complete development environme
 - ✅ Column profiling with GizmoSQL
 - ✅ AWS Glue and S3 Tables catalog support
 - ✅ Interactive TUI with rich visualizations
+- ✅ Delta Lake version history and forensics
+- ✅ Storage waste analysis and optimization recommendations
+- ✅ DML operation forensics and rewrite amplification tracking
 
 ### Roadmap
-- Delta Lake and Hudi support
+- Apache Hudi support
 - Schema evolution visualization
 - Export capabilities (JSON, CSV reports)
 - REST catalog support
-- Automated optimization recommendations
+- Advanced partition analysis
 
 ## Contributing
 

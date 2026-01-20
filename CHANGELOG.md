@@ -2,6 +2,45 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- **Delta Lake Support** - Comprehensive forensic analysis for Delta Lake tables
+  - New `delta` command for inspecting Delta Lake tables (local and S3)
+  - Version history navigation and time travel support (`--version` flag)
+  - File size analysis with small file detection and OPTIMIZE recommendations
+  - Storage waste analysis tracking tombstoned files and reclaimable storage
+  - DML operation forensics analyzing MERGE, UPDATE, DELETE with rewrite amplification
+  - Z-Order effectiveness monitoring with data skipping metrics
+  - Checkpoint health assessment with transaction log analysis
+  - Intelligent optimization recommendations with priority levels (high/medium/low)
+  - Partition distribution analysis with skew detection
+  - Rewrite amplification trend tracking across operations
+  - Support for cloud storage options (S3, Azure, GCS) via `--storage-option` flags
+- **Delta Lake Services**
+  - `DeltaAdapter` - Protocol-compliant adapter for Delta tables
+  - `DeltaLogParser` - Transaction log parsing with commit info extraction
+  - `DeltaForensics` - Static forensic analysis methods for optimization insights
+- **Testing** - 57 Delta-related tests with comprehensive coverage
+  - Unit tests for forensic analysis methods
+  - Integration tests for adapter and protocol compliance
+  - Parser tests for transaction log formats
+  - Property-based tests for file analysis
+
+### Changed
+
+- Updated package description to explicitly mention Delta Lake support
+- Added "delta-lake" to package keywords for better discoverability
+- Enhanced documentation with Delta Lake features and examples
+
+### Documentation
+
+- Added Delta Lake features section to README.md
+- Added comprehensive Delta Lake guide to USER_GUIDE.md
+- Updated CLI help text to include Delta Lake capabilities
+- Created Delta Lake integration plan and implementation summary
+
 ## [0.5.0] - 2026-01-18
 
 ### Added
