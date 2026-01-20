@@ -161,7 +161,7 @@ class DeltaLogParser:
                         remove_actions.append(remove_action)
 
         except Exception as e:
-            if isinstance(e, (FileNotFoundError, json.JSONDecodeError)):
+            if isinstance(e, FileNotFoundError | json.JSONDecodeError):
                 raise
             raise ValueError(f"Error parsing version file {file_path}: {str(e)}") from e
 
@@ -216,13 +216,9 @@ class DeltaLogParser:
 
         # MERGE-specific metrics
         if "numTargetRowsMatchedUpdated" in metrics:
-            normalized["num_target_rows_matched_updated"] = metrics[
-                "numTargetRowsMatchedUpdated"
-            ]
+            normalized["num_target_rows_matched_updated"] = metrics["numTargetRowsMatchedUpdated"]
         if "numTargetRowsMatchedDeleted" in metrics:
-            normalized["num_target_rows_matched_deleted"] = metrics[
-                "numTargetRowsMatchedDeleted"
-            ]
+            normalized["num_target_rows_matched_deleted"] = metrics["numTargetRowsMatchedDeleted"]
         if "numTargetRowsNotMatchedBySourceUpdated" in metrics:
             normalized["num_target_rows_not_matched_by_source_updated"] = metrics[
                 "numTargetRowsNotMatchedBySourceUpdated"

@@ -323,9 +323,7 @@ class TestSchemaEvolution:
 
         assert len(changes) == 0
 
-    def test_get_schema_evolution(
-        self, temp_delta_table_with_schema_changes: Path
-    ) -> None:
+    def test_get_schema_evolution(self, temp_delta_table_with_schema_changes: Path) -> None:
         """Test building complete schema evolution timeline.
 
         Validates Requirements 4.1, 4.2, 4.3, 4.4, 4.5:

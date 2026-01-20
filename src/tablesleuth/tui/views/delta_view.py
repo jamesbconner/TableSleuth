@@ -259,7 +259,9 @@ class VersionDetailView(Container):
             lines.append("[bold]Operation Details:[/bold]")
             for key, value in version.summary.items():
                 if key.startswith("metric_") or key.startswith("param_"):
-                    display_key = key.replace("metric_", "").replace("param_", "").replace("_", " ").title()
+                    display_key = (
+                        key.replace("metric_", "").replace("param_", "").replace("_", " ").title()
+                    )
                     lines.append(f"  {display_key}: {value}")
 
         content = "\n".join(lines)
@@ -308,10 +310,12 @@ class VersionFilesView(Container):
         """Set up the view when mounted."""
         table = self.query_one("#files-table", DataTable)
         table.add_columns("Path", "Size", "Records", "Partition")
-        
+
         # If version was set before mount, update now
         if self._version:
-            logger.debug(f"Version was set before mount, updating with {len(self._version.data_files)} files")
+            logger.debug(
+                f"Version was set before mount, updating with {len(self._version.data_files)} files"
+            )
             self._populate_table()
 
     def update_version(self, version: SnapshotInfo) -> None:
@@ -327,14 +331,14 @@ class VersionFilesView(Container):
         """Populate the table with files from current version."""
         if not self._version:
             return
-            
+
         try:
             table = self.query_one("#files-table", DataTable)
             table.clear(columns=False)
 
             for file_ref in self._version.data_files:
                 # Format size
-                size_mb = file_ref.file_size_bytes / (1024 ** 2)
+                size_mb = file_ref.file_size_bytes / (1024**2)
                 size_str = f"{size_mb:.2f} MB"
 
                 # Format records
@@ -392,10 +396,9 @@ class VersionSchemaView(Container):
         """Set up the view when mounted."""
         table = self.query_one("#schema-table", DataTable)
         table.add_columns("Column Name", "Data Type")
-        
+
         if self._schema:
             self.update_schema(self._schema)
-
 
     def update_schema(self, schema: dict[str, str]) -> None:
         """Update the displayed schema.
@@ -408,17 +411,17 @@ class VersionSchemaView(Container):
             return
 
         self._schema = schema
-        
+
         try:
             table = self.query_one("#schema-table", DataTable)
-            
+
             # Clear existing rows (preserve columns)
             table.clear(columns=False)
 
             # Add schema fields
             for col_name, col_type in schema.items():
                 table.add_row(col_name, col_type)
-            
+
         except Exception as e:
             logger.error(f"Error updating schema view: {e}", exc_info=True)
             raise
@@ -566,16 +569,24 @@ class ForensicsView(Container):
         lines.append(f"Median Size: {file_analysis['median_size_bytes'] / (1024**2):.2f} MB")
         lines.append("")
         lines.append("Distribution:")
-        for bucket, count in file_analysis['histogram'].items():
-            percentage = (count / file_analysis['total_file_count'] * 100) if file_analysis['total_file_count'] > 0 else 0
+        for bucket, count in file_analysis["histogram"].items():
+            percentage = (
+                (count / file_analysis["total_file_count"] * 100)
+                if file_analysis["total_file_count"] > 0
+                else 0
+            )
             lines.append(f"  {bucket}: {count} files ({percentage:.1f}%)")
         lines.append("")
 
         # Small File Analysis
-        if file_analysis['small_file_percentage'] > 0:
-            lines.append(f"[bold yellow]Small Files (<10MB):[/bold yellow] {file_analysis['small_file_count']} ({file_analysis['small_file_percentage']:.1f}%)")
-            if file_analysis['optimization_opportunity'] > 0:
-                lines.append(f"  Optimization could reduce by ~{file_analysis['optimization_opportunity']} files")
+        if file_analysis["small_file_percentage"] > 0:
+            lines.append(
+                f"[bold yellow]Small Files (<10MB):[/bold yellow] {file_analysis['small_file_count']} ({file_analysis['small_file_percentage']:.1f}%)"
+            )
+            if file_analysis["optimization_opportunity"] > 0:
+                lines.append(
+                    f"  Optimization could reduce by ~{file_analysis['optimization_opportunity']} files"
+                )
             lines.append("")
 
         # Storage Waste Analysis
@@ -583,14 +594,20 @@ class ForensicsView(Container):
             lines.append("[bold cyan]Storage Waste Analysis[/bold cyan]")
             lines.append("")
             lines.append(f"Active Files: {storage_analysis['active_files']['count']}")
-            lines.append(f"Active Size: {storage_analysis['active_files']['total_size_bytes'] / (1024**3):.2f} GB")
+            lines.append(
+                f"Active Size: {storage_analysis['active_files']['total_size_bytes'] / (1024**3):.2f} GB"
+            )
             lines.append("")
             lines.append(f"Tombstone Files: {storage_analysis['tombstone_files']['count']}")
-            lines.append(f"Tombstone Size: {storage_analysis['tombstone_files']['total_size_bytes'] / (1024**3):.2f} GB")
+            lines.append(
+                f"Tombstone Size: {storage_analysis['tombstone_files']['total_size_bytes'] / (1024**3):.2f} GB"
+            )
             lines.append(f"Waste Percentage: {storage_analysis['waste_percentage']:.1f}%")
             lines.append("")
-            if storage_analysis['reclaimable_bytes'] > 0:
-                lines.append(f"[bold yellow]Reclaimable:[/bold yellow] {storage_analysis['reclaimable_bytes'] / (1024**3):.2f} GB")
+            if storage_analysis["reclaimable_bytes"] > 0:
+                lines.append(
+                    f"[bold yellow]Reclaimable:[/bold yellow] {storage_analysis['reclaimable_bytes'] / (1024**3):.2f} GB"
+                )
                 lines.append(f"  (beyond {storage_analysis['retention_period_hours']}h retention)")
             lines.append("")
 
@@ -602,23 +619,27 @@ class ForensicsView(Container):
                 "healthy": "green",
                 "degraded": "yellow",
                 "critical": "red",
-            }.get(checkpoint_health['health_status'], "white")
-            lines.append(f"Status: [bold {status_color}]{checkpoint_health['health_status'].upper()}[/bold {status_color}]")
-            
-            if checkpoint_health['last_checkpoint_version'] is not None:
-                lines.append(f"Last Checkpoint: Version {checkpoint_health['last_checkpoint_version']}")
+            }.get(checkpoint_health["health_status"], "white")
+            lines.append(
+                f"Status: [bold {status_color}]{checkpoint_health['health_status'].upper()}[/bold {status_color}]"
+            )
+
+            if checkpoint_health["last_checkpoint_version"] is not None:
+                lines.append(
+                    f"Last Checkpoint: Version {checkpoint_health['last_checkpoint_version']}"
+                )
             else:
                 lines.append("Last Checkpoint: None")
-            
+
             lines.append(f"Log Tail Length: {checkpoint_health['log_tail_length']} files")
-            
-            if checkpoint_health['issues']:
+
+            if checkpoint_health["issues"]:
                 lines.append("")
                 lines.append("[bold yellow]Issues:[/bold yellow]")
-                for issue in checkpoint_health['issues']:
+                for issue in checkpoint_health["issues"]:
                     lines.append(f"  • {issue}")
-            
-            if checkpoint_health['recommendation']:
+
+            if checkpoint_health["recommendation"]:
                 lines.append("")
                 lines.append(f"[bold]Recommendation:[/bold] {checkpoint_health['recommendation']}")
 
@@ -680,9 +701,11 @@ class RecommendationsView(Container):
                     "high": "red",
                     "medium": "yellow",
                     "low": "cyan",
-                }.get(rec['priority'], "white")
+                }.get(rec["priority"], "white")
 
-                lines.append(f"[bold {priority_color}]{i}. {rec['type']} (Priority: {rec['priority'].upper()})[/bold {priority_color}]")
+                lines.append(
+                    f"[bold {priority_color}]{i}. {rec['type']} (Priority: {rec['priority'].upper()})[/bold {priority_color}]"
+                )
                 lines.append(f"   Reason: {rec['reason']}")
                 lines.append(f"   Impact: {rec['estimated_impact']}")
                 lines.append(f"   Command: [italic]{rec['command']}[/italic]")
@@ -1014,7 +1037,9 @@ class DeltaView(Screen):
 
             # Show success notification
             notification = self.query_one("#notification", Notification)
-            notification.success(f"Comparing versions {version_a.snapshot_id} and {version_b.snapshot_id}")
+            notification.success(
+                f"Comparing versions {version_a.snapshot_id} and {version_b.snapshot_id}"
+            )
 
         except Exception as e:
             logger.exception("Failed to compare versions")

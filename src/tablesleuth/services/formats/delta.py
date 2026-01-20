@@ -92,7 +92,7 @@ class DeltaAdapter:
         """
         # Check if path exists and is valid (for local paths only)
         is_cloud_path = identifier.startswith(("s3://", "gs://", "abfs://", "abfss://"))
-        
+
         if not is_cloud_path:
             # For local paths, validate before attempting to open
             if not Path(identifier).exists():
@@ -100,7 +100,7 @@ class DeltaAdapter:
                     f"Table path not found: {identifier}\n"
                     f"Verify the path exists and is accessible."
                 )
-            
+
             # Validate it's a Delta table
             if not self._is_delta_table(identifier):
                 raise ValueError(
@@ -170,13 +170,13 @@ class DeltaAdapter:
             ValueError: If version number is out of range
         """
         dt: DeltaTable = table.native
-        
+
         # Get the maximum version by loading the latest version first
         # This ensures we know the full version range
-        if not hasattr(table, '_max_version'):
+        if not hasattr(table, "_max_version"):
             # Store the max version on first call
             table._max_version = dt.version()  # type: ignore[attr-defined]
-        
+
         current_version = table._max_version  # type: ignore[attr-defined]
 
         # Use current version if not specified
@@ -243,7 +243,7 @@ class DeltaAdapter:
         """
         # Get the transaction log path for reading commit info
         table_uri = dt.table_uri
-        
+
         # Handle file URI prefix
         if table_uri.startswith("file:///"):
             table_uri = table_uri[8:]  # Remove "file:///" prefix
@@ -252,7 +252,7 @@ class DeltaAdapter:
         elif table_uri.startswith("file:\\"):
             # Windows file URI
             table_uri = table_uri[6:].lstrip("\\")  # Remove "file:\" prefix and leading backslashes
-            
+
         delta_log_path = Path(table_uri) / "_delta_log"
         version_file = delta_log_path / f"{version:020d}.json"
 
@@ -283,33 +283,30 @@ class DeltaAdapter:
         # Accumulate all active files from version 0 to target version
         # This gives us the complete state of the table at this version
         active_files: dict[str, AddAction] = {}  # path -> AddAction
-        
+
         for v in range(version + 1):
             v_file = delta_log_path / f"{v:020d}.json"
             if not v_file.exists():
                 continue
-                
+
             try:
                 v_parsed = DeltaLogParser.parse_version_file(str(v_file))
-                
+
                 # Add new files
                 for add_action in v_parsed["add_actions"]:
                     active_files[add_action.path] = add_action
-                
+
                 # Remove deleted files
                 for remove_action in v_parsed["remove_actions"]:
                     if remove_action.path in active_files:
                         del active_files[remove_action.path]
-                        
+
             except Exception as e:
                 logger.warning(f"Failed to parse version {v}: {e}")
                 continue
 
         # Convert accumulated add actions to FileRef objects
-        data_files = [
-            self._create_file_ref(action, table_uri) 
-            for action in active_files.values()
-        ]
+        data_files = [self._create_file_ref(action, table_uri) for action in active_files.values()]
 
         # Determine operation type
         operation = commit_info.operation if commit_info else "UNKNOWN"
@@ -379,10 +376,10 @@ class DeltaAdapter:
             ValueError: If version number is out of range or no schema found
         """
         dt: DeltaTable = table.native
-        
+
         # Get the table URI to parse metadata directly
         table_uri = dt.table_uri
-        
+
         # Handle file URI prefix
         if table_uri.startswith("file:///"):
             table_uri = table_uri[8:]  # Remove "file:///" prefix
@@ -391,80 +388,71 @@ class DeltaAdapter:
         elif table_uri.startswith("file:\\"):
             # Windows file URI
             table_uri = table_uri[6:].lstrip("\\")  # Remove "file:\" prefix and leading backslashes
-            
+
         delta_log_path = Path(table_uri) / "_delta_log"
         version_file = delta_log_path / f"{version:020d}.json"
-        
+
         # Check if version file exists
         if not version_file.exists():
             # Try to determine the max version
             version_files = list(delta_log_path.glob("[0-9]*.json"))
             if version_files:
-                max_version = max(
-                    int(f.stem) for f in version_files 
-                    if f.stem.isdigit()
-                )
+                max_version = max(int(f.stem) for f in version_files if f.stem.isdigit())
                 raise ValueError(
-                    f"Version {version} is out of range.\n"
-                    f"Valid versions: 0 to {max_version}"
+                    f"Version {version} is out of range.\n" f"Valid versions: 0 to {max_version}"
                 )
             else:
-                raise ValueError(
-                    f"Version {version} is out of range.\n"
-                    f"No version files found"
-                )
-        
+                raise ValueError(f"Version {version} is out of range.\n" f"No version files found")
+
         # Search backwards from requested version to find most recent metaData entry
         # Delta Lake only writes metaData when schema changes (typically version 0)
         schema_dict: dict[str, str] = {}
-        
+
         for v in range(version, -1, -1):
             v_file = delta_log_path / f"{v:020d}.json"
-            
+
             if not v_file.exists():
                 continue
-            
+
             with open(v_file) as f:
                 for line in f:
                     try:
                         entry = json.loads(line.strip())
-                        
+
                         # Look for metaData entry
                         if "metaData" in entry:
                             metadata = entry["metaData"]
                             schema_string = metadata.get("schemaString", "{}")
                             schema_json = json.loads(schema_string)
-                            
+
                             # Extract fields from schema
                             fields = schema_json.get("fields", [])
                             for field in fields:
                                 field_name = field["name"]
                                 field_type = field["type"]
-                                
+
                                 # Handle complex types (struct, array, map)
                                 if isinstance(field_type, dict):
                                     field_type = field_type.get("type", str(field_type))
-                                
+
                                 schema_dict[field_name] = str(field_type)
-                            
+
                             # Found schema, return immediately
                             logger.debug(
                                 f"Found schema at version {v} for requested version {version}: "
                                 f"{len(schema_dict)} columns"
                             )
                             return schema_dict
-                            
+
                     except json.JSONDecodeError:
                         continue
-        
+
         # If we get here, no schema was found in any version
         logger.warning(f"No schema found for version {version} (searched back to version 0)")
         return schema_dict
 
     def compare_schemas(
-        self, 
-        old_schema: dict[str, str], 
-        new_schema: dict[str, str]
+        self, old_schema: dict[str, str], new_schema: dict[str, str]
     ) -> list[dict[str, Any]]:
         """Compare two schemas and detect changes.
 
@@ -485,34 +473,40 @@ class DeltaAdapter:
         # Detect removed columns
         for col_name in old_schema:
             if col_name not in new_schema:
-                changes.append({
-                    "change_type": "column_removed",
-                    "column_name": col_name,
-                    "old_type": old_schema[col_name],
-                    "new_type": None,
-                    "is_breaking": True,  # Column removals are potentially breaking
-                })
+                changes.append(
+                    {
+                        "change_type": "column_removed",
+                        "column_name": col_name,
+                        "old_type": old_schema[col_name],
+                        "new_type": None,
+                        "is_breaking": True,  # Column removals are potentially breaking
+                    }
+                )
 
         # Detect added columns and type changes
         for col_name in new_schema:
             if col_name not in old_schema:
                 # Column added
-                changes.append({
-                    "change_type": "column_added",
-                    "column_name": col_name,
-                    "old_type": None,
-                    "new_type": new_schema[col_name],
-                    "is_breaking": False,
-                })
+                changes.append(
+                    {
+                        "change_type": "column_added",
+                        "column_name": col_name,
+                        "old_type": None,
+                        "new_type": new_schema[col_name],
+                        "is_breaking": False,
+                    }
+                )
             elif old_schema[col_name] != new_schema[col_name]:
                 # Type changed
-                changes.append({
-                    "change_type": "type_changed",
-                    "column_name": col_name,
-                    "old_type": old_schema[col_name],
-                    "new_type": new_schema[col_name],
-                    "is_breaking": False,  # Type changes may or may not be breaking
-                })
+                changes.append(
+                    {
+                        "change_type": "type_changed",
+                        "column_name": col_name,
+                        "old_type": old_schema[col_name],
+                        "new_type": new_schema[col_name],
+                        "is_breaking": False,  # Type changes may or may not be breaking
+                    }
+                )
 
         return changes
 
@@ -526,10 +520,10 @@ class DeltaAdapter:
             Set of version numbers that contain metaData entries
         """
         dt: DeltaTable = table.native
-        
+
         # Get the table URI to find all version files
         table_uri = dt.table_uri
-        
+
         # Handle file URI prefix
         if table_uri.startswith("file:///"):
             table_uri = table_uri[8:]
@@ -537,28 +531,25 @@ class DeltaAdapter:
             table_uri = table_uri[7:]
         elif table_uri.startswith("file:\\"):
             table_uri = table_uri[6:].lstrip("\\")
-            
+
         delta_log_path = Path(table_uri) / "_delta_log"
-        
+
         # Find all version files
         version_files = list(delta_log_path.glob("[0-9]*.json"))
         if not version_files:
             return set()
-        
-        current_version = max(
-            int(f.stem) for f in version_files 
-            if f.stem.isdigit()
-        )
-        
+
+        current_version = max(int(f.stem) for f in version_files if f.stem.isdigit())
+
         versions_with_metadata: set[int] = set()
-        
+
         # Scan each version file for metaData entries
         for version in range(current_version + 1):
             version_file = delta_log_path / f"{version:020d}.json"
-            
+
             if not version_file.exists():
                 continue
-            
+
             try:
                 with open(version_file) as f:
                     for line in f:
@@ -572,7 +563,7 @@ class DeltaAdapter:
             except Exception as e:
                 logger.warning(f"Failed to scan version {version} for metaData: {e}")
                 continue
-        
+
         return versions_with_metadata
 
     def get_schema_evolution(self, table: TableHandle) -> list[dict[str, Any]]:
@@ -593,10 +584,10 @@ class DeltaAdapter:
             - timestamp_ms: Timestamp of the version
         """
         dt: DeltaTable = table.native
-        
+
         # Get the table URI to find all version files
         table_uri = dt.table_uri
-        
+
         # Handle file URI prefix
         if table_uri.startswith("file:///"):
             table_uri = table_uri[8:]  # Remove "file:///" prefix
@@ -605,18 +596,15 @@ class DeltaAdapter:
         elif table_uri.startswith("file:\\"):
             # Windows file URI
             table_uri = table_uri[6:].lstrip("\\")  # Remove "file:\" prefix and leading backslashes
-            
+
         delta_log_path = Path(table_uri) / "_delta_log"
-        
+
         # Find all version files to determine max version
         version_files = list(delta_log_path.glob("[0-9]*.json"))
         if not version_files:
             return []
-        
-        current_version = max(
-            int(f.stem) for f in version_files 
-            if f.stem.isdigit()
-        )
+
+        current_version = max(int(f.stem) for f in version_files if f.stem.isdigit())
 
         evolution: list[dict[str, Any]] = []
         previous_schema: dict[str, str] | None = None
@@ -624,63 +612,67 @@ class DeltaAdapter:
         # Scan each version file for metaData entries (schema changes)
         for version in range(current_version + 1):
             version_file = delta_log_path / f"{version:020d}.json"
-            
+
             if not version_file.exists():
                 continue
-            
+
             # Look for metaData entry in this version
             schema_dict: dict[str, str] = {}
             has_metadata = False
-            
+
             try:
                 with open(version_file) as f:
                     for line in f:
                         try:
                             entry = json.loads(line.strip())
-                            
+
                             # Look for metaData entry (indicates schema change)
                             if "metaData" in entry:
                                 has_metadata = True
                                 metadata = entry["metaData"]
                                 schema_string = metadata.get("schemaString", "{}")
                                 schema_json = json.loads(schema_string)
-                                
+
                                 # Extract fields from schema
                                 fields = schema_json.get("fields", [])
                                 for field in fields:
                                     field_name = field["name"]
                                     field_type = field["type"]
-                                    
+
                                     # Handle complex types (struct, array, map)
                                     if isinstance(field_type, dict):
                                         field_type = field_type.get("type", str(field_type))
-                                    
+
                                     schema_dict[field_name] = str(field_type)
-                                
+
                                 break  # Found metaData, no need to continue
-                                
+
                         except json.JSONDecodeError:
                             continue
-                
+
                 # If we found a metaData entry, this version has a schema change
                 if has_metadata and schema_dict:
                     # Compare with previous schema (if any)
                     if previous_schema is not None:
                         changes = self.compare_schemas(previous_schema, schema_dict)
-                        
+
                         if changes:
                             # Get timestamp for this version
                             snapshot = self._build_snapshot_info(dt, version)
-                            
-                            evolution.append({
-                                "version": version,
-                                "changes": changes,
-                                "timestamp_ms": snapshot.timestamp_ms,
-                            })
+
+                            evolution.append(
+                                {
+                                    "version": version,
+                                    "changes": changes,
+                                    "timestamp_ms": snapshot.timestamp_ms,
+                                }
+                            )
                     else:
                         # Version 0 - initial schema (no changes to report)
-                        logger.debug(f"Version {version}: Initial schema with {len(schema_dict)} columns")
-                    
+                        logger.debug(
+                            f"Version {version}: Initial schema with {len(schema_dict)} columns"
+                        )
+
                     # Update previous schema for next iteration
                     previous_schema = schema_dict
 

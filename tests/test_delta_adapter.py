@@ -148,7 +148,7 @@ class TestDeltaAdapter:
 
     def test_list_snapshots_multiple_versions(self) -> None:
         """Test listing snapshots from a Delta table with multiple versions.
-        
+
         Validates that list_snapshots iterates from version 0 to current version
         and builds SnapshotInfo for each version.
         """
@@ -350,7 +350,7 @@ class TestDeltaAdapter:
 
     def test_iter_data_files(self, temp_delta_table: Path) -> None:
         """Test iterating over data files.
-        
+
         Validates Requirement 13.4: iter_data_files returns iterator over
         snapshot.data_files with FileRef objects.
         """
@@ -369,19 +369,19 @@ class TestDeltaAdapter:
         assert data_files[0].record_count == 100
         assert data_files[0].source == "delta"
         assert data_files[0].content_type == "DATA"
-        
+
         # Verify it returns an iterator (not just a list)
         data_files_iter = adapter.iter_data_files(snapshot)
-        assert hasattr(data_files_iter, '__iter__')
-        assert hasattr(data_files_iter, '__next__')
-        
+        assert hasattr(data_files_iter, "__iter__")
+        assert hasattr(data_files_iter, "__next__")
+
         # Verify iterator can be consumed
         first_file = next(data_files_iter)
         assert first_file.path.endswith("part-00000.snappy.parquet")
 
     def test_iter_delete_files(self, temp_delta_table: Path) -> None:
         """Test iterating over delete files (should be empty for Delta).
-        
+
         Validates Requirement 13.5: iter_delete_files returns empty iterator
         since Delta Lake doesn't have separate delete files like Iceberg.
         """
@@ -392,11 +392,11 @@ class TestDeltaAdapter:
         delete_files = list(adapter.iter_delete_files(snapshot))
 
         assert len(delete_files) == 0
-        
+
         # Verify it returns an iterator (not just a list)
         delete_files_iter = adapter.iter_delete_files(snapshot)
-        assert hasattr(delete_files_iter, '__iter__')
-        assert hasattr(delete_files_iter, '__next__')
+        assert hasattr(delete_files_iter, "__iter__")
+        assert hasattr(delete_files_iter, "__next__")
 
     def test_snapshot_info_structure(self, temp_delta_table: Path) -> None:
         """Test the structure of SnapshotInfo."""
@@ -459,7 +459,7 @@ class TestDeltaAdapter:
     def test_open_table_cloud_path_validation(self) -> None:
         """Test that cloud paths skip local validation and delegate to delta-rs."""
         adapter = DeltaAdapter()
-        
+
         # Cloud paths should not raise FileNotFoundError immediately
         # They should attempt to open with delta-rs, which will fail with appropriate error
         with pytest.raises((ValueError, FileNotFoundError)):
@@ -471,31 +471,31 @@ class TestDeltaAdapter:
         """Test _build_snapshot_info extracts all metadata correctly."""
         adapter = DeltaAdapter()
         table_handle = adapter.open_table(str(temp_delta_table))
-        
+
         # Access the DeltaTable directly
         dt = table_handle.native
         snapshot = adapter._build_snapshot_info(dt, 0)
-        
+
         # Verify all required fields are present
         assert snapshot.snapshot_id == 0
         assert snapshot.parent_id is None
         assert snapshot.timestamp_ms == 1705334625000
         assert snapshot.operation == "WRITE"
-        
+
         # Verify summary contains operation info
         assert snapshot.summary["operation"] == "WRITE"
         assert snapshot.summary["timestamp"] == "1705334625000"
-        
+
         # Verify summary contains operation parameters
         assert "param_mode" in snapshot.summary
         assert snapshot.summary["param_mode"] == "Append"
-        
+
         # Verify summary contains operation metrics
         assert "metric_numFiles" in snapshot.summary
         assert snapshot.summary["metric_numFiles"] == "1"
         assert "metric_numOutputRows" in snapshot.summary
         assert snapshot.summary["metric_numOutputRows"] == "100"
-        
+
         # Verify data files are extracted
         assert len(snapshot.data_files) == 1
         assert snapshot.data_files[0].path.endswith("part-00000.snappy.parquet")
@@ -555,11 +555,11 @@ class TestDeltaAdapter:
         table_handle = adapter.open_table(str(temp_dir))
         dt = table_handle.native
         snapshot = adapter._build_snapshot_info(dt, 0)
-        
+
         # Verify user metadata is extracted
         assert "userMetadata" in snapshot.summary
         assert snapshot.summary["userMetadata"] == "ETL Job v2.3"
-        
+
         # Verify engine info is extracted
         assert "engineInfo" in snapshot.summary
         assert snapshot.summary["engineInfo"] == "Apache-Spark/3.5.0 Delta-Standalone/3.0.0"
@@ -616,13 +616,14 @@ class TestDeltaAdapter:
         table_handle = adapter.open_table(str(temp_dir))
         dt = table_handle.native
         snapshot = adapter._build_snapshot_info(dt, 0)
-        
+
         # Verify partition values are extracted
         assert len(snapshot.data_files) == 1
         file_ref = snapshot.data_files[0]
         assert file_ref.partition == {"date": "2024-01-15"}
-        assert file_ref.path.endswith("date=2024-01-15/part-00000.snappy.parquet") or \
-               file_ref.path.endswith("date=2024-01-15\\part-00000.snappy.parquet")
+        assert file_ref.path.endswith(
+            "date=2024-01-15/part-00000.snappy.parquet"
+        ) or file_ref.path.endswith("date=2024-01-15\\part-00000.snappy.parquet")
 
     def test_build_snapshot_info_without_commit_info(self) -> None:
         """Test _build_snapshot_info handles missing commit info gracefully."""
@@ -666,7 +667,7 @@ class TestDeltaAdapter:
         table_handle = adapter.open_table(str(temp_dir))
         dt = table_handle.native
         snapshot = adapter._build_snapshot_info(dt, 0)
-        
+
         # Verify it handles missing commit info gracefully
         assert snapshot.snapshot_id == 0
         assert snapshot.operation == "UNKNOWN"
@@ -709,7 +710,7 @@ class TestDeltaAdapter:
             f.write(json.dumps(protocol) + "\n")
             f.write(json.dumps(metadata) + "\n")
             f.write(json.dumps(commit_info) + "\n")
-            
+
             # Add multiple files
             for i in range(3):
                 add_action = {
@@ -728,7 +729,7 @@ class TestDeltaAdapter:
         table_handle = adapter.open_table(str(temp_dir))
         dt = table_handle.native
         snapshot = adapter._build_snapshot_info(dt, 0)
-        
+
         # Verify all files are extracted
         assert len(snapshot.data_files) == 3
         assert snapshot.data_files[0].path.endswith("part-00000.snappy.parquet")
