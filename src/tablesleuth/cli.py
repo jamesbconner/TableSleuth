@@ -121,7 +121,7 @@ def main() -> None:
     help="Enable verbose logging.",
 )
 def parquet(path: str, catalog_name: str | None, region: str | None, verbose: bool) -> None:
-    """Inspect Parquet files, directories, or Iceberg tables.
+    """Inspect Parquet metadata in files, directories, or tables.
 
     Provides detailed forensic analysis of Parquet file metadata including schema,
     row groups, column statistics, and data samples. Supports local files, S3 paths,
