@@ -261,6 +261,19 @@ class TestNormalizeS3Scheme:
         assert normalize_s3_scheme("gs://bucket/file.parquet") == "gs://bucket/file.parquet"
         assert normalize_s3_scheme("/local/path/file.parquet") == "/local/path/file.parquet"
 
+    def test_normalize_s3_scheme_case_insensitive(self):
+        """Test that S3 scheme normalization is case-insensitive."""
+        # Uppercase schemes
+        assert normalize_s3_scheme("S3://bucket/file.parquet") == "s3://bucket/file.parquet"
+        assert normalize_s3_scheme("S3A://bucket/file.parquet") == "s3://bucket/file.parquet"
+        assert normalize_s3_scheme("S3N://bucket/file.parquet") == "s3://bucket/file.parquet"
+        
+        # Mixed case schemes
+        assert normalize_s3_scheme("S3a://bucket/file.parquet") == "s3://bucket/file.parquet"
+        assert normalize_s3_scheme("s3A://bucket/file.parquet") == "s3://bucket/file.parquet"
+        assert normalize_s3_scheme("S3n://bucket/file.parquet") == "s3://bucket/file.parquet"
+        assert normalize_s3_scheme("s3N://bucket/file.parquet") == "s3://bucket/file.parquet"
+
 
 class TestStripScheme:
     """Tests for scheme stripping."""
@@ -301,3 +314,27 @@ class TestStripScheme:
         """Test that local paths are unchanged."""
         assert strip_scheme("/local/path/file.parquet") == "/local/path/file.parquet"
         assert strip_scheme("./relative/file.parquet") == "./relative/file.parquet"
+
+    def test_strip_scheme_case_insensitive(self):
+        """Test that scheme stripping is case-insensitive."""
+        # Uppercase schemes
+        assert strip_scheme("S3://bucket/file.parquet") == "bucket/file.parquet"
+        assert strip_scheme("S3A://bucket/file.parquet") == "bucket/file.parquet"
+        assert strip_scheme("S3N://bucket/file.parquet") == "bucket/file.parquet"
+        assert strip_scheme("GS://bucket/file.parquet") == "bucket/file.parquet"
+        assert strip_scheme("GCS://bucket/file.parquet") == "bucket/file.parquet"
+        
+        # Mixed case schemes
+        assert strip_scheme("S3a://bucket/file.parquet") == "bucket/file.parquet"
+        assert strip_scheme("s3A://bucket/file.parquet") == "bucket/file.parquet"
+        assert strip_scheme("Gs://bucket/file.parquet") == "bucket/file.parquet"
+        
+        # Azure schemes
+        assert strip_scheme("ABFS://container/file.parquet") == "container/file.parquet"
+        assert strip_scheme("ABFSS://container/file.parquet") == "container/file.parquet"
+        assert strip_scheme("WASB://container/file.parquet") == "container/file.parquet"
+        assert strip_scheme("WASBS://container/file.parquet") == "container/file.parquet"
+        
+        # HDFS schemes
+        assert strip_scheme("HDFS://namenode/file.parquet") == "namenode/file.parquet"
+        assert strip_scheme("VIEWFS://namenode/file.parquet") == "namenode/file.parquet"

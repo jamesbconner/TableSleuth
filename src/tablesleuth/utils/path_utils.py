@@ -225,6 +225,7 @@ def normalize_s3_scheme(path: str) -> str:
     """Normalize S3 path to use s3:// scheme.
 
     Converts s3a:// and s3n:// to s3:// for consistency.
+    Case-insensitive matching.
 
     Args:
         path: S3 path with any S3 scheme
@@ -239,11 +240,17 @@ def normalize_s3_scheme(path: str) -> str:
         's3://bucket/file.parquet'
         >>> normalize_s3_scheme("s3://bucket/file.parquet")
         's3://bucket/file.parquet'
+        >>> normalize_s3_scheme("S3A://bucket/file.parquet")
+        's3://bucket/file.parquet'
     """
-    if path.startswith("s3a://"):
+    path_lower = path.lower()
+    if path_lower.startswith("s3a://"):
         return "s3://" + path[6:]
-    elif path.startswith("s3n://"):
+    elif path_lower.startswith("s3n://"):
         return "s3://" + path[6:]
+    elif path_lower.startswith("s3://"):
+        # Normalize to lowercase scheme
+        return "s3://" + path[5:]
     return path
 
 
@@ -251,6 +258,7 @@ def strip_scheme(path: str) -> str:
     """Strip the URI scheme from a path.
 
     Removes s3://, s3a://, gs://, etc. prefixes from paths.
+    Case-insensitive matching.
 
     Args:
         path: Path with or without scheme
@@ -263,11 +271,14 @@ def strip_scheme(path: str) -> str:
         'bucket/path/file.parquet'
         >>> strip_scheme("s3a://bucket/path/file.parquet")
         'bucket/path/file.parquet'
+        >>> strip_scheme("S3://bucket/path/file.parquet")
+        'bucket/path/file.parquet'
         >>> strip_scheme("/local/path/file.parquet")
         '/local/path/file.parquet'
     """
     path_str = str(path)
+    path_lower = path_str.lower()
     for scheme in CLOUD_SCHEMES:
-        if path_str.startswith(scheme):
+        if path_lower.startswith(scheme):
             return path_str[len(scheme) :]
     return path_str
