@@ -267,7 +267,7 @@ class TestNormalizeS3Scheme:
         assert normalize_s3_scheme("S3://bucket/file.parquet") == "s3://bucket/file.parquet"
         assert normalize_s3_scheme("S3A://bucket/file.parquet") == "s3://bucket/file.parquet"
         assert normalize_s3_scheme("S3N://bucket/file.parquet") == "s3://bucket/file.parquet"
-        
+
         # Mixed case schemes
         assert normalize_s3_scheme("S3a://bucket/file.parquet") == "s3://bucket/file.parquet"
         assert normalize_s3_scheme("s3A://bucket/file.parquet") == "s3://bucket/file.parquet"
@@ -323,18 +323,18 @@ class TestStripScheme:
         assert strip_scheme("S3N://bucket/file.parquet") == "bucket/file.parquet"
         assert strip_scheme("GS://bucket/file.parquet") == "bucket/file.parquet"
         assert strip_scheme("GCS://bucket/file.parquet") == "bucket/file.parquet"
-        
+
         # Mixed case schemes
         assert strip_scheme("S3a://bucket/file.parquet") == "bucket/file.parquet"
         assert strip_scheme("s3A://bucket/file.parquet") == "bucket/file.parquet"
         assert strip_scheme("Gs://bucket/file.parquet") == "bucket/file.parquet"
-        
+
         # Azure schemes
         assert strip_scheme("ABFS://container/file.parquet") == "container/file.parquet"
         assert strip_scheme("ABFSS://container/file.parquet") == "container/file.parquet"
         assert strip_scheme("WASB://container/file.parquet") == "container/file.parquet"
         assert strip_scheme("WASBS://container/file.parquet") == "container/file.parquet"
-        
+
         # HDFS schemes
         assert strip_scheme("HDFS://namenode/file.parquet") == "namenode/file.parquet"
         assert strip_scheme("VIEWFS://namenode/file.parquet") == "namenode/file.parquet"
