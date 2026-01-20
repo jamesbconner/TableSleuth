@@ -1,0 +1,567 @@
+"""Delta Lake adapter using delta-rs library.
+
+This module provides a TableFormatAdapter implementation for Delta Lake tables,
+supporting path-based table access from local filesystem and cloud storage.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+from collections.abc import Iterable
+from pathlib import Path
+from typing import Any
+
+from deltalake import DeltaTable
+
+from tablesleuth.models import FileRef, SnapshotInfo, TableHandle
+
+from .delta_log_parser import AddAction, DeltaLogParser
+
+logger = logging.getLogger(__name__)
+
+
+class DeltaAdapter:
+    """Delta Lake adapter using delta-rs library.
+
+    Supports path-based table access from local filesystem and cloud storage.
+    Provides forensic analysis capabilities including version history, file
+    analysis, and optimization recommendations.
+    """
+
+    def __init__(self, storage_options: dict[str, str] | None = None) -> None:
+        """Initialize adapter with optional storage options.
+
+        Args:
+            storage_options: Cloud storage credentials and configuration
+                Examples:
+                - S3: {"AWS_ACCESS_KEY_ID": "...", "AWS_SECRET_ACCESS_KEY": "..."}
+                - Azure: {"AZURE_STORAGE_ACCOUNT_NAME": "...", "AZURE_STORAGE_ACCOUNT_KEY": "..."}
+        """
+        self.storage_options = storage_options or {}
+
+    def _is_delta_table(self, path: str) -> bool:
+        """Check if path contains a valid Delta table.
+
+        Validates presence of _delta_log directory and at least one version file.
+
+        Args:
+            path: Path to check
+
+        Returns:
+            True if path contains a valid Delta table, False otherwise
+        """
+        try:
+            table_path = Path(path)
+
+            # Check if path exists
+            if not table_path.exists():
+                return False
+
+            # Check for _delta_log directory
+            delta_log_path = table_path / "_delta_log"
+            if not delta_log_path.exists() or not delta_log_path.is_dir():
+                return False
+
+            # Check for at least one version file (00000000000000000000.json)
+            version_files = list(delta_log_path.glob("*.json"))
+            if not version_files:
+                return False
+
+            return True
+        except Exception as e:
+            logger.debug(f"Error checking if path is Delta table: {e}")
+            return False
+
+    def open_table(self, identifier: str, catalog_name: str | None = None) -> TableHandle:
+        """Open a Delta table from path.
+
+        Args:
+            identifier: Path to Delta table (local or cloud)
+                Examples:
+                - Local: "./data/my_table/"
+                - S3: "s3://bucket/warehouse/events/"
+            catalog_name: Optional catalog name (unused in Phase 1)
+
+        Returns:
+            TableHandle wrapping DeltaTable instance
+
+        Raises:
+            ValueError: If path is not a valid Delta table
+            FileNotFoundError: If path does not exist
+        """
+        # Check if path exists and is valid (for local paths only)
+        is_cloud_path = identifier.startswith(("s3://", "gs://", "abfs://", "abfss://"))
+        
+        if not is_cloud_path:
+            # For local paths, validate before attempting to open
+            if not Path(identifier).exists():
+                raise FileNotFoundError(
+                    f"Table path not found: {identifier}\n"
+                    f"Verify the path exists and is accessible."
+                )
+            
+            # Validate it's a Delta table
+            if not self._is_delta_table(identifier):
+                raise ValueError(
+                    f"Not a valid Delta table: {identifier}\n"
+                    f"Expected _delta_log directory not found.\n"
+                    f"Verify the path points to a Delta table root directory."
+                )
+
+        try:
+            # Open the Delta table (delta-rs will validate cloud paths)
+            dt = DeltaTable(identifier, storage_options=self.storage_options)
+            return TableHandle(native=dt, format_name="delta")
+        except FileNotFoundError as e:
+            raise FileNotFoundError(
+                f"Table path not found: {identifier}\n"
+                f"Verify the path exists and is accessible.\n"
+                f"Error: {str(e)}"
+            ) from e
+        except Exception as e:
+            # Check if it's a "not a Delta table" error
+            error_msg = str(e).lower()
+            if "not a delta table" in error_msg or "_delta_log" in error_msg:
+                raise ValueError(
+                    f"Not a valid Delta table: {identifier}\n"
+                    f"Expected _delta_log directory not found.\n"
+                    f"Verify the path points to a Delta table root directory.\n"
+                    f"Error: {str(e)}"
+                ) from e
+            raise ValueError(
+                f"Failed to open Delta table: {identifier}\n" f"Error: {str(e)}"
+            ) from e
+
+    def list_snapshots(self, table: TableHandle) -> list[SnapshotInfo]:
+        """List all versions (snapshots) of the Delta table.
+
+        Args:
+            table: TableHandle containing DeltaTable
+
+        Returns:
+            List of SnapshotInfo for each version (0 to current)
+        """
+        dt: DeltaTable = table.native
+        current_version = dt.version()
+
+        snapshots: list[SnapshotInfo] = []
+        for version in range(current_version + 1):
+            try:
+                snapshot = self._build_snapshot_info(dt, version)
+                snapshots.append(snapshot)
+            except Exception as e:
+                logger.warning(f"Failed to load version {version}: {e}")
+                continue
+
+        return snapshots
+
+    def load_snapshot(self, table: TableHandle, snapshot_id: int | None) -> SnapshotInfo:
+        """Load a specific version of the Delta table.
+
+        Args:
+            table: TableHandle containing DeltaTable
+            snapshot_id: Version number (None for current version)
+
+        Returns:
+            SnapshotInfo for the specified version
+
+        Raises:
+            ValueError: If version number is out of range
+        """
+        dt: DeltaTable = table.native
+        
+        # Get the maximum version by loading the latest version first
+        # This ensures we know the full version range
+        if not hasattr(table, '_max_version'):
+            # Store the max version on first call
+            table._max_version = dt.version()  # type: ignore[attr-defined]
+        
+        current_version = table._max_version  # type: ignore[attr-defined]
+
+        # Use current version if not specified
+        if snapshot_id is None:
+            snapshot_id = current_version
+
+        # Validate version range
+        if snapshot_id < 0 or snapshot_id > current_version:
+            raise ValueError(
+                f"Version {snapshot_id} is out of range.\n"
+                f"Valid versions: 0 to {current_version}\n"
+                f"Use --version option to specify a valid version."
+            )
+
+        # Load the table at the specified version
+        # Note: This modifies the DeltaTable object to point to the specified version
+        if dt.version() != snapshot_id:
+            dt.load_as_version(snapshot_id)
+
+        return self._build_snapshot_info(dt, snapshot_id)
+
+    def iter_data_files(self, snapshot: SnapshotInfo) -> Iterable[FileRef]:
+        """Iterate over data files in the snapshot.
+
+        Args:
+            snapshot: SnapshotInfo containing file references
+
+        Returns:
+            Iterator of FileRef objects for data files
+        """
+        return iter(snapshot.data_files)
+
+    def iter_delete_files(self, snapshot: SnapshotInfo) -> Iterable[FileRef]:
+        """Iterate over delete files in the snapshot.
+
+        Note: Delta Lake doesn't have separate delete files like Iceberg.
+        Delete operations are tracked in the transaction log.
+
+        Args:
+            snapshot: SnapshotInfo containing file references
+
+        Returns:
+            Empty iterator (Delta has no separate delete files)
+        """
+        return iter([])
+
+    def _build_snapshot_info(self, dt: DeltaTable, version: int) -> SnapshotInfo:
+        """Build SnapshotInfo from Delta table version.
+
+        Extracts:
+        - Version number (maps to snapshot_id)
+        - Timestamp from commit info
+        - Operation type (WRITE, MERGE, UPDATE, DELETE, OPTIMIZE, VACUUM)
+        - Operation metrics (rows, bytes, files)
+        - Data files (add actions accumulated from version 0 to target version)
+        - User metadata and attribution
+
+        Args:
+            dt: DeltaTable instance (already loaded at the target version)
+            version: Version number
+
+        Returns:
+            SnapshotInfo for the version
+        """
+        # Get the transaction log path for reading commit info
+        table_uri = dt.table_uri
+        
+        # Handle file URI prefix
+        if table_uri.startswith("file:///"):
+            table_uri = table_uri[8:]  # Remove "file:///" prefix
+        elif table_uri.startswith("file://"):
+            table_uri = table_uri[7:]  # Remove "file://" prefix
+        elif table_uri.startswith("file:\\"):
+            # Windows file URI
+            table_uri = table_uri[6:].lstrip("\\")  # Remove "file:\" prefix and leading backslashes
+            
+        delta_log_path = Path(table_uri) / "_delta_log"
+        version_file = delta_log_path / f"{version:020d}.json"
+
+        # Parse the current version file for commit info
+        parsed = DeltaLogParser.parse_version_file(str(version_file))
+        commit_info = parsed["commit_info"]
+
+        # Build summary dictionary from current version
+        summary: dict[str, str] = {}
+        if commit_info:
+            summary["operation"] = commit_info.operation
+            summary["timestamp"] = str(commit_info.timestamp)
+
+            # Add operation parameters
+            for key, value in commit_info.operation_parameters.items():
+                summary[f"param_{key}"] = str(value)
+
+            # Add operation metrics
+            for key, value in commit_info.operation_metrics.items():
+                summary[f"metric_{key}"] = str(value)
+
+            # Add user metadata
+            if commit_info.user_metadata:
+                summary["userMetadata"] = commit_info.user_metadata
+            if commit_info.engine_info:
+                summary["engineInfo"] = commit_info.engine_info
+
+        # Accumulate all active files from version 0 to target version
+        # This gives us the complete state of the table at this version
+        active_files: dict[str, AddAction] = {}  # path -> AddAction
+        
+        for v in range(version + 1):
+            v_file = delta_log_path / f"{v:020d}.json"
+            if not v_file.exists():
+                continue
+                
+            try:
+                v_parsed = DeltaLogParser.parse_version_file(str(v_file))
+                
+                # Add new files
+                for add_action in v_parsed["add_actions"]:
+                    active_files[add_action.path] = add_action
+                
+                # Remove deleted files
+                for remove_action in v_parsed["remove_actions"]:
+                    if remove_action.path in active_files:
+                        del active_files[remove_action.path]
+                        
+            except Exception as e:
+                logger.warning(f"Failed to parse version {v}: {e}")
+                continue
+
+        # Convert accumulated add actions to FileRef objects
+        data_files = [
+            self._create_file_ref(action, table_uri) 
+            for action in active_files.values()
+        ]
+
+        # Determine operation type
+        operation = commit_info.operation if commit_info else "UNKNOWN"
+
+        # Determine timestamp
+        timestamp_ms = commit_info.timestamp if commit_info else 0
+
+        return SnapshotInfo(
+            snapshot_id=version,
+            parent_id=version - 1 if version > 0 else None,
+            timestamp_ms=timestamp_ms,
+            operation=operation,
+            summary=summary,
+            data_files=data_files,
+            delete_files=[],  # Delta doesn't have separate delete files
+        )
+
+    def _create_file_ref(self, add_action: AddAction, table_uri: str) -> FileRef:
+        """Create FileRef from add action.
+
+        Args:
+            add_action: AddAction from transaction log
+            table_uri: Base URI of the table
+
+        Returns:
+            FileRef object
+        """
+        # Parse stats if available
+        stats = add_action.stats or {}
+        record_count = stats.get("numRecords")
+
+        # Construct full path by joining table URI with relative file path
+        # The add_action.path is relative to the table root
+        full_path = str(Path(table_uri) / add_action.path)
+
+        return FileRef(
+            path=full_path,
+            file_size_bytes=add_action.size,
+            record_count=record_count,
+            source="delta",
+            content_type="DATA",
+            partition=add_action.partition_values,
+            sequence_number=None,  # Delta doesn't use sequence numbers
+            data_sequence_number=None,
+            extra={
+                "modification_time": add_action.modification_time,
+                "data_change": add_action.data_change,
+                "stats": stats,
+            },
+        )
+
+    def get_schema_at_version(self, table: TableHandle, version: int) -> dict[str, str]:
+        """Get the schema at a specific version.
+
+        Args:
+            table: TableHandle containing DeltaTable
+            version: Version number to get schema for
+
+        Returns:
+            Dictionary mapping column names to data types
+
+        Raises:
+            ValueError: If version number is out of range
+        """
+        dt: DeltaTable = table.native
+        
+        # Get the table URI to parse metadata directly
+        table_uri = dt.table_uri
+        
+        # Handle file URI prefix
+        if table_uri.startswith("file:///"):
+            table_uri = table_uri[8:]  # Remove "file:///" prefix
+        elif table_uri.startswith("file://"):
+            table_uri = table_uri[7:]  # Remove "file://" prefix
+        elif table_uri.startswith("file:\\"):
+            # Windows file URI
+            table_uri = table_uri[6:].lstrip("\\")  # Remove "file:\" prefix and leading backslashes
+            
+        delta_log_path = Path(table_uri) / "_delta_log"
+        version_file = delta_log_path / f"{version:020d}.json"
+        
+        # Check if version file exists
+        if not version_file.exists():
+            # Try to determine the max version
+            version_files = list(delta_log_path.glob("[0-9]*.json"))
+            if version_files:
+                max_version = max(
+                    int(f.stem) for f in version_files 
+                    if f.stem.isdigit()
+                )
+                raise ValueError(
+                    f"Version {version} is out of range.\n"
+                    f"Valid versions: 0 to {max_version}"
+                )
+            else:
+                raise ValueError(
+                    f"Version {version} is out of range.\n"
+                    f"No version files found"
+                )
+        
+        # Parse the version file to extract schema from metadata
+        schema_dict: dict[str, str] = {}
+        
+        with open(version_file, "r") as f:
+            for line in f:
+                try:
+                    entry = json.loads(line.strip())
+                    
+                    # Look for metaData entry
+                    if "metaData" in entry:
+                        metadata = entry["metaData"]
+                        schema_string = metadata.get("schemaString", "{}")
+                        schema_json = json.loads(schema_string)
+                        
+                        # Extract fields from schema
+                        fields = schema_json.get("fields", [])
+                        for field in fields:
+                            field_name = field["name"]
+                            field_type = field["type"]
+                            
+                            # Handle complex types (struct, array, map)
+                            if isinstance(field_type, dict):
+                                field_type = field_type.get("type", str(field_type))
+                            
+                            schema_dict[field_name] = str(field_type)
+                        
+                        break  # Found schema, no need to continue
+                        
+                except json.JSONDecodeError:
+                    continue
+        
+        return schema_dict
+
+    def compare_schemas(
+        self, 
+        old_schema: dict[str, str], 
+        new_schema: dict[str, str]
+    ) -> list[dict[str, Any]]:
+        """Compare two schemas and detect changes.
+
+        Args:
+            old_schema: Schema from earlier version (column name -> type)
+            new_schema: Schema from later version (column name -> type)
+
+        Returns:
+            List of schema change records, each containing:
+            - change_type: "column_added", "column_removed", or "type_changed"
+            - column_name: Name of the affected column
+            - old_type: Previous data type (None for additions)
+            - new_type: New data type (None for removals)
+            - is_breaking: Whether this is a potentially breaking change
+        """
+        changes: list[dict[str, Any]] = []
+
+        # Detect removed columns
+        for col_name in old_schema:
+            if col_name not in new_schema:
+                changes.append({
+                    "change_type": "column_removed",
+                    "column_name": col_name,
+                    "old_type": old_schema[col_name],
+                    "new_type": None,
+                    "is_breaking": True,  # Column removals are potentially breaking
+                })
+
+        # Detect added columns and type changes
+        for col_name in new_schema:
+            if col_name not in old_schema:
+                # Column added
+                changes.append({
+                    "change_type": "column_added",
+                    "column_name": col_name,
+                    "old_type": None,
+                    "new_type": new_schema[col_name],
+                    "is_breaking": False,
+                })
+            elif old_schema[col_name] != new_schema[col_name]:
+                # Type changed
+                changes.append({
+                    "change_type": "type_changed",
+                    "column_name": col_name,
+                    "old_type": old_schema[col_name],
+                    "new_type": new_schema[col_name],
+                    "is_breaking": False,  # Type changes may or may not be breaking
+                })
+
+        return changes
+
+    def get_schema_evolution(self, table: TableHandle) -> list[dict[str, Any]]:
+        """Build schema evolution timeline across all versions.
+
+        Args:
+            table: TableHandle containing DeltaTable
+
+        Returns:
+            List of schema evolution records, each containing:
+            - version: Version number where change occurred
+            - changes: List of schema changes at this version
+            - timestamp_ms: Timestamp of the version
+        """
+        dt: DeltaTable = table.native
+        
+        # Get the table URI to find all version files
+        table_uri = dt.table_uri
+        
+        # Handle file URI prefix
+        if table_uri.startswith("file:///"):
+            table_uri = table_uri[8:]  # Remove "file:///" prefix
+        elif table_uri.startswith("file://"):
+            table_uri = table_uri[7:]  # Remove "file://" prefix
+        elif table_uri.startswith("file:\\"):
+            # Windows file URI
+            table_uri = table_uri[6:].lstrip("\\")  # Remove "file:\" prefix and leading backslashes
+            
+        delta_log_path = Path(table_uri) / "_delta_log"
+        
+        # Find all version files to determine max version
+        version_files = list(delta_log_path.glob("[0-9]*.json"))
+        if not version_files:
+            return []
+        
+        current_version = max(
+            int(f.stem) for f in version_files 
+            if f.stem.isdigit()
+        )
+
+        evolution: list[dict[str, Any]] = []
+        previous_schema: dict[str, str] | None = None
+
+        for version in range(current_version + 1):
+            try:
+                # Get schema at this version
+                schema = self.get_schema_at_version(table, version)
+
+                # Compare with previous version
+                if previous_schema is not None:
+                    changes = self.compare_schemas(previous_schema, schema)
+                    
+                    if changes:
+                        # Get timestamp for this version
+                        snapshot = self._build_snapshot_info(dt, version)
+                        
+                        evolution.append({
+                            "version": version,
+                            "changes": changes,
+                            "timestamp_ms": snapshot.timestamp_ms,
+                        })
+
+                previous_schema = schema
+
+            except Exception as e:
+                logger.warning(f"Failed to get schema for version {version}: {e}")
+                continue
+
+        return evolution
