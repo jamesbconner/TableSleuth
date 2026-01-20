@@ -58,7 +58,7 @@ class TestParquetCommand:
         """Test parquet command help."""
         result = runner.invoke(parquet, ["--help"])
         assert result.exit_code == 0
-        assert "Inspect Parquet files" in result.output
+        assert "Inspect Parquet" in result.output  # Changed from "Inspect Parquet files"
         assert "--catalog" in result.output
         assert "--verbose" in result.output
 

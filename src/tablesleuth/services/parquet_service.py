@@ -9,6 +9,7 @@ from pyarrow.parquet import ParquetFile
 
 from tablesleuth.models.parquet import ColumnStats, ParquetFileInfo, RowGroupInfo
 from tablesleuth.services.filesystem import FileSystem
+from tablesleuth.utils.path_utils import is_s3_path
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +51,7 @@ class ParquetInspector:
 
         try:
             # Open file with appropriate filesystem
-            if self._fs.is_s3_path(file_path_str):
+            if is_s3_path(file_path_str):
                 filesystem = self._fs.get_filesystem(file_path_str)
                 normalized_path = self._fs.normalize_s3_path(file_path_str)
                 pf = ParquetFile(normalized_path, filesystem=filesystem)
@@ -101,7 +102,7 @@ class ParquetInspector:
             Dictionary mapping column names to type information
         """
         file_path_str = str(file_path)
-        if self._fs.is_s3_path(file_path_str):
+        if is_s3_path(file_path_str):
             filesystem = self._fs.get_filesystem(file_path_str)
             normalized_path = self._fs.normalize_s3_path(file_path_str)
             pf = ParquetFile(normalized_path, filesystem=filesystem)
@@ -119,7 +120,7 @@ class ParquetInspector:
             List of RowGroupInfo objects
         """
         file_path_str = str(file_path)
-        if self._fs.is_s3_path(file_path_str):
+        if is_s3_path(file_path_str):
             filesystem = self._fs.get_filesystem(file_path_str)
             normalized_path = self._fs.normalize_s3_path(file_path_str)
             pf = ParquetFile(normalized_path, filesystem=filesystem)
@@ -181,7 +182,7 @@ class ParquetInspector:
             ValueError: If column doesn't exist
         """
         file_path_str = str(file_path)
-        if self._fs.is_s3_path(file_path_str):
+        if is_s3_path(file_path_str):
             filesystem = self._fs.get_filesystem(file_path_str)
             normalized_path = self._fs.normalize_s3_path(file_path_str)
             pf = ParquetFile(normalized_path, filesystem=filesystem)

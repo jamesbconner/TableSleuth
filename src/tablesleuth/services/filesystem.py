@@ -9,6 +9,8 @@ from typing import BinaryIO, Union
 
 import pyarrow.fs as pafs
 
+from tablesleuth.utils.path_utils import is_s3_path, strip_scheme
+
 logger = logging.getLogger(__name__)
 
 
@@ -36,32 +38,25 @@ class FileSystem:
         """Get the configured AWS region."""
         return self._region
 
-    def is_s3_path(self, path: str) -> bool:
-        """Check if path is an S3 path.
-
-        Args:
-            path: File path to check
-
-        Returns:
-            True if path starts with s3://
-        """
-        return str(path).startswith("s3://")
-
     def normalize_s3_path(self, path: str) -> str:
-        """Remove s3:// prefix for PyArrow filesystem.
+        """Remove S3 scheme prefix for PyArrow filesystem.
+
+        Handles s3://, s3a://, and s3n:// schemes.
 
         Args:
-            path: S3 path with s3:// prefix
+            path: S3 path with scheme prefix
 
         Returns:
-            Path without s3:// prefix
+            Path without scheme prefix
         """
-        if self.is_s3_path(path):
-            return path[5:]  # Remove "s3://"
+        if is_s3_path(path):
+            return strip_scheme(path)
         return path
 
     def exists(self, path: str) -> bool:
         """Check if file exists.
+
+        Supports local paths and S3 paths (s3://, s3a://, s3n://).
 
         Args:
             path: Local or S3 path
@@ -70,7 +65,7 @@ class FileSystem:
             True if file exists
         """
         try:
-            if self.is_s3_path(path):
+            if is_s3_path(path):
                 normalized = self.normalize_s3_path(path)
                 file_info = self._s3_fs.get_file_info(normalized)
                 return file_info.type != pafs.FileType.NotFound  # type: ignore[no-any-return]
@@ -83,13 +78,15 @@ class FileSystem:
     def get_size(self, path: str) -> int:
         """Get file size in bytes.
 
+        Supports local paths and S3 paths (s3://, s3a://, s3n://).
+
         Args:
             path: Local or S3 path
 
         Returns:
             File size in bytes
         """
-        if self.is_s3_path(path):
+        if is_s3_path(path):
             normalized = self.normalize_s3_path(path)
             file_info = self._s3_fs.get_file_info(normalized)
             return file_info.size  # type: ignore[no-any-return]
@@ -99,6 +96,8 @@ class FileSystem:
     def open_file(self, path: str, mode: str = "rb") -> Union[BinaryIO, pafs.NativeFile]:
         """Open file for reading.
 
+        Supports local paths and S3 paths (s3://, s3a://, s3n://).
+
         Args:
             path: Local or S3 path
             mode: File mode (only 'rb' supported for S3)
@@ -106,7 +105,7 @@ class FileSystem:
         Returns:
             File-like object (BinaryIO for local files, NativeFile for S3)
         """
-        if self.is_s3_path(path):
+        if is_s3_path(path):
             normalized = self.normalize_s3_path(path)
             return self._s3_fs.open_input_file(normalized)
         else:
@@ -115,13 +114,15 @@ class FileSystem:
     def get_filesystem(self, path: str) -> pafs.FileSystem:
         """Get PyArrow filesystem for path.
 
+        Supports local paths and S3 paths (s3://, s3a://, s3n://).
+
         Args:
             path: Local or S3 path
 
         Returns:
             PyArrow filesystem instance
         """
-        if self.is_s3_path(path):
+        if is_s3_path(path):
             return self._s3_fs
         else:
             return self._local_fs

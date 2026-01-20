@@ -10,6 +10,7 @@ import pyarrow.fs as pafs
 import pytest
 
 from tablesleuth.services.filesystem import FileSystem
+from tablesleuth.utils.path_utils import is_s3_path
 
 
 class TestFileSystem:
@@ -39,26 +40,29 @@ class TestFileSystem:
         assert fs.region == "ap-southeast-1"
 
     def test_is_s3_path_with_s3_url(self) -> None:
-        """Test is_s3_path returns True for S3 URLs."""
-        fs = FileSystem()
-        assert fs.is_s3_path("s3://bucket/key") is True
-        assert fs.is_s3_path("s3://my-bucket/path/to/file.parquet") is True
+        """Test is_s3_path utility returns True for S3 URLs."""
+        assert is_s3_path("s3://bucket/key") is True
+        assert is_s3_path("s3://my-bucket/path/to/file.parquet") is True
+        assert is_s3_path("s3a://bucket/key") is True
+        assert is_s3_path("s3n://bucket/key") is True
 
     def test_is_s3_path_with_local_path(self) -> None:
-        """Test is_s3_path returns False for local paths."""
-        fs = FileSystem()
-        assert fs.is_s3_path("/local/path/file.parquet") is False
-        assert fs.is_s3_path("relative/path/file.parquet") is False
-        assert fs.is_s3_path("file.parquet") is False
+        """Test is_s3_path utility returns False for local paths."""
+        assert is_s3_path("/local/path/file.parquet") is False
+        assert is_s3_path("relative/path/file.parquet") is False
+        assert is_s3_path("file.parquet") is False
 
     def test_normalize_s3_path(self) -> None:
-        """Test normalize_s3_path removes s3:// prefix."""
+        """Test normalize_s3_path removes S3 scheme prefixes."""
         fs = FileSystem()
         assert fs.normalize_s3_path("s3://bucket/key") == "bucket/key"
         assert (
             fs.normalize_s3_path("s3://my-bucket/path/to/file.parquet")
             == "my-bucket/path/to/file.parquet"
         )
+        # Test s3a:// and s3n:// schemes
+        assert fs.normalize_s3_path("s3a://bucket/key") == "bucket/key"
+        assert fs.normalize_s3_path("s3n://bucket/key") == "bucket/key"
 
     def test_normalize_s3_path_with_local_path(self) -> None:
         """Test normalize_s3_path returns local path unchanged."""

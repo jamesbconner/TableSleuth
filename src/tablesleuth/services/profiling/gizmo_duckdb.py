@@ -10,6 +10,7 @@ from adbc_driver_flightsql import dbapi as flightsql
 
 from tablesleuth.models import ColumnProfile, SnapshotInfo
 from tablesleuth.models.iceberg import QueryPerformanceMetrics
+from tablesleuth.utils.path_utils import is_s3_path
 
 from .backend_base import ProfilingBackend
 
@@ -735,7 +736,7 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         # Read metadata file
         fs = FileSystem()
 
-        if fs.is_s3_path(metadata_location):
+        if is_s3_path(metadata_location):
             with fs.open_file(metadata_location, "rb") as file_obj:
                 metadata = json.load(file_obj)
         else:

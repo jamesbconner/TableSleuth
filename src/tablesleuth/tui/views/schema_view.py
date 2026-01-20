@@ -13,6 +13,7 @@ from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.widgets import DataTable, Input, Static
 
 from tablesleuth.models.parquet import ParquetFileInfo
+from tablesleuth.utils.path_utils import is_s3_path
 
 logger = logging.getLogger(__name__)
 
@@ -168,7 +169,7 @@ class SchemaView(Container):
             from tablesleuth.services.filesystem import FileSystem
 
             fs = FileSystem()
-            if fs.is_s3_path(file_info.path):
+            if is_s3_path(file_info.path):
                 filesystem = fs.get_filesystem(file_info.path)
                 normalized_path = fs.normalize_s3_path(file_info.path)
                 self._parquet_file = ParquetFile(normalized_path, filesystem=filesystem)
