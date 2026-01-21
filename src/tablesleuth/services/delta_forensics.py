@@ -648,8 +648,10 @@ class DeltaForensics:
         current_version = table.version()
 
         # Find the most recent checkpoint
-        # Checkpoints are named like: 00000000000000000010.checkpoint.parquet
-        checkpoint_files = list(delta_log_path.glob("*.checkpoint.parquet"))
+        # Checkpoints can be:
+        # - Single file: {version}.checkpoint.parquet
+        # - Multi-part: {version}.checkpoint.{partNum}.{numParts}.parquet
+        checkpoint_files = list(delta_log_path.glob("*.checkpoint*.parquet"))
 
         last_checkpoint_version: int | None = None
         checkpoint_file_size_bytes: int | None = None
@@ -657,22 +659,29 @@ class DeltaForensics:
 
         if checkpoint_files:
             # Extract version numbers from checkpoint filenames
-            checkpoint_versions = []
+            checkpoint_versions: dict[int, list[Path]] = {}  # version -> list of checkpoint files
             for cp_file in checkpoint_files:
                 try:
-                    # Extract version from filename (e.g., "00000000000000000010.checkpoint.parquet")
-                    version_str = cp_file.stem.split(".")[0]
+                    # Extract version from filename
+                    # Single file: "00000000000000000010.checkpoint.parquet"
+                    # Multi-part: "00000000000000000010.checkpoint.0000000001.0000000010.parquet"
+                    filename_parts = cp_file.stem.split(".")
+                    version_str = filename_parts[0]
                     version = int(version_str)
-                    checkpoint_versions.append((version, cp_file))
+                    
+                    if version not in checkpoint_versions:
+                        checkpoint_versions[version] = []
+                    checkpoint_versions[version].append(cp_file)
                 except (ValueError, IndexError):
                     continue
 
             if checkpoint_versions:
-                # Get the most recent checkpoint
-                last_checkpoint_version, checkpoint_file = max(
-                    checkpoint_versions, key=lambda x: x[0]
-                )
-                checkpoint_file_size_bytes = checkpoint_file.stat().st_size
+                # Get the most recent checkpoint version
+                last_checkpoint_version = max(checkpoint_versions.keys())
+                
+                # Calculate total size of all checkpoint files for this version
+                checkpoint_files_for_version = checkpoint_versions[last_checkpoint_version]
+                checkpoint_file_size_bytes = sum(f.stat().st_size for f in checkpoint_files_for_version)
 
                 # Try to get checkpoint timestamp from the corresponding version file
                 version_file = delta_log_path / f"{last_checkpoint_version:020d}.json"

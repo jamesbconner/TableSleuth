@@ -383,7 +383,9 @@ class DeltaAdapter:
                 continue
 
         # Convert accumulated add actions to FileRef objects
-        data_files = [self._create_file_ref(action, table_path) for action in active_files.values()]
+        data_files = [
+            self._create_file_ref(action, table_uri, filesystem) for action in active_files.values()
+        ]
 
         # Determine operation type
         operation = commit_info.operation if commit_info else "UNKNOWN"
@@ -401,12 +403,15 @@ class DeltaAdapter:
             delete_files=[],  # Delta doesn't have separate delete files
         )
 
-    def _create_file_ref(self, add_action: AddAction, table_uri: str) -> FileRef:
+    def _create_file_ref(
+        self, add_action: AddAction, table_uri: str, filesystem: pafs.FileSystem | None
+    ) -> FileRef:
         """Create FileRef from add action.
 
         Args:
             add_action: AddAction from transaction log
-            table_uri: Base URI of the table
+            table_uri: Base URI of the table (with scheme for cloud, e.g., s3://bucket/path)
+            filesystem: PyArrow filesystem for cloud storage (None for local)
 
         Returns:
             FileRef object
@@ -417,7 +422,12 @@ class DeltaAdapter:
 
         # Construct full path by joining table URI with relative file path
         # The add_action.path is relative to the table root
-        full_path = str(Path(table_uri) / add_action.path)
+        if filesystem is not None:
+            # Cloud storage - use forward slashes and preserve URI scheme
+            full_path = f"{table_uri}/{add_action.path}"
+        else:
+            # Local filesystem - use Path for proper path joining
+            full_path = str(Path(table_uri) / add_action.path)
 
         return FileRef(
             path=full_path,
@@ -492,13 +502,17 @@ class DeltaAdapter:
                 # Local filesystem
                 assert delta_log_path is not None
                 version_files_list = list(delta_log_path.glob("*.json"))
-                version_files = [str(f) for f in version_files_list if f.stem.isdigit()]
+                version_files_paths = [f for f in version_files_list if f.stem.isdigit()]
+                version_files = [str(f) for f in version_files_paths]
 
             if version_files:
                 if filesystem is not None:
                     max_version = max(int(f.split("/")[-1].split(".")[0]) for f in version_files)
                 else:
-                    max_version = max(int(f.stem) for f in version_files)
+                    # Extract version from Path objects
+                    max_version = max(
+                        int(Path(f).stem) for f in version_files
+                    )
                 raise ValueError(
                     f"Version {version} is out of range.\nValid versions: 0 to {max_version}"
                 ) from None

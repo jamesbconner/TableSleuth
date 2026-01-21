@@ -942,7 +942,7 @@ class TestDeltaAdapter:
             partition_values={},
         )
 
-        file_ref = adapter._create_file_ref(add_action, "/tmp/table")
+        file_ref = adapter._create_file_ref(add_action, "/tmp/table", None)
 
         assert file_ref.path.endswith("test.parquet")
         assert file_ref.file_size_bytes == 1024
@@ -964,7 +964,7 @@ class TestDeltaAdapter:
             partition_values={"date": "2024-01-15"},
         )
 
-        file_ref = adapter._create_file_ref(add_action, "/tmp/table")
+        file_ref = adapter._create_file_ref(add_action, "/tmp/table", None)
 
         assert file_ref.path.endswith("test.parquet")
         assert file_ref.file_size_bytes == 2048
