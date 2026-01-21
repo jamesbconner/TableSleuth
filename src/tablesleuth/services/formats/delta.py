@@ -385,6 +385,7 @@ class DeltaAdapter:
         elif table_uri.startswith("file:\\"):
             # Windows file URI
             table_uri = table_uri[6:].lstrip("\\")  # Remove "file:\" prefix and leading backslashes
+        # If no file:// prefix, assume it's already a local path (common on macOS/Linux)
 
         delta_log_path = Path(table_uri) / "_delta_log"
         version_file = delta_log_path / f"{version:020d}.json"
@@ -392,9 +393,12 @@ class DeltaAdapter:
         # Check if version file exists
         if not version_file.exists():
             # Try to determine the max version
-            version_files = list(delta_log_path.glob("[0-9]*.json"))
+            version_files = list(delta_log_path.glob("*.json"))
+            # Filter to only numeric version files (exclude checkpoint files)
+            version_files = [f for f in version_files if f.stem.isdigit()]
+
             if version_files:
-                max_version = max(int(f.stem) for f in version_files if f.stem.isdigit())
+                max_version = max(int(f.stem) for f in version_files)
                 raise ValueError(
                     f"Version {version} is out of range.\nValid versions: 0 to {max_version}"
                 )
