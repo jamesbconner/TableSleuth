@@ -97,8 +97,7 @@ class DeltaAdapter:
             # For local paths, validate before attempting to open
             if not Path(identifier).exists():
                 raise FileNotFoundError(
-                    f"Table path not found: {identifier}\n"
-                    f"Verify the path exists and is accessible."
+                    f"Table path not found: {identifier}\nVerify the path exists and is accessible."
                 )
 
             # Validate it's a Delta table
@@ -129,9 +128,7 @@ class DeltaAdapter:
                     f"Verify the path points to a Delta table root directory.\n"
                     f"Error: {str(e)}"
                 ) from e
-            raise ValueError(
-                f"Failed to open Delta table: {identifier}\n" f"Error: {str(e)}"
-            ) from e
+            raise ValueError(f"Failed to open Delta table: {identifier}\nError: {str(e)}") from e
 
     def list_snapshots(self, table: TableHandle) -> list[SnapshotInfo]:
         """List all versions (snapshots) of the Delta table.
@@ -399,10 +396,10 @@ class DeltaAdapter:
             if version_files:
                 max_version = max(int(f.stem) for f in version_files if f.stem.isdigit())
                 raise ValueError(
-                    f"Version {version} is out of range.\n" f"Valid versions: 0 to {max_version}"
+                    f"Version {version} is out of range.\nValid versions: 0 to {max_version}"
                 )
             else:
-                raise ValueError(f"Version {version} is out of range.\n" f"No version files found")
+                raise ValueError(f"Version {version} is out of range.\nNo version files found")
 
         # Search backwards from requested version to find most recent metaData entry
         # Delta Lake only writes metaData when schema changes (typically version 0)
