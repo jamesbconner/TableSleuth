@@ -967,7 +967,7 @@ class DeltaForensics:
             "last_checkpoint_version": last_checkpoint_version,
             "log_tail_length": log_tail_length,
             "checkpoint_age_hours": round(checkpoint_age_hours, 2)
-            if checkpoint_age_hours
+            if checkpoint_age_hours is not None
             else None,
             "checkpoint_file_size_bytes": checkpoint_file_size_bytes,
             "health_status": health_status,
