@@ -16,6 +16,7 @@ from deltalake import DeltaTable
 from tablesleuth.models import SnapshotInfo
 
 from .formats.delta_log_parser import DeltaLogParser
+from .formats.delta_utils import get_filesystem_and_path
 
 try:
     from pyarrow import fs as pafs
@@ -36,90 +37,6 @@ class DeltaForensics:
     - Checkpoint health monitoring
     - Optimization recommendations
     """
-
-    @staticmethod
-    def _get_filesystem_and_path(
-        table_uri: str, storage_options: dict[str, str] | None = None
-    ) -> tuple[pafs.FileSystem | None, str]:
-        """Get PyArrow filesystem and normalized path for a table URI.
-
-        Args:
-            table_uri: Table URI (local path or cloud URI like s3://bucket/path)
-            storage_options: Optional cloud storage credentials and configuration
-
-        Returns:
-            Tuple of (filesystem, normalized_path)
-            - filesystem: PyArrow filesystem for cloud storage, None for local
-            - normalized_path: Normalized path component
-
-        Raises:
-            ImportError: If PyArrow is not installed for cloud storage
-        """
-        # Check if this is a cloud URI
-        is_cloud = table_uri.startswith(("s3://", "gs://", "abfs://", "abfss://"))
-
-        if is_cloud:
-            # Cloud storage - create PyArrow filesystem
-            if pafs is None:
-                raise ImportError(
-                    "PyArrow is required for cloud storage support. "
-                    "Install with: pip install pyarrow"
-                )
-
-            # Create filesystem from URI and storage options
-            filesystem, path = pafs.FileSystem.from_uri(table_uri)
-
-            # Apply storage options if provided
-            if storage_options:
-                # Convert storage options to PyArrow format
-                if table_uri.startswith("s3://"):
-                    # S3 filesystem
-                    s3_options = {}
-                    if "AWS_ACCESS_KEY_ID" in storage_options:
-                        s3_options["access_key"] = storage_options["AWS_ACCESS_KEY_ID"]
-                    if "AWS_SECRET_ACCESS_KEY" in storage_options:
-                        s3_options["secret_key"] = storage_options["AWS_SECRET_ACCESS_KEY"]
-                    if "AWS_REGION" in storage_options:
-                        s3_options["region"] = storage_options["AWS_REGION"]
-                    if "AWS_ENDPOINT_URL" in storage_options:
-                        s3_options["endpoint_override"] = storage_options["AWS_ENDPOINT_URL"]
-
-                    if s3_options:
-                        filesystem = pafs.S3FileSystem(**s3_options)
-
-            return filesystem, path
-        else:
-            # Local filesystem - handle file:// prefix
-            original_uri = table_uri
-
-            if table_uri.startswith("file:///"):
-                table_uri = table_uri[8:]
-            elif table_uri.startswith("file://"):
-                table_uri = table_uri[7:]
-                # macOS/Linux: Ensure absolute path has leading /
-                # Only prepend / if it looks like an absolute path without the leading /
-                if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
-                    # This is likely a macOS/Linux absolute path missing the leading /
-                    # (e.g., "private/var/..." should be "/private/var/...")
-                    table_uri = "/" + table_uri
-            elif table_uri.startswith("file:\\"):
-                table_uri = table_uri[6:].lstrip("\\")
-
-            # Additional check: If the original URI had file:// prefix and the path
-            # doesn't start with / or \ or contain : (Windows drive), and it's not
-            # a relative path (doesn't start with . or contain /), it's likely a
-            # macOS absolute path missing the leading /
-            # This handles cases where deltalake returns file://private/var/...
-            if (
-                original_uri.startswith("file://")
-                and not table_uri.startswith(("/", "\\", "."))
-                and ":" not in table_uri
-                and "/" in table_uri
-            ):  # Has path separators, so it's a path not just a name
-                # This looks like an absolute Unix path missing the leading /
-                table_uri = "/" + table_uri
-
-            return None, table_uri
 
     @staticmethod
     def analyze_file_sizes(snapshot: SnapshotInfo) -> dict[str, Any]:
@@ -256,7 +173,7 @@ class DeltaForensics:
         table_uri = table.table_uri
 
         # Get filesystem and normalized path
-        filesystem, table_path = DeltaForensics._get_filesystem_and_path(table_uri, storage_options)
+        filesystem, table_path = get_filesystem_and_path(table_uri, storage_options)
 
         # Build delta log path
         if filesystem is not None:
@@ -546,7 +463,7 @@ class DeltaForensics:
         table_uri = table.table_uri
 
         # Get filesystem and normalized path
-        filesystem, table_path = DeltaForensics._get_filesystem_and_path(table_uri, storage_options)
+        filesystem, table_path = get_filesystem_and_path(table_uri, storage_options)
 
         # Build delta log path
         if filesystem is not None:
@@ -787,7 +704,7 @@ class DeltaForensics:
         table_uri = table.table_uri
 
         # Get filesystem and normalized path
-        filesystem, table_path = DeltaForensics._get_filesystem_and_path(table_uri, storage_options)
+        filesystem, table_path = get_filesystem_and_path(table_uri, storage_options)
 
         # Build delta log path
         if filesystem is not None:
@@ -991,7 +908,9 @@ class DeltaForensics:
         }
 
     @staticmethod
-    def generate_recommendations(table: DeltaTable, snapshot: SnapshotInfo) -> list[dict[str, Any]]:
+    def generate_recommendations(
+        table: DeltaTable, snapshot: SnapshotInfo, storage_options: dict[str, str] | None = None
+    ) -> list[dict[str, Any]]:
         """Generate actionable optimization recommendations.
 
         Analyzes the table and current snapshot to generate prioritized
@@ -1000,6 +919,7 @@ class DeltaForensics:
         Args:
             table: DeltaTable instance
             snapshot: Current SnapshotInfo
+            storage_options: Optional cloud storage credentials and configuration
 
         Returns:
             List of recommendation dictionaries, each containing:
@@ -1059,7 +979,9 @@ class DeltaForensics:
 
         # Analyze storage waste
         try:
-            storage_analysis = DeltaForensics.analyze_storage_waste(table, table.version())
+            storage_analysis = DeltaForensics.analyze_storage_waste(
+                table, table.version(), storage_options=storage_options
+            )
 
             # Recommendation 2: VACUUM for storage waste
             if storage_analysis["waste_percentage"] > 30:
@@ -1098,7 +1020,9 @@ class DeltaForensics:
 
         # Analyze Z-order effectiveness
         try:
-            zorder_analysis = DeltaForensics.analyze_zorder_effectiveness(table)
+            zorder_analysis = DeltaForensics.analyze_zorder_effectiveness(
+                table, storage_options=storage_options
+            )
 
             # Recommendation 3: ZORDER for degraded effectiveness
             if (
@@ -1143,7 +1067,9 @@ class DeltaForensics:
 
         # Analyze checkpoint health
         try:
-            checkpoint_health = DeltaForensics.analyze_checkpoint_health(table)
+            checkpoint_health = DeltaForensics.analyze_checkpoint_health(
+                table, storage_options=storage_options
+            )
 
             # Recommendation 4: CHECKPOINT for long log tail
             if checkpoint_health["health_status"] == "critical":
@@ -1360,7 +1286,7 @@ class DeltaForensics:
         table_uri = table.table_uri
 
         # Get filesystem and normalized path
-        filesystem, table_path = DeltaForensics._get_filesystem_and_path(table_uri, storage_options)
+        filesystem, table_path = get_filesystem_and_path(table_uri, storage_options)
 
         # Build delta log path
         if filesystem is not None:

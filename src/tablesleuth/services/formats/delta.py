@@ -17,6 +17,7 @@ from deltalake import DeltaTable
 from tablesleuth.models import FileRef, SnapshotInfo, TableHandle
 
 from .delta_log_parser import AddAction, DeltaLogParser
+from .delta_utils import get_filesystem_and_path
 
 try:
     from pyarrow import fs as pafs
@@ -45,86 +46,6 @@ class DeltaAdapter:
         """
         self.storage_options = storage_options or {}
 
-    def _get_filesystem_and_path(self, table_uri: str) -> tuple[pafs.FileSystem | None, str]:
-        """Get PyArrow filesystem and normalized path for a table URI.
-
-        Args:
-            table_uri: Table URI (local path or cloud URI like s3://bucket/path)
-
-        Returns:
-            Tuple of (filesystem, normalized_path)
-            - filesystem: PyArrow filesystem for cloud storage, None for local
-            - normalized_path: Normalized path component
-
-        Raises:
-            ImportError: If PyArrow is not installed for cloud storage
-        """
-        # Check if this is a cloud URI
-        is_cloud = table_uri.startswith(("s3://", "gs://", "abfs://", "abfss://"))
-
-        if is_cloud:
-            # Cloud storage - create PyArrow filesystem
-            if pafs is None:
-                raise ImportError(
-                    "PyArrow is required for cloud storage support. "
-                    "Install with: pip install pyarrow"
-                )
-
-            # Create filesystem from URI and storage options
-            filesystem, path = pafs.FileSystem.from_uri(table_uri)
-
-            # Apply storage options if provided
-            if self.storage_options:
-                # Convert storage options to PyArrow format
-                if table_uri.startswith("s3://"):
-                    # S3 filesystem
-                    s3_options = {}
-                    if "AWS_ACCESS_KEY_ID" in self.storage_options:
-                        s3_options["access_key"] = self.storage_options["AWS_ACCESS_KEY_ID"]
-                    if "AWS_SECRET_ACCESS_KEY" in self.storage_options:
-                        s3_options["secret_key"] = self.storage_options["AWS_SECRET_ACCESS_KEY"]
-                    if "AWS_REGION" in self.storage_options:
-                        s3_options["region"] = self.storage_options["AWS_REGION"]
-                    if "AWS_ENDPOINT_URL" in self.storage_options:
-                        s3_options["endpoint_override"] = self.storage_options["AWS_ENDPOINT_URL"]
-
-                    if s3_options:
-                        filesystem = pafs.S3FileSystem(**s3_options)
-
-            return filesystem, path
-        else:
-            # Local filesystem - handle file:// prefix
-            original_uri = table_uri
-
-            if table_uri.startswith("file:///"):
-                table_uri = table_uri[8:]
-            elif table_uri.startswith("file://"):
-                table_uri = table_uri[7:]
-                # macOS/Linux: Ensure absolute path has leading /
-                # Only prepend / if it looks like an absolute path without the leading /
-                if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
-                    # This is likely a macOS/Linux absolute path missing the leading /
-                    # (e.g., "private/var/..." should be "/private/var/...")
-                    table_uri = "/" + table_uri
-            elif table_uri.startswith("file:\\"):
-                table_uri = table_uri[6:].lstrip("\\")
-
-            # Additional check: If the original URI had file:// prefix and the path
-            # doesn't start with / or \ or contain : (Windows drive), and it's not
-            # a relative path (doesn't start with . or contain /), it's likely a
-            # macOS absolute path missing the leading /
-            # This handles cases where deltalake returns file://private/var/...
-            if (
-                original_uri.startswith("file://")
-                and not table_uri.startswith(("/", "\\", "."))
-                and ":" not in table_uri
-                and "/" in table_uri
-            ):  # Has path separators, so it's a path not just a name
-                # This looks like an absolute Unix path missing the leading /
-                table_uri = "/" + table_uri
-
-            return None, table_uri
-
     def _is_delta_table(self, path: str) -> bool:
         """Check if path contains a valid Delta table.
 
@@ -138,7 +59,7 @@ class DeltaAdapter:
         """
         try:
             # Get filesystem and normalized path
-            filesystem, table_path = self._get_filesystem_and_path(path)
+            filesystem, table_path = get_filesystem_and_path(path, self.storage_options)
 
             if filesystem is not None:
                 # Cloud storage - use filesystem operations
@@ -361,7 +282,7 @@ class DeltaAdapter:
         table_uri = dt.table_uri
 
         # Get filesystem and normalized path
-        filesystem, table_path = self._get_filesystem_and_path(table_uri)
+        filesystem, table_path = get_filesystem_and_path(table_uri, self.storage_options)
 
         # Build delta log path
         if filesystem is not None:
@@ -532,7 +453,7 @@ class DeltaAdapter:
         table_uri = dt.table_uri
 
         # Get filesystem and normalized path
-        filesystem, table_path = self._get_filesystem_and_path(table_uri)
+        filesystem, table_path = get_filesystem_and_path(table_uri, self.storage_options)
 
         # Build delta log path
         if filesystem is not None:
@@ -725,7 +646,7 @@ class DeltaAdapter:
         table_uri = dt.table_uri
 
         # Get filesystem and normalized path
-        filesystem, table_path = self._get_filesystem_and_path(table_uri)
+        filesystem, table_path = get_filesystem_and_path(table_uri, self.storage_options)
 
         # Build delta log path
         if filesystem is not None:
@@ -835,7 +756,7 @@ class DeltaAdapter:
         table_uri = dt.table_uri
 
         # Get filesystem and normalized path
-        filesystem, table_path = self._get_filesystem_and_path(table_uri)
+        filesystem, table_path = get_filesystem_and_path(table_uri, self.storage_options)
 
         # Build delta log path
         if filesystem is not None:

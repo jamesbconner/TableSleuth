@@ -406,8 +406,8 @@ class VersionSchemaView(Container):
         Args:
             schema: Dictionary mapping column names to types
         """
-        # Only update if schema changed
-        if self._schema is schema:
+        # Only update if schema changed (compare content, not object identity)
+        if self._schema == schema:
             return
 
         self._schema = schema
@@ -1066,20 +1066,25 @@ class DeltaView(Screen):
 
         try:
             dt = self._table_handle.native
+            storage_options = self._adapter.storage_options
 
             # File size analysis
             file_analysis = DeltaForensics.analyze_file_sizes(snapshot)
 
             # Storage waste analysis
             try:
-                storage_analysis = DeltaForensics.analyze_storage_waste(dt, dt.version())
+                storage_analysis = DeltaForensics.analyze_storage_waste(
+                    dt, dt.version(), storage_options=storage_options
+                )
             except Exception as e:
                 logger.warning(f"Storage waste analysis failed: {e}")
                 storage_analysis = None
 
             # Checkpoint health
             try:
-                checkpoint_health = DeltaForensics.analyze_checkpoint_health(dt)
+                checkpoint_health = DeltaForensics.analyze_checkpoint_health(
+                    dt, storage_options=storage_options
+                )
             except Exception as e:
                 logger.warning(f"Checkpoint health analysis failed: {e}")
                 checkpoint_health = None
@@ -1090,7 +1095,9 @@ class DeltaView(Screen):
 
             # Generate recommendations
             try:
-                recommendations = DeltaForensics.generate_recommendations(dt, snapshot)
+                recommendations = DeltaForensics.generate_recommendations(
+                    dt, snapshot, storage_options=storage_options
+                )
                 recommendations_view = self.query_one("#recommendations-view", RecommendationsView)
                 recommendations_view.update_recommendations(recommendations)
             except Exception as e:
