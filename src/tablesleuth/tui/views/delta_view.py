@@ -406,14 +406,16 @@ class VersionSchemaView(Container):
         Args:
             schema: Dictionary mapping column names to types
         """
-        # Only update if schema changed (compare content, not object identity)
-        if self._schema == schema:
-            return
-
-        self._schema = schema
-
         try:
             table = self.query_one("#schema-table", DataTable)
+
+            # Only skip update if schema unchanged AND table is already populated
+            # This handles the case where on_mount() calls update_schema(self._schema)
+            # with the same object reference on first mount
+            if self._schema == schema and table.row_count > 0:
+                return
+
+            self._schema = schema
 
             # Clear existing rows (preserve columns)
             table.clear(columns=False)
