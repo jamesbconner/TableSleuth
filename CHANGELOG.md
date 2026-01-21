@@ -2,10 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.5.0] - 2026-01-21
 
 ### Added
 
+- **Glue Hive Table Support** - `parquet` command now supports AWS Glue Hive tables
+  - Added `--region` flag to specify AWS region for Glue catalog queries
+  - Automatic fallback from Iceberg to Glue Hive tables when catalog not found in `.pyiceberg.yaml`
+  - Region resolution follows AWS conventions: `--region` flag > `AWS_REGION` env > `AWS_DEFAULT_REGION` env > default (`us-east-2`)
+  - Helpful error messages when tables not found, with suggestions for troubleshooting
+  - Detects Iceberg tables in Glue and provides configuration guidance
+  - Caution: This is very slow to load if operated against a large table due to reading files for row counts.
 - **Delta Lake Support** - Comprehensive forensic analysis for Delta Lake tables
   - New `delta` command for inspecting Delta Lake tables (local and S3)
   - Version history navigation and time travel support (`--version` flag)
@@ -33,6 +40,12 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- **⚠️ BREAKING CHANGE: CLI Command Renamed** - `inspect` command renamed to `parquet`
+  - The Parquet file analysis command has been renamed from `inspect` to `parquet` to establish a consistent format-oriented command structure
+  - This change aligns the CLI with a clear pattern where top-level commands correspond to table format types
+  - All functionality remains identical - only the command name has changed
+- `parquet` command now tries Iceberg catalog first, then falls back to Glue database lookup
+- Enhanced error messages for catalog-related failures with actionable suggestions
 - Updated package description to explicitly mention Delta Lake support
 - Added "delta-lake" to package keywords for better discoverability
 - Enhanced documentation with Delta Lake features and examples
@@ -60,27 +73,6 @@ All notable changes to this project will be documented in this file.
   - For a table with 1000 versions: ~180 seconds → ~0.36 seconds
   - Memory usage remains constant (O(F) where F = max active files)
   - Makes the tool usable for production Delta tables with substantial history
-
-## [0.5.0] - 2026-01-18
-
-### Added
-
-- **Glue Hive Table Support** - `parquet` command now supports AWS Glue Hive tables
-  - Added `--region` flag to specify AWS region for Glue catalog queries
-  - Automatic fallback from Iceberg to Glue Hive tables when catalog not found in `.pyiceberg.yaml`
-  - Region resolution follows AWS conventions: `--region` flag > `AWS_REGION` env > `AWS_DEFAULT_REGION` env > default (`us-east-2`)
-  - Helpful error messages when tables not found, with suggestions for troubleshooting
-  - Detects Iceberg tables in Glue and provides configuration guidance
-  - Caution: This is very slow to load if operated against a large table due to reading files for row counts.
-
-### Changed
-
-- **⚠️ BREAKING CHANGE: CLI Command Renamed** - `inspect` command renamed to `parquet`
-  - The Parquet file analysis command has been renamed from `inspect` to `parquet` to establish a consistent format-oriented command structure
-  - This change aligns the CLI with a clear pattern where top-level commands correspond to table format types
-  - All functionality remains identical - only the command name has changed
-- `parquet` command now tries Iceberg catalog first, then falls back to Glue database lookup
-- Enhanced error messages for catalog-related failures with actionable suggestions
 
 ### Fixed
 

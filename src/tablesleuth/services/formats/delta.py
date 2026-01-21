@@ -868,10 +868,13 @@ class DeltaAdapter:
             # Local filesystem
             assert delta_log_path is not None
             version_files_list = list(delta_log_path.glob("[0-9]*.json"))
+            # Filter to only files with numeric stems (exclude files like 0_backup.json)
+            version_files_list = [f for f in version_files_list if f.stem.isdigit()]
+
             if not version_files_list:
                 return []
 
-            current_version = max(int(f.stem) for f in version_files_list if f.stem.isdigit())
+            current_version = max(int(f.stem) for f in version_files_list)
 
         evolution: list[dict[str, Any]] = []
         previous_schema: dict[str, str] | None = None
