@@ -139,5 +139,3 @@ async def test_schema_view_clear() -> None:
         # Table should be empty
         assert table.row_count == 0
         assert view._schema is None
-
-
