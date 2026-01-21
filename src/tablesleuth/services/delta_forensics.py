@@ -17,6 +17,11 @@ from tablesleuth.models import SnapshotInfo
 
 from .formats.delta_log_parser import DeltaLogParser
 
+try:
+    from pyarrow import fs as pafs
+except ImportError:
+    pafs = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -31,6 +36,75 @@ class DeltaForensics:
     - Checkpoint health monitoring
     - Optimization recommendations
     """
+
+    @staticmethod
+    def _get_filesystem_and_path(
+        table_uri: str, storage_options: dict[str, str] | None = None
+    ) -> tuple[pafs.FileSystem | None, str]:
+        """Get PyArrow filesystem and normalized path for a table URI.
+
+        Args:
+            table_uri: Table URI (local path or cloud URI like s3://bucket/path)
+            storage_options: Optional cloud storage credentials and configuration
+
+        Returns:
+            Tuple of (filesystem, normalized_path)
+            - filesystem: PyArrow filesystem for cloud storage, None for local
+            - normalized_path: Normalized path component
+
+        Raises:
+            ImportError: If PyArrow is not installed for cloud storage
+        """
+        # Check if this is a cloud URI
+        is_cloud = table_uri.startswith(("s3://", "gs://", "abfs://", "abfss://"))
+
+        if is_cloud:
+            # Cloud storage - create PyArrow filesystem
+            if pafs is None:
+                raise ImportError(
+                    "PyArrow is required for cloud storage support. "
+                    "Install with: pip install pyarrow"
+                )
+
+            # Create filesystem from URI and storage options
+            filesystem, path = pafs.FileSystem.from_uri(table_uri)
+
+            # Apply storage options if provided
+            if storage_options:
+                # Convert storage options to PyArrow format
+                if table_uri.startswith("s3://"):
+                    # S3 filesystem
+                    s3_options = {}
+                    if "AWS_ACCESS_KEY_ID" in storage_options:
+                        s3_options["access_key"] = storage_options["AWS_ACCESS_KEY_ID"]
+                    if "AWS_SECRET_ACCESS_KEY" in storage_options:
+                        s3_options["secret_key"] = storage_options["AWS_SECRET_ACCESS_KEY"]
+                    if "AWS_REGION" in storage_options:
+                        s3_options["region"] = storage_options["AWS_REGION"]
+                    if "AWS_ENDPOINT_URL" in storage_options:
+                        s3_options["endpoint_override"] = storage_options["AWS_ENDPOINT_URL"]
+
+                    if s3_options:
+                        filesystem = pafs.S3FileSystem(**s3_options)
+
+            return filesystem, path
+        else:
+            # Local filesystem - handle file:// prefix
+            if table_uri.startswith("file:///"):
+                table_uri = table_uri[8:]
+            elif table_uri.startswith("file://"):
+                table_uri = table_uri[7:]
+                # Ensure absolute path for macOS (doesn't contain : for Windows drive)
+                if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
+                    table_uri = "/" + table_uri
+            elif table_uri.startswith("file:\\"):
+                table_uri = table_uri[6:].lstrip("\\")
+
+            # Ensure absolute path for macOS (doesn't contain : for Windows drive)
+            if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
+                table_uri = "/" + table_uri
+
+            return None, table_uri
 
     @staticmethod
     def analyze_file_sizes(snapshot: SnapshotInfo) -> dict[str, Any]:
@@ -134,6 +208,7 @@ class DeltaForensics:
         table: DeltaTable,
         current_version: int,
         retention_hours: int = 168,  # 7 days default
+        storage_options: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """Analyze storage waste from tombstoned files.
 
@@ -145,6 +220,7 @@ class DeltaForensics:
             table: DeltaTable instance
             current_version: Current version number to analyze up to
             retention_hours: Retention period in hours (default: 168 = 7 days)
+            storage_options: Optional cloud storage credentials and configuration
 
         Returns:
             Dictionary containing:
@@ -164,24 +240,18 @@ class DeltaForensics:
         # Get table URI for accessing transaction log
         table_uri = table.table_uri
 
-        # Handle file URI prefix
-        if table_uri.startswith("file:///"):
-            table_uri = table_uri[8:]
-        elif table_uri.startswith("file://"):
-            table_uri = table_uri[7:]
-            # Ensure we have an absolute path (macOS sometimes returns paths without leading /)
-            # Only prepend / if it's not a Windows path (doesn't contain : for drive letter)
-            if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
-                table_uri = "/" + table_uri
-        elif table_uri.startswith("file:\\"):
-            table_uri = table_uri[6:].lstrip("\\")
+        # Get filesystem and normalized path
+        filesystem, table_path = DeltaForensics._get_filesystem_and_path(table_uri, storage_options)
 
-        # Ensure we have an absolute path (macOS sometimes returns paths without leading /)
-        # Only prepend / if it's not a Windows path (doesn't contain : for drive letter)
-        if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
-            table_uri = "/" + table_uri
-
-        delta_log_path = Path(table_uri) / "_delta_log"
+        # Build delta log path
+        if filesystem is not None:
+            # Cloud storage - use forward slashes
+            delta_log_path_str = f"{table_path}/_delta_log"
+            delta_log_path: Path | None = None
+        else:
+            # Local filesystem
+            delta_log_path = Path(table_path) / "_delta_log"
+            delta_log_path_str = str(delta_log_path)
 
         # Track active and tombstoned files
         active_files: dict[str, int] = {}  # path -> size
@@ -189,13 +259,27 @@ class DeltaForensics:
 
         # Parse all versions up to current_version
         for version in range(current_version + 1):
-            version_file = delta_log_path / f"{version:020d}.json"
+            if filesystem is not None:
+                # Cloud storage
+                version_file = f"{delta_log_path_str}/{version:020d}.json"
+            else:
+                # Local filesystem
+                assert delta_log_path is not None
+                version_file_path = delta_log_path / f"{version:020d}.json"
+                version_file = str(version_file_path)
 
-            if not version_file.exists():
-                continue
+            # Check if version file exists
+            if filesystem is not None:
+                try:
+                    filesystem.get_file_info(version_file)
+                except FileNotFoundError:
+                    continue
+            else:
+                if not Path(version_file).exists():
+                    continue
 
             try:
-                parsed = DeltaLogParser.parse_version_file(str(version_file))
+                parsed = DeltaLogParser.parse_version_file(version_file, filesystem)
 
                 # Process add actions - add to active files
                 for add_action in parsed["add_actions"]:
@@ -237,12 +321,29 @@ class DeltaForensics:
 
         # Calculate reclaimable storage (files beyond retention period)
         # Get current timestamp from the current version
-        current_version_file = delta_log_path / f"{current_version:020d}.json"
+        if filesystem is not None:
+            current_version_file = f"{delta_log_path_str}/{current_version:020d}.json"
+        else:
+            assert delta_log_path is not None
+            current_version_file_path = delta_log_path / f"{current_version:020d}.json"
+            current_version_file = str(current_version_file_path)
+
         current_timestamp = 0
 
-        if current_version_file.exists():
+        # Check if current version file exists
+        file_exists = False
+        if filesystem is not None:
             try:
-                parsed = DeltaLogParser.parse_version_file(str(current_version_file))
+                filesystem.get_file_info(current_version_file)
+                file_exists = True
+            except FileNotFoundError:
+                pass
+        else:
+            file_exists = Path(current_version_file).exists()
+
+        if file_exists:
+            try:
+                parsed = DeltaLogParser.parse_version_file(current_version_file, filesystem)
                 if parsed["commit_info"]:
                     current_timestamp = parsed["commit_info"].timestamp
             except Exception as e:  # nosec B110
@@ -395,7 +496,9 @@ class DeltaForensics:
 
     @staticmethod
     def analyze_zorder_effectiveness(
-        table: DeltaTable, zorder_columns: list[str] | None = None
+        table: DeltaTable,
+        zorder_columns: list[str] | None = None,
+        storage_options: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """Analyze Z-order clustering effectiveness.
 
@@ -405,6 +508,7 @@ class DeltaForensics:
         Args:
             table: DeltaTable instance
             zorder_columns: List of Z-ordered columns (if None, will auto-detect)
+            storage_options: Optional cloud storage credentials and configuration
 
         Returns:
             Dictionary containing:
@@ -426,24 +530,19 @@ class DeltaForensics:
         # Get table URI for accessing transaction log
         table_uri = table.table_uri
 
-        # Handle file URI prefix
-        if table_uri.startswith("file:///"):
-            table_uri = table_uri[8:]
-        elif table_uri.startswith("file://"):
-            table_uri = table_uri[7:]
-            # Ensure we have an absolute path (macOS sometimes returns paths without leading /)
-            # Only prepend / if it's not a Windows path (doesn't contain : for drive letter)
-            if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
-                table_uri = "/" + table_uri
-        elif table_uri.startswith("file:\\"):
-            table_uri = table_uri[6:].lstrip("\\")
+        # Get filesystem and normalized path
+        filesystem, table_path = DeltaForensics._get_filesystem_and_path(table_uri, storage_options)
 
-        # Ensure we have an absolute path (macOS sometimes returns paths without leading /)
-        # Only prepend / if it's not a Windows path (doesn't contain : for drive letter)
-        if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
-            table_uri = "/" + table_uri
+        # Build delta log path
+        if filesystem is not None:
+            # Cloud storage - use forward slashes
+            delta_log_path_str = f"{table_path}/_delta_log"
+            delta_log_path: Path | None = None
+        else:
+            # Local filesystem
+            delta_log_path = Path(table_path) / "_delta_log"
+            delta_log_path_str = str(delta_log_path)
 
-        delta_log_path = Path(table_uri) / "_delta_log"
         current_version = table.version()
 
         # Auto-detect Z-order columns if not provided
@@ -451,12 +550,25 @@ class DeltaForensics:
             zorder_columns = []
             # Look for OPTIMIZE operations with zOrderBy parameter
             for version in range(current_version, -1, -1):
-                version_file = delta_log_path / f"{version:020d}.json"
-                if not version_file.exists():
-                    continue
+                if filesystem is not None:
+                    version_file = f"{delta_log_path_str}/{version:020d}.json"
+                else:
+                    assert delta_log_path is not None
+                    version_file_path = delta_log_path / f"{version:020d}.json"
+                    version_file = str(version_file_path)
+
+                # Check if version file exists
+                if filesystem is not None:
+                    try:
+                        filesystem.get_file_info(version_file)
+                    except FileNotFoundError:
+                        continue
+                else:
+                    if not Path(version_file).exists():
+                        continue
 
                 try:
-                    parsed = DeltaLogParser.parse_version_file(str(version_file))
+                    parsed = DeltaLogParser.parse_version_file(version_file, filesystem)
                     commit_info = parsed["commit_info"]
 
                     if commit_info and commit_info.operation == "OPTIMIZE":
@@ -483,12 +595,25 @@ class DeltaForensics:
         # Find last OPTIMIZE operation
         last_optimize_version: int | None = None
         for version in range(current_version, -1, -1):
-            version_file = delta_log_path / f"{version:020d}.json"
-            if not version_file.exists():
-                continue
+            if filesystem is not None:
+                version_file = f"{delta_log_path_str}/{version:020d}.json"
+            else:
+                assert delta_log_path is not None
+                version_file_path = delta_log_path / f"{version:020d}.json"
+                version_file = str(version_file_path)
+
+            # Check if version file exists
+            if filesystem is not None:
+                try:
+                    filesystem.get_file_info(version_file)
+                except FileNotFoundError:
+                    continue
+            else:
+                if not Path(version_file).exists():
+                    continue
 
             try:
-                parsed = DeltaLogParser.parse_version_file(str(version_file))
+                parsed = DeltaLogParser.parse_version_file(version_file, filesystem)
                 commit_info = parsed["commit_info"]
 
                 if commit_info and commit_info.operation == "OPTIMIZE":
@@ -511,11 +636,27 @@ class DeltaForensics:
 
         if zorder_columns:
             # Parse current version to get file statistics
-            version_file = delta_log_path / f"{current_version:020d}.json"
+            if filesystem is not None:
+                version_file = f"{delta_log_path_str}/{current_version:020d}.json"
+            else:
+                assert delta_log_path is not None
+                version_file_path = delta_log_path / f"{current_version:020d}.json"
+                version_file = str(version_file_path)
 
-            if version_file.exists():
+            # Check if version file exists
+            file_exists = False
+            if filesystem is not None:
                 try:
-                    parsed = DeltaLogParser.parse_version_file(str(version_file))
+                    filesystem.get_file_info(version_file)
+                    file_exists = True
+                except FileNotFoundError:
+                    pass
+            else:
+                file_exists = Path(version_file).exists()
+
+            if file_exists:
+                try:
+                    parsed = DeltaLogParser.parse_version_file(version_file, filesystem)
                     add_actions = parsed["add_actions"]
 
                     # For each Z-ordered column, calculate overlap
@@ -598,7 +739,9 @@ class DeltaForensics:
         }
 
     @staticmethod
-    def analyze_checkpoint_health(table: DeltaTable) -> dict[str, Any]:
+    def analyze_checkpoint_health(
+        table: DeltaTable, storage_options: dict[str, str] | None = None
+    ) -> dict[str, Any]:
         """Analyze checkpoint health and efficiency.
 
         Evaluates the health of Delta table checkpoints by analyzing checkpoint
@@ -606,6 +749,7 @@ class DeltaForensics:
 
         Args:
             table: DeltaTable instance
+            storage_options: Optional cloud storage credentials and configuration
 
         Returns:
             Dictionary containing:
@@ -627,31 +771,42 @@ class DeltaForensics:
         # Get table URI for accessing transaction log
         table_uri = table.table_uri
 
-        # Handle file URI prefix
-        if table_uri.startswith("file:///"):
-            table_uri = table_uri[8:]
-        elif table_uri.startswith("file://"):
-            table_uri = table_uri[7:]
-            # Ensure we have an absolute path (macOS sometimes returns paths without leading /)
-            # Only prepend / if it's not a Windows path (doesn't contain : for drive letter)
-            if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
-                table_uri = "/" + table_uri
-        elif table_uri.startswith("file:\\"):
-            table_uri = table_uri[6:].lstrip("\\")
+        # Get filesystem and normalized path
+        filesystem, table_path = DeltaForensics._get_filesystem_and_path(table_uri, storage_options)
 
-        # Ensure we have an absolute path (macOS sometimes returns paths without leading /)
-        # Only prepend / if it's not a Windows path (doesn't contain : for drive letter)
-        if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
-            table_uri = "/" + table_uri
+        # Build delta log path
+        if filesystem is not None:
+            # Cloud storage - use forward slashes
+            delta_log_path_str = f"{table_path}/_delta_log"
+            delta_log_path: Path | None = None
+        else:
+            # Local filesystem
+            delta_log_path = Path(table_path) / "_delta_log"
+            delta_log_path_str = str(delta_log_path)
 
-        delta_log_path = Path(table_uri) / "_delta_log"
         current_version = table.version()
 
         # Find the most recent checkpoint
         # Checkpoints can be:
         # - Single file: {version}.checkpoint.parquet
         # - Multi-part: {version}.checkpoint.{partNum}.{numParts}.parquet
-        checkpoint_files = list(delta_log_path.glob("*.checkpoint*.parquet"))
+        if filesystem is not None:
+            # Cloud storage - list checkpoint files
+            try:
+                file_selector = pafs.FileSelector(delta_log_path_str, recursive=False)
+                file_info = filesystem.get_file_info(file_selector)
+                checkpoint_files = [
+                    f.path
+                    for f in file_info
+                    if ".checkpoint" in f.path and f.path.endswith(".parquet")
+                ]
+            except Exception:
+                checkpoint_files = []
+        else:
+            # Local filesystem
+            assert delta_log_path is not None
+            checkpoint_files_list = list(delta_log_path.glob("*.checkpoint*.parquet"))
+            checkpoint_files = [str(f) for f in checkpoint_files_list]
 
         last_checkpoint_version: int | None = None
         checkpoint_file_size_bytes: int | None = None
@@ -659,13 +814,20 @@ class DeltaForensics:
 
         if checkpoint_files:
             # Extract version numbers from checkpoint filenames
-            checkpoint_versions: dict[int, list[Path]] = {}  # version -> list of checkpoint files
+            checkpoint_versions: dict[
+                int, list[str]
+            ] = {}  # version -> list of checkpoint file paths
             for cp_file in checkpoint_files:
                 try:
                     # Extract version from filename
                     # Single file: "00000000000000000010.checkpoint.parquet"
                     # Multi-part: "00000000000000000010.checkpoint.0000000001.0000000010.parquet"
-                    filename_parts = cp_file.stem.split(".")
+                    if filesystem is not None:
+                        filename = cp_file.split("/")[-1]
+                    else:
+                        filename = Path(cp_file).name
+
+                    filename_parts = filename.replace(".parquet", "").split(".")
                     version_str = filename_parts[0]
                     version = int(version_str)
 
@@ -681,15 +843,44 @@ class DeltaForensics:
 
                 # Calculate total size of all checkpoint files for this version
                 checkpoint_files_for_version = checkpoint_versions[last_checkpoint_version]
-                checkpoint_file_size_bytes = sum(
-                    f.stat().st_size for f in checkpoint_files_for_version
-                )
+
+                if filesystem is not None:
+                    # Cloud storage - get file sizes
+                    checkpoint_file_size_bytes = 0
+                    for cp_file in checkpoint_files_for_version:
+                        try:
+                            file_info = filesystem.get_file_info(cp_file)
+                            checkpoint_file_size_bytes += file_info.size
+                        except Exception as e:
+                            logger.debug(f"Failed to get size for checkpoint file {cp_file}: {e}")
+                else:
+                    # Local filesystem
+                    checkpoint_file_size_bytes = sum(
+                        Path(f).stat().st_size for f in checkpoint_files_for_version
+                    )
 
                 # Try to get checkpoint timestamp from the corresponding version file
-                version_file = delta_log_path / f"{last_checkpoint_version:020d}.json"
-                if version_file.exists():
+                if filesystem is not None:
+                    version_file = f"{delta_log_path_str}/{last_checkpoint_version:020d}.json"
+                else:
+                    assert delta_log_path is not None
+                    version_file_path = delta_log_path / f"{last_checkpoint_version:020d}.json"
+                    version_file = str(version_file_path)
+
+                # Check if version file exists
+                file_exists = False
+                if filesystem is not None:
                     try:
-                        parsed = DeltaLogParser.parse_version_file(str(version_file))
+                        filesystem.get_file_info(version_file)
+                        file_exists = True
+                    except FileNotFoundError:
+                        pass
+                else:
+                    file_exists = Path(version_file).exists()
+
+                if file_exists:
+                    try:
+                        parsed = DeltaLogParser.parse_version_file(version_file, filesystem)
                         if parsed["commit_info"]:
                             checkpoint_timestamp = parsed["commit_info"].timestamp
                     except Exception as e:  # nosec B110
@@ -709,10 +900,27 @@ class DeltaForensics:
         checkpoint_age_hours: float | None = None
         if checkpoint_timestamp is not None:
             # Get current timestamp from current version
-            current_version_file = delta_log_path / f"{current_version:020d}.json"
-            if current_version_file.exists():
+            if filesystem is not None:
+                current_version_file = f"{delta_log_path_str}/{current_version:020d}.json"
+            else:
+                assert delta_log_path is not None
+                current_version_file_path = delta_log_path / f"{current_version:020d}.json"
+                current_version_file = str(current_version_file_path)
+
+            # Check if current version file exists
+            file_exists = False
+            if filesystem is not None:
                 try:
-                    parsed = DeltaLogParser.parse_version_file(str(current_version_file))
+                    filesystem.get_file_info(current_version_file)
+                    file_exists = True
+                except FileNotFoundError:
+                    pass
+            else:
+                file_exists = Path(current_version_file).exists()
+
+            if file_exists:
+                try:
+                    parsed = DeltaLogParser.parse_version_file(current_version_file, filesystem)
                     if parsed["commit_info"]:
                         current_timestamp = parsed["commit_info"].timestamp
                         age_ms = current_timestamp - checkpoint_timestamp
@@ -1104,7 +1312,9 @@ class DeltaForensics:
         }
 
     @staticmethod
-    def track_rewrite_amplification(table: DeltaTable, max_versions: int = 100) -> dict[str, Any]:
+    def track_rewrite_amplification(
+        table: DeltaTable, max_versions: int = 100, storage_options: dict[str, str] | None = None
+    ) -> dict[str, Any]:
         """Track rewrite amplification across DML operations over time.
 
         Analyzes historical DML operations to identify trends in rewrite
@@ -1113,6 +1323,7 @@ class DeltaForensics:
         Args:
             table: DeltaTable instance
             max_versions: Maximum number of recent versions to analyze
+            storage_options: Optional cloud storage credentials and configuration
 
         Returns:
             Dictionary containing:
@@ -1133,24 +1344,19 @@ class DeltaForensics:
         # Get table URI for accessing transaction log
         table_uri = table.table_uri
 
-        # Handle file URI prefix
-        if table_uri.startswith("file:///"):
-            table_uri = table_uri[8:]
-        elif table_uri.startswith("file://"):
-            table_uri = table_uri[7:]
-            # Ensure we have an absolute path (macOS sometimes returns paths without leading /)
-            # Only prepend / if it's not a Windows path (doesn't contain : for drive letter)
-            if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
-                table_uri = "/" + table_uri
-        elif table_uri.startswith("file:\\"):
-            table_uri = table_uri[6:].lstrip("\\")
+        # Get filesystem and normalized path
+        filesystem, table_path = DeltaForensics._get_filesystem_and_path(table_uri, storage_options)
 
-        # Ensure we have an absolute path (macOS sometimes returns paths without leading /)
-        # Only prepend / if it's not a Windows path (doesn't contain : for drive letter)
-        if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
-            table_uri = "/" + table_uri
+        # Build delta log path
+        if filesystem is not None:
+            # Cloud storage - use forward slashes
+            delta_log_path_str = f"{table_path}/_delta_log"
+            delta_log_path: Path | None = None
+        else:
+            # Local filesystem
+            delta_log_path = Path(table_path) / "_delta_log"
+            delta_log_path_str = str(delta_log_path)
 
-        delta_log_path = Path(table_uri) / "_delta_log"
         current_version = table.version()
 
         # Determine version range to analyze
@@ -1160,12 +1366,27 @@ class DeltaForensics:
         dml_operations: list[dict[str, Any]] = []
 
         for version in range(start_version, current_version + 1):
-            version_file = delta_log_path / f"{version:020d}.json"
-            if not version_file.exists():
-                continue
+            if filesystem is not None:
+                # Cloud storage
+                version_file = f"{delta_log_path_str}/{version:020d}.json"
+            else:
+                # Local filesystem
+                assert delta_log_path is not None
+                version_file_path = delta_log_path / f"{version:020d}.json"
+                version_file = str(version_file_path)
+
+            # Check if version file exists
+            if filesystem is not None:
+                try:
+                    filesystem.get_file_info(version_file)
+                except FileNotFoundError:
+                    continue
+            else:
+                if not Path(version_file).exists():
+                    continue
 
             try:
-                parsed = DeltaLogParser.parse_version_file(str(version_file))
+                parsed = DeltaLogParser.parse_version_file(version_file, filesystem)
                 commit_info = parsed["commit_info"]
 
                 if not commit_info:

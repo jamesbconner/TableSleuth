@@ -122,23 +122,57 @@ class DeltaAdapter:
             True if path contains a valid Delta table, False otherwise
         """
         try:
-            table_path = Path(path)
+            # Get filesystem and normalized path
+            filesystem, table_path = self._get_filesystem_and_path(path)
 
-            # Check if path exists
-            if not table_path.exists():
-                return False
+            if filesystem is not None:
+                # Cloud storage - use filesystem operations
+                # Check if _delta_log directory exists
+                delta_log_path = f"{table_path}/_delta_log"
 
-            # Check for _delta_log directory
-            delta_log_path = table_path / "_delta_log"
-            if not delta_log_path.exists() or not delta_log_path.is_dir():
-                return False
+                try:
+                    # Check if delta_log directory exists
+                    file_info = filesystem.get_file_info(delta_log_path)
+                    if file_info.type != pafs.FileType.Directory:
+                        return False
 
-            # Check for at least one version file (00000000000000000000.json)
-            version_files = list(delta_log_path.glob("*.json"))
-            if not version_files:
-                return False
+                    # List files in _delta_log to check for version files
+                    file_selector = pafs.FileSelector(delta_log_path, recursive=False)
+                    files = filesystem.get_file_info(file_selector)
 
-            return True
+                    # Check for at least one .json version file
+                    version_files = [
+                        f.path
+                        for f in files
+                        if f.path.endswith(".json")
+                        and "checkpoint" not in f.path
+                        and f.path.split("/")[-1].split(".")[0].isdigit()
+                    ]
+
+                    return len(version_files) > 0
+
+                except FileNotFoundError:
+                    return False
+            else:
+                # Local filesystem - use Path operations
+                table_path_obj = Path(table_path)
+
+                # Check if path exists
+                if not table_path_obj.exists():
+                    return False
+
+                # Check for _delta_log directory
+                delta_log_path_obj = table_path_obj / "_delta_log"
+                if not delta_log_path_obj.exists() or not delta_log_path_obj.is_dir():
+                    return False
+
+                # Check for at least one version file (00000000000000000000.json)
+                version_files = list(delta_log_path_obj.glob("*.json"))
+                if not version_files:
+                    return False
+
+                return True
+
         except Exception as e:
             logger.debug(f"Error checking if path is Delta table: {e}")
             return False
@@ -318,15 +352,19 @@ class DeltaAdapter:
         if filesystem is not None:
             # Cloud storage - use forward slashes
             delta_log_path_str = f"{table_path}/_delta_log"
-            version_file = f"{delta_log_path_str}/{version:020d}.json"
             delta_log_path: Path | None = None
         else:
             # Local filesystem
             delta_log_path = Path(table_path) / "_delta_log"
             delta_log_path_str = str(delta_log_path)
-            version_file = str(delta_log_path / f"{version:020d}.json")
 
         # Parse the current version file for commit info
+        if filesystem is not None:
+            version_file = f"{delta_log_path_str}/{version:020d}.json"
+        else:
+            assert delta_log_path is not None
+            version_file = str(delta_log_path / f"{version:020d}.json")
+
         parsed = DeltaLogParser.parse_version_file(version_file, filesystem)
         commit_info = parsed["commit_info"]
 
@@ -383,8 +421,10 @@ class DeltaAdapter:
                 continue
 
         # Convert accumulated add actions to FileRef objects
+        # Pass normalized table_path instead of raw table_uri
         data_files = [
-            self._create_file_ref(action, table_uri, filesystem) for action in active_files.values()
+            self._create_file_ref(action, table_path, filesystem)
+            for action in active_files.values()
         ]
 
         # Determine operation type
@@ -404,13 +444,13 @@ class DeltaAdapter:
         )
 
     def _create_file_ref(
-        self, add_action: AddAction, table_uri: str, filesystem: pafs.FileSystem | None
+        self, add_action: AddAction, table_path: str, filesystem: pafs.FileSystem | None
     ) -> FileRef:
         """Create FileRef from add action.
 
         Args:
             add_action: AddAction from transaction log
-            table_uri: Base URI of the table (with scheme for cloud, e.g., s3://bucket/path)
+            table_path: Normalized base path of the table (without file:// prefix for local)
             filesystem: PyArrow filesystem for cloud storage (None for local)
 
         Returns:
@@ -420,14 +460,14 @@ class DeltaAdapter:
         stats = add_action.stats or {}
         record_count = stats.get("numRecords")
 
-        # Construct full path by joining table URI with relative file path
+        # Construct full path by joining table path with relative file path
         # The add_action.path is relative to the table root
         if filesystem is not None:
             # Cloud storage - use forward slashes and preserve URI scheme
-            full_path = f"{table_uri}/{add_action.path}"
+            full_path = f"{table_path}/{add_action.path}"
         else:
             # Local filesystem - use Path for proper path joining
-            full_path = str(Path(table_uri) / add_action.path)
+            full_path = str(Path(table_path) / add_action.path)
 
         return FileRef(
             path=full_path,
@@ -656,58 +696,95 @@ class DeltaAdapter:
             Set of version numbers that contain metaData entries
         """
         dt: DeltaTable = table.native
-
-        # Get the table URI to find all version files
         table_uri = dt.table_uri
 
-        # Handle file URI prefix
-        if table_uri.startswith("file:///"):
-            table_uri = table_uri[8:]
-        elif table_uri.startswith("file://"):
-            table_uri = table_uri[7:]
-            # Ensure we have an absolute path (macOS sometimes returns paths without leading /)
-            # Only prepend / if it's not a Windows path (doesn't contain : for drive letter)
-            if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
-                table_uri = "/" + table_uri
-        elif table_uri.startswith("file:\\"):
-            table_uri = table_uri[6:].lstrip("\\")
+        # Get filesystem and normalized path
+        filesystem, table_path = self._get_filesystem_and_path(table_uri)
 
-        # Ensure we have an absolute path (macOS sometimes returns paths without leading /)
-        # Only prepend / if it's not a Windows path (doesn't contain : for drive letter)
-        if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
-            table_uri = "/" + table_uri
-
-        delta_log_path = Path(table_uri) / "_delta_log"
+        # Build delta log path
+        if filesystem is not None:
+            # Cloud storage - use forward slashes
+            delta_log_path_str = f"{table_path}/_delta_log"
+            delta_log_path: Path | None = None
+        else:
+            # Local filesystem
+            delta_log_path = Path(table_path) / "_delta_log"
+            delta_log_path_str = str(delta_log_path)
 
         # Find all version files
-        version_files = list(delta_log_path.glob("[0-9]*.json"))
-        if not version_files:
-            return set()
+        if filesystem is not None:
+            # Cloud storage - list files
+            try:
+                file_selector = pafs.FileSelector(delta_log_path_str, recursive=False)
+                file_info = filesystem.get_file_info(file_selector)
+                version_files = [
+                    f.path
+                    for f in file_info
+                    if f.path.endswith(".json")
+                    and "checkpoint" not in f.path
+                    and f.path.split("/")[-1].split(".")[0].isdigit()
+                ]
+            except Exception:
+                return set()
 
-        current_version = max(int(f.stem) for f in version_files if f.stem.isdigit())
+            if not version_files:
+                return set()
+
+            current_version = max(int(f.split("/")[-1].split(".")[0]) for f in version_files)
+        else:
+            # Local filesystem
+            assert delta_log_path is not None
+            version_files_list = list(delta_log_path.glob("[0-9]*.json"))
+            if not version_files_list:
+                return set()
+
+            current_version = max(int(f.stem) for f in version_files_list if f.stem.isdigit())
 
         versions_with_metadata: set[int] = set()
 
         # Scan each version file for metaData entries
         for version in range(current_version + 1):
-            version_file = delta_log_path / f"{version:020d}.json"
+            if filesystem is not None:
+                # Cloud storage
+                version_file = f"{delta_log_path_str}/{version:020d}.json"
 
-            if not version_file.exists():
-                continue
+                try:
+                    with filesystem.open_input_file(version_file) as f:
+                        content = f.read().decode("utf-8")
+                        for line in content.splitlines():
+                            try:
+                                entry = json.loads(line.strip())
+                                if "metaData" in entry:
+                                    versions_with_metadata.add(version)
+                                    break  # Found metaData, move to next version
+                            except json.JSONDecodeError:
+                                continue
+                except FileNotFoundError:
+                    continue
+                except Exception as e:
+                    logger.warning(f"Failed to scan version {version} for metaData: {e}")
+                    continue
+            else:
+                # Local filesystem
+                assert delta_log_path is not None
+                version_file_path = delta_log_path / f"{version:020d}.json"
 
-            try:
-                with open(version_file) as f:
-                    for line in f:
-                        try:
-                            entry = json.loads(line.strip())
-                            if "metaData" in entry:
-                                versions_with_metadata.add(version)
-                                break  # Found metaData, move to next version
-                        except json.JSONDecodeError:
-                            continue
-            except Exception as e:
-                logger.warning(f"Failed to scan version {version} for metaData: {e}")
-                continue
+                if not version_file_path.exists():
+                    continue
+
+                try:
+                    with open(version_file_path, encoding="utf-8") as f:
+                        for line in f:
+                            try:
+                                entry = json.loads(line.strip())
+                                if "metaData" in entry:
+                                    versions_with_metadata.add(version)
+                                    break  # Found metaData, move to next version
+                            except json.JSONDecodeError:
+                                continue
+                except Exception as e:
+                    logger.warning(f"Failed to scan version {version} for metaData: {e}")
+                    continue
 
         return versions_with_metadata
 
@@ -729,79 +806,115 @@ class DeltaAdapter:
             - timestamp_ms: Timestamp of the version
         """
         dt: DeltaTable = table.native
-
-        # Get the table URI to find all version files
         table_uri = dt.table_uri
 
-        # Handle file URI prefix
-        if table_uri.startswith("file:///"):
-            table_uri = table_uri[8:]
-        elif table_uri.startswith("file://"):
-            table_uri = table_uri[7:]
-            # Ensure we have an absolute path (macOS sometimes returns paths without leading /)
-            # Only prepend / if it's not a Windows path (doesn't contain : for drive letter)
-            if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
-                table_uri = "/" + table_uri
-        elif table_uri.startswith("file:\\"):
-            table_uri = table_uri[6:].lstrip("\\")
+        # Get filesystem and normalized path
+        filesystem, table_path = self._get_filesystem_and_path(table_uri)
 
-        # Ensure we have an absolute path (macOS sometimes returns paths without leading /)
-        # Only prepend / if it's not a Windows path (doesn't contain : for drive letter)
-        if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
-            table_uri = "/" + table_uri
-
-        delta_log_path = Path(table_uri) / "_delta_log"
+        # Build delta log path
+        if filesystem is not None:
+            # Cloud storage - use forward slashes
+            delta_log_path_str = f"{table_path}/_delta_log"
+            delta_log_path: Path | None = None
+        else:
+            # Local filesystem
+            delta_log_path = Path(table_path) / "_delta_log"
+            delta_log_path_str = str(delta_log_path)
 
         # Find all version files to determine max version
-        version_files = list(delta_log_path.glob("[0-9]*.json"))
-        if not version_files:
-            return []
+        if filesystem is not None:
+            # Cloud storage - list files
+            try:
+                file_selector = pafs.FileSelector(delta_log_path_str, recursive=False)
+                file_info = filesystem.get_file_info(file_selector)
+                version_files = [
+                    f.path
+                    for f in file_info
+                    if f.path.endswith(".json")
+                    and "checkpoint" not in f.path
+                    and f.path.split("/")[-1].split(".")[0].isdigit()
+                ]
+            except Exception:
+                return []
 
-        current_version = max(int(f.stem) for f in version_files if f.stem.isdigit())
+            if not version_files:
+                return []
+
+            current_version = max(int(f.split("/")[-1].split(".")[0]) for f in version_files)
+        else:
+            # Local filesystem
+            assert delta_log_path is not None
+            version_files_list = list(delta_log_path.glob("[0-9]*.json"))
+            if not version_files_list:
+                return []
+
+            current_version = max(int(f.stem) for f in version_files_list if f.stem.isdigit())
 
         evolution: list[dict[str, Any]] = []
         previous_schema: dict[str, str] | None = None
 
         # Scan each version file for metaData entries (schema changes)
         for version in range(current_version + 1):
-            version_file = delta_log_path / f"{version:020d}.json"
+            if filesystem is not None:
+                # Cloud storage
+                version_file = f"{delta_log_path_str}/{version:020d}.json"
+            else:
+                # Local filesystem
+                assert delta_log_path is not None
+                version_file_path = delta_log_path / f"{version:020d}.json"
+                version_file = str(version_file_path)
 
-            if not version_file.exists():
-                continue
+            # Check if version file exists
+            if filesystem is not None:
+                try:
+                    filesystem.get_file_info(version_file)
+                except FileNotFoundError:
+                    continue
+            else:
+                if not Path(version_file).exists():
+                    continue
 
             # Look for metaData entry in this version
             schema_dict: dict[str, str] = {}
             has_metadata = False
 
             try:
-                with open(version_file) as f:
-                    for line in f:
-                        try:
-                            entry = json.loads(line.strip())
+                # Read file content
+                if filesystem is not None:
+                    with filesystem.open_input_file(version_file) as f:
+                        content = f.read().decode("utf-8")
+                        lines = content.splitlines()
+                else:
+                    with open(version_file, encoding="utf-8") as f:
+                        lines = f.readlines()
 
-                            # Look for metaData entry (indicates schema change)
-                            if "metaData" in entry:
-                                has_metadata = True
-                                metadata = entry["metaData"]
-                                schema_string = metadata.get("schemaString", "{}")
-                                schema_json = json.loads(schema_string)
+                for line in lines:
+                    try:
+                        entry = json.loads(line.strip())
 
-                                # Extract fields from schema
-                                fields = schema_json.get("fields", [])
-                                for field in fields:
-                                    field_name = field["name"]
-                                    field_type = field["type"]
+                        # Look for metaData entry (indicates schema change)
+                        if "metaData" in entry:
+                            has_metadata = True
+                            metadata = entry["metaData"]
+                            schema_string = metadata.get("schemaString", "{}")
+                            schema_json = json.loads(schema_string)
 
-                                    # Handle complex types (struct, array, map)
-                                    if isinstance(field_type, dict):
-                                        field_type = field_type.get("type", str(field_type))
+                            # Extract fields from schema
+                            fields = schema_json.get("fields", [])
+                            for field in fields:
+                                field_name = field["name"]
+                                field_type = field["type"]
 
-                                    schema_dict[field_name] = str(field_type)
+                                # Handle complex types (struct, array, map)
+                                if isinstance(field_type, dict):
+                                    field_type = field_type.get("type", str(field_type))
 
-                                break  # Found metaData, no need to continue
+                                schema_dict[field_name] = str(field_type)
 
-                        except json.JSONDecodeError:
-                            continue
+                            break  # Found metaData, no need to continue
+
+                    except json.JSONDecodeError:
+                        continue
 
                 # If we found a metaData entry, this version has a schema change
                 if has_metadata and schema_dict:
