@@ -173,6 +173,9 @@ class DeltaAdapter:
     def list_snapshots(self, table: TableHandle) -> list[SnapshotInfo]:
         """List all versions (snapshots) of the Delta table.
 
+        Uses incremental state building for O(N) complexity instead of O(N²).
+        Each version file is parsed exactly once.
+
         Args:
             table: TableHandle containing DeltaTable
 
@@ -181,17 +184,123 @@ class DeltaAdapter:
         """
         dt: DeltaTable = table.native
         current_version = dt.version()
+        table_uri = dt.table_uri
 
+        # Get filesystem and normalized path
+        filesystem, table_path = get_filesystem_and_path(table_uri, self.storage_options)
+
+        # Build delta log path
+        if filesystem is not None:
+            delta_log_path_str = f"{table_path}/_delta_log"
+            delta_log_path: Path | None = None
+        else:
+            delta_log_path = Path(table_path) / "_delta_log"
+            delta_log_path_str = str(delta_log_path)
+
+        # Maintain incremental state across all versions
+        active_files: dict[str, AddAction] = {}
         snapshots: list[SnapshotInfo] = []
+
+        # Parse each version file once, building state incrementally
         for version in range(current_version + 1):
+            if filesystem is not None:
+                version_file = f"{delta_log_path_str}/{version:020d}.json"
+            else:
+                assert delta_log_path is not None
+                version_file = str(delta_log_path / f"{version:020d}.json")
+
             try:
-                snapshot = self._build_snapshot_info(dt, version)
+                # Parse current version
+                parsed = DeltaLogParser.parse_version_file(version_file, filesystem)
+
+                # Update shared state with add/remove actions
+                for add_action in parsed["add_actions"]:
+                    active_files[add_action.path] = add_action
+
+                for remove_action in parsed["remove_actions"]:
+                    if remove_action.path in active_files:
+                        del active_files[remove_action.path]
+
+                # Build snapshot from current state (copy the active files dict)
+                snapshot = self._build_snapshot_from_state(
+                    version=version,
+                    commit_info=parsed["commit_info"],
+                    active_files=dict(active_files),  # Copy current state
+                    table_path=table_path,
+                    filesystem=filesystem,
+                )
                 snapshots.append(snapshot)
+
+            except FileNotFoundError:
+                logger.warning(f"Version file not found: {version}")
+                continue
             except Exception as e:
                 logger.warning(f"Failed to load version {version}: {e}")
                 continue
 
         return snapshots
+
+    def _build_snapshot_from_state(
+        self,
+        version: int,
+        commit_info: Any,
+        active_files: dict[str, AddAction],
+        table_path: str,
+        filesystem: pafs.FileSystem | None,
+    ) -> SnapshotInfo:
+        """Build SnapshotInfo from pre-computed state.
+
+        This is a helper method used by list_snapshots for incremental building.
+
+        Args:
+            version: Version number
+            commit_info: Parsed commit info from transaction log
+            active_files: Dictionary of active files at this version
+            table_path: Normalized table path
+            filesystem: PyArrow filesystem (None for local)
+
+        Returns:
+            SnapshotInfo for the version
+        """
+        # Build summary dictionary
+        summary: dict[str, str] = {}
+        if commit_info:
+            summary["operation"] = commit_info.operation
+            summary["timestamp"] = str(commit_info.timestamp)
+
+            # Add operation parameters
+            for key, value in commit_info.operation_parameters.items():
+                summary[f"param_{key}"] = str(value)
+
+            # Add operation metrics
+            for key, value in commit_info.operation_metrics.items():
+                summary[f"metric_{key}"] = str(value)
+
+            # Add user metadata
+            if commit_info.user_metadata:
+                summary["userMetadata"] = commit_info.user_metadata
+            if commit_info.engine_info:
+                summary["engineInfo"] = commit_info.engine_info
+
+        # Convert active files to FileRef objects
+        data_files = [
+            self._create_file_ref(action, table_path, filesystem)
+            for action in active_files.values()
+        ]
+
+        # Determine operation type and timestamp
+        operation = commit_info.operation if commit_info else "UNKNOWN"
+        timestamp_ms = commit_info.timestamp if commit_info else 0
+
+        return SnapshotInfo(
+            snapshot_id=version,
+            parent_id=version - 1 if version > 0 else None,
+            timestamp_ms=timestamp_ms,
+            operation=operation,
+            summary=summary,
+            data_files=data_files,
+            delete_files=[],  # Delta doesn't have separate delete files
+        )
 
     def load_snapshot(self, table: TableHandle, snapshot_id: int | None) -> SnapshotInfo:
         """Load a specific version of the Delta table.
@@ -263,6 +372,9 @@ class DeltaAdapter:
     def _build_snapshot_info(self, dt: DeltaTable, version: int) -> SnapshotInfo:
         """Build SnapshotInfo from Delta table version.
 
+        This method is used for loading a single snapshot (e.g., via load_snapshot).
+        For loading multiple snapshots, list_snapshots uses incremental building for better performance.
+
         Extracts:
         - Version number (maps to snapshot_id)
         - Timestamp from commit info
@@ -304,26 +416,6 @@ class DeltaAdapter:
         parsed = DeltaLogParser.parse_version_file(version_file, filesystem)
         commit_info = parsed["commit_info"]
 
-        # Build summary dictionary from current version
-        summary: dict[str, str] = {}
-        if commit_info:
-            summary["operation"] = commit_info.operation
-            summary["timestamp"] = str(commit_info.timestamp)
-
-            # Add operation parameters
-            for key, value in commit_info.operation_parameters.items():
-                summary[f"param_{key}"] = str(value)
-
-            # Add operation metrics
-            for key, value in commit_info.operation_metrics.items():
-                summary[f"metric_{key}"] = str(value)
-
-            # Add user metadata
-            if commit_info.user_metadata:
-                summary["userMetadata"] = commit_info.user_metadata
-            if commit_info.engine_info:
-                summary["engineInfo"] = commit_info.engine_info
-
         # Accumulate all active files from version 0 to target version
         # This gives us the complete state of the table at this version
         active_files: dict[str, AddAction] = {}  # path -> AddAction
@@ -356,27 +448,13 @@ class DeltaAdapter:
                 logger.warning(f"Failed to parse version {v}: {e}")
                 continue
 
-        # Convert accumulated add actions to FileRef objects
-        # Pass normalized table_path instead of raw table_uri
-        data_files = [
-            self._create_file_ref(action, table_path, filesystem)
-            for action in active_files.values()
-        ]
-
-        # Determine operation type
-        operation = commit_info.operation if commit_info else "UNKNOWN"
-
-        # Determine timestamp
-        timestamp_ms = commit_info.timestamp if commit_info else 0
-
-        return SnapshotInfo(
-            snapshot_id=version,
-            parent_id=version - 1 if version > 0 else None,
-            timestamp_ms=timestamp_ms,
-            operation=operation,
-            summary=summary,
-            data_files=data_files,
-            delete_files=[],  # Delta doesn't have separate delete files
+        # Use the helper method to build the snapshot
+        return self._build_snapshot_from_state(
+            version=version,
+            commit_info=commit_info,
+            active_files=active_files,
+            table_path=table_path,
+            filesystem=filesystem,
         )
 
     def _create_file_ref(

@@ -487,8 +487,8 @@ class VersionComparisonView(Container):
         lines.append("")
 
         # Record changes
-        records_a = sum(f.record_count for f in version_a.data_files if f.record_count)
-        records_b = sum(f.record_count for f in version_b.data_files if f.record_count)
+        records_a = sum(f.record_count for f in version_a.data_files if f.record_count is not None)
+        records_b = sum(f.record_count for f in version_b.data_files if f.record_count is not None)
         records_delta = records_b - records_a
 
         lines.append("[bold cyan]Record Changes[/bold cyan]")
