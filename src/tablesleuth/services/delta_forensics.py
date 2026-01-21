@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import statistics
+import time
 from pathlib import Path
 from typing import Any
 
@@ -281,7 +282,10 @@ class DeltaForensics:
             except Exception as e:  # nosec B110
                 # Gracefully handle missing timestamp - use current time as fallback
                 logger.debug(f"Failed to get timestamp from version {current_version}: {e}")
-                pass
+
+        # If we couldn't get timestamp from version file, use current time as fallback
+        if current_timestamp == 0:
+            current_timestamp = int(time.time() * 1000)  # Convert to milliseconds
 
         # Calculate retention threshold
         retention_ms = retention_hours * 60 * 60 * 1000
