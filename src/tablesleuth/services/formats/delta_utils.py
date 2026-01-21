@@ -44,8 +44,7 @@ def get_filesystem_and_path(
         # Cloud storage - create PyArrow filesystem
         if pafs_module is None:
             raise ImportError(
-                "PyArrow is required for cloud storage support. "
-                "Install with: pip install pyarrow"
+                "PyArrow is required for cloud storage support. Install with: pip install pyarrow"
             )
 
         # Create filesystem from URI and storage options
