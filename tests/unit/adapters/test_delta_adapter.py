@@ -10,6 +10,7 @@ import pytest
 
 from tablesleuth.models import FileRef, SnapshotInfo, TableHandle
 from tablesleuth.services.formats.delta import DeltaAdapter
+from tablesleuth.services.formats.delta_log_parser import AddAction
 
 
 class TestDeltaAdapter:
@@ -741,3 +742,235 @@ class TestDeltaAdapter:
         assert snapshot.data_files[2].path.endswith("part-00002.snappy.parquet")
         assert snapshot.data_files[2].file_size_bytes == 3072
         assert snapshot.data_files[2].record_count == 300
+
+
+    def test_get_schema_at_version(self, temp_delta_table: Path) -> None:
+        """Test getting schema at a specific version."""
+        adapter = DeltaAdapter()
+        table_handle = adapter.open_table(str(temp_delta_table))
+        
+        schema = adapter.get_schema_at_version(table_handle, 0)
+        
+        # Verify schema is returned as dict
+        assert isinstance(schema, dict)
+        assert "id" in schema
+        assert schema["id"] == "integer"
+
+    def test_get_schema_at_version_searches_backwards(self) -> None:
+        """Test that get_schema_at_version searches backwards for metadata.
+        
+        Delta Lake only writes metaData entries when schema changes, typically
+        in version 0. This test verifies that the method searches backwards from
+        the requested version to find the most recent metaData entry.
+        """
+        temp_dir = Path(tempfile.mkdtemp())
+        delta_log_dir = temp_dir / "_delta_log"
+        delta_log_dir.mkdir()
+
+        # Create version 0 with schema
+        version_0 = delta_log_dir / "00000000000000000000.json"
+        with open(version_0, "w") as f:
+            protocol = {
+                "protocol": {
+                    "minReaderVersion": 1,
+                    "minWriterVersion": 2,
+                }
+            }
+            metadata = {
+                "metaData": {
+                    "id": "test-table-id",
+                    "format": {"provider": "parquet", "options": {}},
+                    "schemaString": '{"type":"struct","fields":[{"name":"id","type":"integer","nullable":true,"metadata":{}},{"name":"name","type":"string","nullable":true,"metadata":{}}]}',
+                    "partitionColumns": [],
+                    "configuration": {},
+                    "createdTime": 1705334625000,
+                }
+            }
+            commit_info = {
+                "commitInfo": {
+                    "timestamp": 1705334625000,
+                    "operation": "WRITE",
+                    "operationParameters": {},
+                    "operationMetrics": {},
+                }
+            }
+            f.write(json.dumps(protocol) + "\n")
+            f.write(json.dumps(metadata) + "\n")
+            f.write(json.dumps(commit_info) + "\n")
+
+        # Create version 1 without metadata (typical for subsequent writes)
+        version_1 = delta_log_dir / "00000000000000000001.json"
+        with open(version_1, "w") as f:
+            commit_info = {
+                "commitInfo": {
+                    "timestamp": 1705334626000,
+                    "operation": "WRITE",
+                    "operationParameters": {},
+                    "operationMetrics": {},
+                }
+            }
+            f.write(json.dumps(commit_info) + "\n")
+
+        # Create version 2 without metadata
+        version_2 = delta_log_dir / "00000000000000000002.json"
+        with open(version_2, "w") as f:
+            commit_info = {
+                "commitInfo": {
+                    "timestamp": 1705334627000,
+                    "operation": "WRITE",
+                    "operationParameters": {},
+                    "operationMetrics": {},
+                }
+            }
+            f.write(json.dumps(commit_info) + "\n")
+
+        adapter = DeltaAdapter()
+        table_handle = adapter.open_table(str(temp_dir))
+        
+        # Get schema at version 2 - should find schema from version 0
+        schema = adapter.get_schema_at_version(table_handle, 2)
+        
+        assert isinstance(schema, dict)
+        assert "id" in schema
+        assert schema["id"] == "integer"
+        assert "name" in schema
+        assert schema["name"] == "string"
+
+    def test_get_schema_at_version_invalid_version(self, temp_delta_table: Path) -> None:
+        """Test getting schema for invalid version number."""
+        adapter = DeltaAdapter()
+        table_handle = adapter.open_table(str(temp_delta_table))
+        
+        with pytest.raises(ValueError, match="Version .* is out of range"):
+            adapter.get_schema_at_version(table_handle, 999)
+
+    def test_get_versions_with_metadata(self) -> None:
+        """Test identifying versions with metadata entries."""
+        temp_dir = Path(tempfile.mkdtemp())
+        delta_log_dir = temp_dir / "_delta_log"
+        delta_log_dir.mkdir()
+
+        # Create version 0 with metadata
+        version_0 = delta_log_dir / "00000000000000000000.json"
+        with open(version_0, "w") as f:
+            protocol = {
+                "protocol": {
+                    "minReaderVersion": 1,
+                    "minWriterVersion": 2,
+                }
+            }
+            metadata = {
+                "metaData": {
+                    "id": "test-table-id",
+                    "format": {"provider": "parquet", "options": {}},
+                    "schemaString": '{"type":"struct","fields":[{"name":"id","type":"integer","nullable":true,"metadata":{}}]}',
+                    "partitionColumns": [],
+                    "configuration": {},
+                    "createdTime": 1705334625000,
+                }
+            }
+            commit_info = {
+                "commitInfo": {
+                    "timestamp": 1705334625000,
+                    "operation": "WRITE",
+                    "operationParameters": {},
+                    "operationMetrics": {},
+                }
+            }
+            f.write(json.dumps(protocol) + "\n")
+            f.write(json.dumps(metadata) + "\n")
+            f.write(json.dumps(commit_info) + "\n")
+
+        # Create version 1 without metadata
+        version_1 = delta_log_dir / "00000000000000000001.json"
+        with open(version_1, "w") as f:
+            commit_info = {
+                "commitInfo": {
+                    "timestamp": 1705334626000,
+                    "operation": "WRITE",
+                    "operationParameters": {},
+                    "operationMetrics": {},
+                }
+            }
+            f.write(json.dumps(commit_info) + "\n")
+
+        # Create version 2 with metadata (schema change)
+        version_2 = delta_log_dir / "00000000000000000002.json"
+        with open(version_2, "w") as f:
+            metadata = {
+                "metaData": {
+                    "id": "test-table-id",
+                    "format": {"provider": "parquet", "options": {}},
+                    "schemaString": '{"type":"struct","fields":[{"name":"id","type":"integer","nullable":true,"metadata":{}},{"name":"new_column","type":"string","nullable":true,"metadata":{}}]}',
+                    "partitionColumns": [],
+                    "configuration": {},
+                    "createdTime": 1705334627000,
+                }
+            }
+            commit_info = {
+                "commitInfo": {
+                    "timestamp": 1705334627000,
+                    "operation": "WRITE",
+                    "operationParameters": {},
+                    "operationMetrics": {},
+                }
+            }
+            f.write(json.dumps(metadata) + "\n")
+            f.write(json.dumps(commit_info) + "\n")
+
+        adapter = DeltaAdapter()
+        table_handle = adapter.open_table(str(temp_dir))
+        
+        # Get versions with metadata
+        versions_with_metadata = adapter.get_versions_with_metadata(table_handle)
+        
+        # Should return versions 0 and 2 (both have metadata entries)
+        assert 0 in versions_with_metadata
+        assert 1 not in versions_with_metadata
+        assert 2 in versions_with_metadata
+
+    def test_create_file_ref_without_stats(self) -> None:
+        """Test _create_file_ref handles missing stats gracefully."""
+        adapter = DeltaAdapter()
+        
+        # Create add action without stats
+        add_action = AddAction(
+            path="test.parquet",
+            size=1024,
+            modification_time=1705334625000,
+            data_change=True,
+            stats=None,  # No stats
+            partition_values={}
+        )
+        
+        file_ref = adapter._create_file_ref(add_action, "/tmp/table")
+        
+        assert file_ref.path.endswith("test.parquet")
+        assert file_ref.file_size_bytes == 1024
+        assert file_ref.record_count is None  # Should be None when stats missing
+        assert file_ref.source == "delta"
+        assert file_ref.content_type == "DATA"
+
+    def test_create_file_ref_with_stats(self) -> None:
+        """Test _create_file_ref extracts record count from stats."""
+        adapter = DeltaAdapter()
+        
+        # Create add action with stats
+        add_action = AddAction(
+            path="test.parquet",
+            size=2048,
+            modification_time=1705334625000,
+            data_change=True,
+            stats={"numRecords": 500, "minValues": {"id": 1}, "maxValues": {"id": 500}},
+            partition_values={"date": "2024-01-15"}
+        )
+        
+        file_ref = adapter._create_file_ref(add_action, "/tmp/table")
+        
+        assert file_ref.path.endswith("test.parquet")
+        assert file_ref.file_size_bytes == 2048
+        assert file_ref.record_count == 500
+        assert file_ref.partition == {"date": "2024-01-15"}
+        assert file_ref.extra["stats"]["numRecords"] == 500
+        assert file_ref.extra["stats"]["minValues"] == {"id": 1}
+        assert file_ref.extra["stats"]["maxValues"] == {"id": 500}
