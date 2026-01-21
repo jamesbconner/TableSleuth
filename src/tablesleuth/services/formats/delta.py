@@ -517,9 +517,7 @@ class DeltaAdapter:
                 v_file = str(delta_log_path / f"{v:020d}.json")
 
             try:
-                parsed = DeltaLogParser.parse_version_file(v_file, filesystem)
-
-                # Check if this version has metadata by parsing the file again for metaData entry
+                # Read and parse the file to look for metaData entry
                 # (DeltaLogParser doesn't extract metaData, only commitInfo/add/remove)
                 if filesystem is not None:
                     with filesystem.open_input_file(v_file) as f:
