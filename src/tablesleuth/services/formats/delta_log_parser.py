@@ -16,7 +16,7 @@ from typing import Any
 try:
     from pyarrow import fs as pafs
 except ImportError:
-    pafs = None  # type: ignore[assignment]
+    pafs = None
 
 
 @dataclass
@@ -115,18 +115,18 @@ class DeltaLogParser:
                         "PyArrow is required for cloud storage support. "
                         "Install with: pip install pyarrow"
                     )
-                
+
                 try:
                     with filesystem.open_input_file(file_path) as f:
                         content = f.read().decode("utf-8")
-                except FileNotFoundError:
-                    raise FileNotFoundError(f"Version file not found: {file_path}")
+                except FileNotFoundError as e:
+                    raise FileNotFoundError(f"Version file not found: {file_path}") from e
             else:
                 # Local filesystem
                 path = Path(file_path)
                 if not path.exists():
                     raise FileNotFoundError(f"Version file not found: {file_path}")
-                
+
                 with open(path, encoding="utf-8") as f:
                     content = f.read()
 

@@ -21,7 +21,7 @@ from .delta_log_parser import AddAction, DeltaLogParser
 try:
     from pyarrow import fs as pafs
 except ImportError:
-    pafs = None  # type: ignore[assignment]
+    pafs = None
 
 logger = logging.getLogger(__name__)
 
@@ -45,9 +45,7 @@ class DeltaAdapter:
         """
         self.storage_options = storage_options or {}
 
-    def _get_filesystem_and_path(
-        self, table_uri: str
-    ) -> tuple[pafs.FileSystem | None, str]:
+    def _get_filesystem_and_path(self, table_uri: str) -> tuple[pafs.FileSystem | None, str]:
         """Get PyArrow filesystem and normalized path for a table URI.
 
         Args:
@@ -88,9 +86,7 @@ class DeltaAdapter:
                     if "AWS_REGION" in self.storage_options:
                         s3_options["region"] = self.storage_options["AWS_REGION"]
                     if "AWS_ENDPOINT_URL" in self.storage_options:
-                        s3_options["endpoint_override"] = self.storage_options[
-                            "AWS_ENDPOINT_URL"
-                        ]
+                        s3_options["endpoint_override"] = self.storage_options["AWS_ENDPOINT_URL"]
 
                     if s3_options:
                         filesystem = pafs.S3FileSystem(**s3_options)
@@ -321,11 +317,13 @@ class DeltaAdapter:
         # Build delta log path
         if filesystem is not None:
             # Cloud storage - use forward slashes
-            delta_log_path = f"{table_path}/_delta_log"
-            version_file = f"{delta_log_path}/{version:020d}.json"
+            delta_log_path_str = f"{table_path}/_delta_log"
+            version_file = f"{delta_log_path_str}/{version:020d}.json"
+            delta_log_path: Path | None = None
         else:
             # Local filesystem
             delta_log_path = Path(table_path) / "_delta_log"
+            delta_log_path_str = str(delta_log_path)
             version_file = str(delta_log_path / f"{version:020d}.json")
 
         # Parse the current version file for commit info
@@ -359,9 +357,10 @@ class DeltaAdapter:
         for v in range(version + 1):
             if filesystem is not None:
                 # Cloud storage
-                v_file = f"{delta_log_path}/{v:020d}.json"
+                v_file = f"{delta_log_path_str}/{v:020d}.json"
             else:
                 # Local filesystem
+                assert delta_log_path is not None
                 v_file = str(delta_log_path / f"{v:020d}.json")
 
             try:
@@ -384,9 +383,7 @@ class DeltaAdapter:
                 continue
 
         # Convert accumulated add actions to FileRef objects
-        data_files = [
-            self._create_file_ref(action, table_path) for action in active_files.values()
-        ]
+        data_files = [self._create_file_ref(action, table_path) for action in active_files.values()]
 
         # Determine operation type
         operation = commit_info.operation if commit_info else "UNKNOWN"
@@ -464,11 +461,13 @@ class DeltaAdapter:
         # Build delta log path
         if filesystem is not None:
             # Cloud storage
-            delta_log_path = f"{table_path}/_delta_log"
-            version_file = f"{delta_log_path}/{version:020d}.json"
+            delta_log_path_str = f"{table_path}/_delta_log"
+            version_file = f"{delta_log_path_str}/{version:020d}.json"
+            delta_log_path: Path | None = None
         else:
             # Local filesystem
             delta_log_path = Path(table_path) / "_delta_log"
+            delta_log_path_str = str(delta_log_path)
             version_file = str(delta_log_path / f"{version:020d}.json")
 
         # Check if version file exists
@@ -479,41 +478,43 @@ class DeltaAdapter:
             if filesystem is not None:
                 # Cloud storage - list files
                 try:
-                    file_info = filesystem.get_file_info(pafs.FileSelector(delta_log_path))
+                    file_info = filesystem.get_file_info(pafs.FileSelector(delta_log_path_str))
                     version_files = [
                         f.path
                         for f in file_info
                         if f.path.endswith(".json")
-                        and not "checkpoint" in f.path
+                        and "checkpoint" not in f.path
                         and f.path.split("/")[-1].split(".")[0].isdigit()
                     ]
                 except Exception:
                     version_files = []
             else:
                 # Local filesystem
-                version_files = list(delta_log_path.glob("*.json"))
-                version_files = [f for f in version_files if f.stem.isdigit()]
+                assert delta_log_path is not None
+                version_files_list = list(delta_log_path.glob("*.json"))
+                version_files = [str(f) for f in version_files_list if f.stem.isdigit()]
 
             if version_files:
                 if filesystem is not None:
-                    max_version = max(
-                        int(f.split("/")[-1].split(".")[0]) for f in version_files
-                    )
+                    max_version = max(int(f.split("/")[-1].split(".")[0]) for f in version_files)
                 else:
                     max_version = max(int(f.stem) for f in version_files)
                 raise ValueError(
                     f"Version {version} is out of range.\nValid versions: 0 to {max_version}"
-                )
+                ) from None
             else:
-                raise ValueError(f"Version {version} is out of range.\nNo version files found")
+                raise ValueError(
+                    f"Version {version} is out of range.\nNo version files found"
+                ) from None
 
         # Search backwards from requested version to find most recent metaData entry
         schema_dict: dict[str, str] = {}
 
         for v in range(version, -1, -1):
             if filesystem is not None:
-                v_file = f"{delta_log_path}/{v:020d}.json"
+                v_file = f"{delta_log_path_str}/{v:020d}.json"
             else:
+                assert delta_log_path is not None
                 v_file = str(delta_log_path / f"{v:020d}.json")
 
             try:
