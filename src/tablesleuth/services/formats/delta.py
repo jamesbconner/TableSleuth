@@ -246,6 +246,10 @@ class DeltaAdapter:
             table_uri = table_uri[8:]  # Remove "file:///" prefix
         elif table_uri.startswith("file://"):
             table_uri = table_uri[7:]  # Remove "file://" prefix
+            # Ensure we have an absolute path (macOS sometimes returns paths without leading /)
+            # Only prepend / if it's not a Windows path (doesn't contain : for drive letter)
+            if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
+                table_uri = "/" + table_uri
         elif table_uri.startswith("file:\\"):
             # Windows file URI
             table_uri = table_uri[6:].lstrip("\\")  # Remove "file:\" prefix and leading backslashes
@@ -382,10 +386,19 @@ class DeltaAdapter:
             table_uri = table_uri[8:]  # Remove "file:///" prefix
         elif table_uri.startswith("file://"):
             table_uri = table_uri[7:]  # Remove "file://" prefix
+            # Ensure we have an absolute path (macOS sometimes returns paths without leading /)
+            # Only prepend / if it's not a Windows path (doesn't contain : for drive letter)
+            if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
+                table_uri = "/" + table_uri
         elif table_uri.startswith("file:\\"):
             # Windows file URI
             table_uri = table_uri[6:].lstrip("\\")  # Remove "file:\" prefix and leading backslashes
         # If no file:// prefix, assume it's already a local path (common on macOS/Linux)
+
+        # Ensure we have an absolute path (macOS sometimes returns paths without leading /)
+        # Only prepend / if it's not a Windows path (doesn't contain : for drive letter)
+        if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
+            table_uri = "/" + table_uri
 
         delta_log_path = Path(table_uri) / "_delta_log"
         version_file = delta_log_path / f"{version:020d}.json"
@@ -530,8 +543,17 @@ class DeltaAdapter:
             table_uri = table_uri[8:]
         elif table_uri.startswith("file://"):
             table_uri = table_uri[7:]
+            # Ensure we have an absolute path (macOS sometimes returns paths without leading /)
+            # Only prepend / if it's not a Windows path (doesn't contain : for drive letter)
+            if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
+                table_uri = "/" + table_uri
         elif table_uri.startswith("file:\\"):
             table_uri = table_uri[6:].lstrip("\\")
+
+        # Ensure we have an absolute path (macOS sometimes returns paths without leading /)
+        # Only prepend / if it's not a Windows path (doesn't contain : for drive letter)
+        if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
+            table_uri = "/" + table_uri
 
         delta_log_path = Path(table_uri) / "_delta_log"
 
@@ -591,12 +613,20 @@ class DeltaAdapter:
 
         # Handle file URI prefix
         if table_uri.startswith("file:///"):
-            table_uri = table_uri[8:]  # Remove "file:///" prefix
+            table_uri = table_uri[8:]
         elif table_uri.startswith("file://"):
-            table_uri = table_uri[7:]  # Remove "file://" prefix
+            table_uri = table_uri[7:]
+            # Ensure we have an absolute path (macOS sometimes returns paths without leading /)
+            # Only prepend / if it's not a Windows path (doesn't contain : for drive letter)
+            if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
+                table_uri = "/" + table_uri
         elif table_uri.startswith("file:\\"):
-            # Windows file URI
-            table_uri = table_uri[6:].lstrip("\\")  # Remove "file:\" prefix and leading backslashes
+            table_uri = table_uri[6:].lstrip("\\")
+
+        # Ensure we have an absolute path (macOS sometimes returns paths without leading /)
+        # Only prepend / if it's not a Windows path (doesn't contain : for drive letter)
+        if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
+            table_uri = "/" + table_uri
 
         delta_log_path = Path(table_uri) / "_delta_log"
 

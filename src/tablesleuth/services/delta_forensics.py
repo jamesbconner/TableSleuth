@@ -169,8 +169,17 @@ class DeltaForensics:
             table_uri = table_uri[8:]
         elif table_uri.startswith("file://"):
             table_uri = table_uri[7:]
+            # Ensure we have an absolute path (macOS sometimes returns paths without leading /)
+            # Only prepend / if it's not a Windows path (doesn't contain : for drive letter)
+            if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
+                table_uri = "/" + table_uri
         elif table_uri.startswith("file:\\"):
             table_uri = table_uri[6:].lstrip("\\")
+
+        # Ensure we have an absolute path (macOS sometimes returns paths without leading /)
+        # Only prepend / if it's not a Windows path (doesn't contain : for drive letter)
+        if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
+            table_uri = "/" + table_uri
 
         delta_log_path = Path(table_uri) / "_delta_log"
 
@@ -422,8 +431,17 @@ class DeltaForensics:
             table_uri = table_uri[8:]
         elif table_uri.startswith("file://"):
             table_uri = table_uri[7:]
+            # Ensure we have an absolute path (macOS sometimes returns paths without leading /)
+            # Only prepend / if it's not a Windows path (doesn't contain : for drive letter)
+            if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
+                table_uri = "/" + table_uri
         elif table_uri.startswith("file:\\"):
             table_uri = table_uri[6:].lstrip("\\")
+
+        # Ensure we have an absolute path (macOS sometimes returns paths without leading /)
+        # Only prepend / if it's not a Windows path (doesn't contain : for drive letter)
+        if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
+            table_uri = "/" + table_uri
 
         delta_log_path = Path(table_uri) / "_delta_log"
         current_version = table.version()
@@ -614,8 +632,17 @@ class DeltaForensics:
             table_uri = table_uri[8:]
         elif table_uri.startswith("file://"):
             table_uri = table_uri[7:]
+            # Ensure we have an absolute path (macOS sometimes returns paths without leading /)
+            # Only prepend / if it's not a Windows path (doesn't contain : for drive letter)
+            if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
+                table_uri = "/" + table_uri
         elif table_uri.startswith("file:\\"):
             table_uri = table_uri[6:].lstrip("\\")
+
+        # Ensure we have an absolute path (macOS sometimes returns paths without leading /)
+        # Only prepend / if it's not a Windows path (doesn't contain : for drive letter)
+        if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
+            table_uri = "/" + table_uri
 
         delta_log_path = Path(table_uri) / "_delta_log"
         current_version = table.version()
@@ -1100,8 +1127,17 @@ class DeltaForensics:
             table_uri = table_uri[8:]
         elif table_uri.startswith("file://"):
             table_uri = table_uri[7:]
+            # Ensure we have an absolute path (macOS sometimes returns paths without leading /)
+            # Only prepend / if it's not a Windows path (doesn't contain : for drive letter)
+            if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
+                table_uri = "/" + table_uri
         elif table_uri.startswith("file:\\"):
             table_uri = table_uri[6:].lstrip("\\")
+
+        # Ensure we have an absolute path (macOS sometimes returns paths without leading /)
+        # Only prepend / if it's not a Windows path (doesn't contain : for drive letter)
+        if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
+            table_uri = "/" + table_uri
 
         delta_log_path = Path(table_uri) / "_delta_log"
         current_version = table.version()
