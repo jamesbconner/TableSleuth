@@ -288,7 +288,7 @@ class TestAnalyzeDMLOperation:
         assert result["rows_affected"] == 3500
 
         # Verify files rewritten
-        assert result["files_rewritten"] == 9  # 5 added + 4 removed
+        assert result["files_rewritten"] == 5  # max(5 added, 4 removed)
 
         # Verify efficiency score (100 / 5.0 = 20)
         assert result["efficiency_score"] == 20.0

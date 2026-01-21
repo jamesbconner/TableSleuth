@@ -16,7 +16,7 @@ from deltalake import DeltaTable
 
 from tablesleuth.models import SnapshotInfo
 
-from .formats.delta_log_parser import DeltaLogParser
+from .formats.delta_log_parser import AddAction, DeltaLogParser
 from .formats.delta_utils import get_filesystem_and_path
 
 try:
@@ -404,7 +404,7 @@ class DeltaForensics:
             "operation_type": operation_type,
             "rewrite_amplification": round(rewrite_amplification, 2),
             "rows_affected": rows_affected,
-            "files_rewritten": files_added + files_removed,
+            "files_rewritten": max(files_added, files_removed),
             "efficiency_score": round(efficiency_score, 2),
             "is_inefficient": is_inefficient,
         }
@@ -571,30 +571,53 @@ class DeltaForensics:
         data_skipping_effectiveness: dict[str, float] = {}
 
         if zorder_columns:
-            # Parse current version to get file statistics
-            if filesystem is not None:
-                version_file = f"{delta_log_path_str}/{current_version:020d}.json"
-            else:
-                assert delta_log_path is not None
-                version_file_path = delta_log_path / f"{current_version:020d}.json"
-                version_file = str(version_file_path)
+            # Accumulate all active files from version 0 to current version
+            # This gives us the complete state of the table at the current version
+            active_files: dict[str, AddAction] = {}  # path -> AddAction
 
-            # Check if version file exists
-            file_exists = False
-            if filesystem is not None:
-                try:
-                    filesystem.get_file_info(version_file)
-                    file_exists = True
-                except FileNotFoundError:
-                    pass
-            else:
-                file_exists = Path(version_file).exists()
+            for v in range(current_version + 1):
+                if filesystem is not None:
+                    version_file = f"{delta_log_path_str}/{v:020d}.json"
+                else:
+                    assert delta_log_path is not None
+                    version_file_path = delta_log_path / f"{v:020d}.json"
+                    version_file = str(version_file_path)
 
-            if file_exists:
+                # Check if version file exists
+                file_exists = False
+                if filesystem is not None:
+                    try:
+                        filesystem.get_file_info(version_file)
+                        file_exists = True
+                    except FileNotFoundError:
+                        pass
+                else:
+                    file_exists = Path(version_file).exists()
+
+                if not file_exists:
+                    continue
+
                 try:
                     parsed = DeltaLogParser.parse_version_file(version_file, filesystem)
-                    add_actions = parsed["add_actions"]
 
+                    # Add new files
+                    for add_action in parsed["add_actions"]:
+                        active_files[add_action.path] = add_action
+
+                    # Remove deleted files
+                    for remove_action in parsed["remove_actions"]:
+                        if remove_action.path in active_files:
+                            del active_files[remove_action.path]
+
+                except Exception as e:  # nosec B112
+                    logger.debug(f"Failed to parse version {v} for active files: {e}")
+                    continue
+
+            # Use all active files for analysis
+            add_actions = list(active_files.values())
+
+            if add_actions:
+                try:
                     # For each Z-ordered column, calculate overlap
                     for col in zorder_columns:
                         # Extract min/max values from file stats
@@ -643,6 +666,10 @@ class DeltaForensics:
                     # If we can't parse stats, assume moderate effectiveness
                     for col in zorder_columns:
                         data_skipping_effectiveness[col] = 70.0
+            else:
+                # No active files found, assume moderate effectiveness
+                for col in zorder_columns:
+                    data_skipping_effectiveness[col] = 70.0
 
         # Calculate overall effectiveness
         if data_skipping_effectiveness:
