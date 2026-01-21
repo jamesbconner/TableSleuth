@@ -18,21 +18,39 @@ All notable changes to this project will be documented in this file.
   - Partition distribution analysis with skew detection
   - Rewrite amplification trend tracking across operations
   - Support for cloud storage options (S3, Azure, GCS) via `--storage-option` flags
+  - Schema change indicator in version history (asterisk marks versions with schema changes)
 - **Delta Lake Services**
   - `DeltaAdapter` - Protocol-compliant adapter for Delta tables
   - `DeltaLogParser` - Transaction log parsing with commit info extraction
   - `DeltaForensics` - Static forensic analysis methods for optimization insights
-- **Testing** - 57 Delta-related tests with comprehensive coverage
-  - Unit tests for forensic analysis methods
+- **Testing** - Comprehensive test suite with 78% overall coverage
+  - 23 property-based tests using hypothesis (100 iterations each)
+  - 29 unit tests for Delta forensics service
+  - 33 unit tests for Delta adapter
+  - 49 CLI tests covering all commands and options
   - Integration tests for adapter and protocol compliance
   - Parser tests for transaction log formats
-  - Property-based tests for file analysis
 
 ### Changed
 
 - Updated package description to explicitly mention Delta Lake support
 - Added "delta-lake" to package keywords for better discoverability
 - Enhanced documentation with Delta Lake features and examples
+
+### Fixed
+
+- **Delta Lake Schema Tab** - Fixed empty schema display issue
+  - Schema tab now correctly displays table schema at any version
+  - Fixed `DeltaAdapter.get_schema_at_version()` to search backwards through transaction log for most recent `metaData` entry
+  - Delta Lake only writes schema metadata when schema changes (typically version 0), not in every version
+  - Removed excessive debug logging from Delta view
+- **Delta Lake Version History** - Improved version history display
+  - Added schema change indicator (asterisk) to identify versions with schema changes
+  - Added `get_versions_with_metadata()` method to `DeltaAdapter`
+  - Version history header now shows "Version History (* = schema change)" for clarity
+  - Fixed version history scrolling bug where only subset of versions were visible
+  - Changed VersionListView to use fractional height (`height: 1fr`) instead of percentage
+  - Enabled vertical scrollbar programmatically for proper scrolling behavior
 
 ### Documentation
 

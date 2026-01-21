@@ -210,7 +210,9 @@ def test_iceberg_with_catalog_but_no_table(cli_runner: CliRunner) -> None:
 
 def test_iceberg_with_verbose_flag(cli_runner: CliRunner) -> None:
     """Test iceberg command with verbose flag."""
-    result = cli_runner.invoke(iceberg_viewer, ["--verbose", "--catalog", "test", "--table", "test.table"])
+    result = cli_runner.invoke(
+        iceberg_viewer, ["--verbose", "--catalog", "test", "--table", "test.table"]
+    )
     assert result.exit_code != 0  # Will fail without proper setup
 
 
@@ -259,18 +261,14 @@ def test_delta_with_version_option(cli_runner: CliRunner) -> None:
 def test_delta_with_storage_option(cli_runner: CliRunner) -> None:
     """Test delta command with storage option."""
     result = cli_runner.invoke(
-        delta,
-        ["--storage-option", "AWS_REGION=us-west-2", "/nonexistent/table"]
+        delta, ["--storage-option", "AWS_REGION=us-west-2", "/nonexistent/table"]
     )
     assert result.exit_code != 0  # Will fail, but tests option parsing
 
 
 def test_delta_with_invalid_storage_option_format(cli_runner: CliRunner) -> None:
     """Test delta command with invalid storage option format."""
-    result = cli_runner.invoke(
-        delta,
-        ["--storage-option", "INVALID_FORMAT", "/nonexistent/table"]
-    )
+    result = cli_runner.invoke(delta, ["--storage-option", "INVALID_FORMAT", "/nonexistent/table"])
     assert result.exit_code != 0
     assert "invalid storage option format" in result.output.lower()
 
@@ -297,10 +295,12 @@ def test_delta_with_multiple_storage_options(cli_runner: CliRunner) -> None:
     result = cli_runner.invoke(
         delta,
         [
-            "--storage-option", "AWS_REGION=us-west-2",
-            "--storage-option", "AWS_PROFILE=my-profile",
-            "/nonexistent/table"
-        ]
+            "--storage-option",
+            "AWS_REGION=us-west-2",
+            "--storage-option",
+            "AWS_PROFILE=my-profile",
+            "/nonexistent/table",
+        ],
     )
     assert result.exit_code != 0  # Will fail, but tests option parsing
 
@@ -324,7 +324,9 @@ def test_init_help_shows_examples(cli_runner: CliRunner) -> None:
     assert "Examples" in result.output or "examples" in result.output
 
 
-def test_init_creates_config_files_in_home(cli_runner: CliRunner, temp_config_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_init_creates_config_files_in_home(
+    cli_runner: CliRunner, temp_config_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test init command creates config files in home directory."""
     with cli_runner.isolated_filesystem():
         # Mock Path.home() to return current directory
@@ -338,7 +340,9 @@ def test_init_creates_config_files_in_home(cli_runner: CliRunner, temp_config_di
         assert "Configuration files created successfully" in result.output
 
 
-def test_init_creates_config_files_in_current_dir(cli_runner: CliRunner, temp_config_dir: Path) -> None:
+def test_init_creates_config_files_in_current_dir(
+    cli_runner: CliRunner, temp_config_dir: Path
+) -> None:
     """Test init command creates config files in current directory."""
     with cli_runner.isolated_filesystem():
         # Simulate user choosing current directory (option 2)
@@ -362,7 +366,9 @@ def test_init_with_force_flag(cli_runner: CliRunner, temp_config_dir: Path) -> N
         assert "Configuration files created successfully" in result2.output
 
 
-def test_init_without_force_fails_on_existing_files(cli_runner: CliRunner, temp_config_dir: Path) -> None:
+def test_init_without_force_fails_on_existing_files(
+    cli_runner: CliRunner, temp_config_dir: Path
+) -> None:
     """Test init command fails when files exist without force flag."""
     with cli_runner.isolated_filesystem():
         # Create initial config files
@@ -443,7 +449,9 @@ def test_config_check_shows_environment_variables(cli_runner: CliRunner) -> None
     assert "Environment Variable Overrides" in result.output
 
 
-def test_config_check_with_env_var_set(cli_runner: CliRunner, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_config_check_with_env_var_set(
+    cli_runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test config-check detects environment variables."""
     monkeypatch.setenv("TABLESLEUTH_CATALOG_NAME", "test_catalog")
 
@@ -452,7 +460,9 @@ def test_config_check_with_env_var_set(cli_runner: CliRunner, monkeypatch: pytes
     assert "TABLESLEUTH_CATALOG_NAME" in result.output
 
 
-def test_config_check_masks_password_env_var(cli_runner: CliRunner, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_config_check_masks_password_env_var(
+    cli_runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test config-check masks password environment variables."""
     monkeypatch.setenv("TABLESLEUTH_GIZMO_PASSWORD", "secret123")
 

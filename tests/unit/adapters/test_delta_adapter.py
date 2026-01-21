@@ -743,14 +743,13 @@ class TestDeltaAdapter:
         assert snapshot.data_files[2].file_size_bytes == 3072
         assert snapshot.data_files[2].record_count == 300
 
-
     def test_get_schema_at_version(self, temp_delta_table: Path) -> None:
         """Test getting schema at a specific version."""
         adapter = DeltaAdapter()
         table_handle = adapter.open_table(str(temp_delta_table))
-        
+
         schema = adapter.get_schema_at_version(table_handle, 0)
-        
+
         # Verify schema is returned as dict
         assert isinstance(schema, dict)
         assert "id" in schema
@@ -758,7 +757,7 @@ class TestDeltaAdapter:
 
     def test_get_schema_at_version_searches_backwards(self) -> None:
         """Test that get_schema_at_version searches backwards for metadata.
-        
+
         Delta Lake only writes metaData entries when schema changes, typically
         in version 0. This test verifies that the method searches backwards from
         the requested version to find the most recent metaData entry.
@@ -826,10 +825,10 @@ class TestDeltaAdapter:
 
         adapter = DeltaAdapter()
         table_handle = adapter.open_table(str(temp_dir))
-        
+
         # Get schema at version 2 - should find schema from version 0
         schema = adapter.get_schema_at_version(table_handle, 2)
-        
+
         assert isinstance(schema, dict)
         assert "id" in schema
         assert schema["id"] == "integer"
@@ -840,7 +839,7 @@ class TestDeltaAdapter:
         """Test getting schema for invalid version number."""
         adapter = DeltaAdapter()
         table_handle = adapter.open_table(str(temp_delta_table))
-        
+
         with pytest.raises(ValueError, match="Version .* is out of range"):
             adapter.get_schema_at_version(table_handle, 999)
 
@@ -920,10 +919,10 @@ class TestDeltaAdapter:
 
         adapter = DeltaAdapter()
         table_handle = adapter.open_table(str(temp_dir))
-        
+
         # Get versions with metadata
         versions_with_metadata = adapter.get_versions_with_metadata(table_handle)
-        
+
         # Should return versions 0 and 2 (both have metadata entries)
         assert 0 in versions_with_metadata
         assert 1 not in versions_with_metadata
@@ -932,7 +931,7 @@ class TestDeltaAdapter:
     def test_create_file_ref_without_stats(self) -> None:
         """Test _create_file_ref handles missing stats gracefully."""
         adapter = DeltaAdapter()
-        
+
         # Create add action without stats
         add_action = AddAction(
             path="test.parquet",
@@ -940,11 +939,11 @@ class TestDeltaAdapter:
             modification_time=1705334625000,
             data_change=True,
             stats=None,  # No stats
-            partition_values={}
+            partition_values={},
         )
-        
+
         file_ref = adapter._create_file_ref(add_action, "/tmp/table")
-        
+
         assert file_ref.path.endswith("test.parquet")
         assert file_ref.file_size_bytes == 1024
         assert file_ref.record_count is None  # Should be None when stats missing
@@ -954,7 +953,7 @@ class TestDeltaAdapter:
     def test_create_file_ref_with_stats(self) -> None:
         """Test _create_file_ref extracts record count from stats."""
         adapter = DeltaAdapter()
-        
+
         # Create add action with stats
         add_action = AddAction(
             path="test.parquet",
@@ -962,11 +961,11 @@ class TestDeltaAdapter:
             modification_time=1705334625000,
             data_change=True,
             stats={"numRecords": 500, "minValues": {"id": 1}, "maxValues": {"id": 500}},
-            partition_values={"date": "2024-01-15"}
+            partition_values={"date": "2024-01-15"},
         )
-        
+
         file_ref = adapter._create_file_ref(add_action, "/tmp/table")
-        
+
         assert file_ref.path.endswith("test.parquet")
         assert file_ref.file_size_bytes == 2048
         assert file_ref.record_count == 500
