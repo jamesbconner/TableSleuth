@@ -510,9 +510,7 @@ class DeltaAdapter:
                     max_version = max(int(f.split("/")[-1].split(".")[0]) for f in version_files)
                 else:
                     # Extract version from Path objects
-                    max_version = max(
-                        int(Path(f).stem) for f in version_files
-                    )
+                    max_version = max(int(Path(f).stem) for f in version_files)
                 raise ValueError(
                     f"Version {version} is out of range.\nValid versions: 0 to {max_version}"
                 ) from None

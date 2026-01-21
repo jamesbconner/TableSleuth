@@ -668,7 +668,7 @@ class DeltaForensics:
                     filename_parts = cp_file.stem.split(".")
                     version_str = filename_parts[0]
                     version = int(version_str)
-                    
+
                     if version not in checkpoint_versions:
                         checkpoint_versions[version] = []
                     checkpoint_versions[version].append(cp_file)
@@ -678,10 +678,12 @@ class DeltaForensics:
             if checkpoint_versions:
                 # Get the most recent checkpoint version
                 last_checkpoint_version = max(checkpoint_versions.keys())
-                
+
                 # Calculate total size of all checkpoint files for this version
                 checkpoint_files_for_version = checkpoint_versions[last_checkpoint_version]
-                checkpoint_file_size_bytes = sum(f.stat().st_size for f in checkpoint_files_for_version)
+                checkpoint_file_size_bytes = sum(
+                    f.stat().st_size for f in checkpoint_files_for_version
+                )
 
                 # Try to get checkpoint timestamp from the corresponding version file
                 version_file = delta_log_path / f"{last_checkpoint_version:020d}.json"
