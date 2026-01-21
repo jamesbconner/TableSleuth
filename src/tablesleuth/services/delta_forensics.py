@@ -90,11 +90,13 @@ class DeltaForensics:
             return filesystem, path
         else:
             # Local filesystem - handle file:// prefix
+            original_uri = table_uri
+
             if table_uri.startswith("file:///"):
                 table_uri = table_uri[8:]
             elif table_uri.startswith("file://"):
                 table_uri = table_uri[7:]
-                # Ensure absolute path for macOS (doesn't contain : for Windows drive)
+                # macOS/Linux: Ensure absolute path has leading /
                 # Only prepend / if it looks like an absolute path without the leading /
                 if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
                     # This is likely a macOS/Linux absolute path missing the leading /
@@ -103,8 +105,19 @@ class DeltaForensics:
             elif table_uri.startswith("file:\\"):
                 table_uri = table_uri[6:].lstrip("\\")
 
-            # Note: We don't prepend "/" to relative paths - they should remain relative
-            # The macOS fix above only applies to file:// URIs that are missing the leading /
+            # Additional check: If the original URI had file:// prefix and the path
+            # doesn't start with / or \ or contain : (Windows drive), and it's not
+            # a relative path (doesn't start with . or contain /), it's likely a
+            # macOS absolute path missing the leading /
+            # This handles cases where deltalake returns file://private/var/...
+            if (
+                original_uri.startswith("file://")
+                and not table_uri.startswith(("/", "\\", "."))
+                and ":" not in table_uri
+                and "/" in table_uri
+            ):  # Has path separators, so it's a path not just a name
+                # This looks like an absolute Unix path missing the leading /
+                table_uri = "/" + table_uri
 
             return None, table_uri
 

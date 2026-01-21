@@ -48,6 +48,12 @@ All notable changes to this project will be documented in this file.
   - Added schema change indicator (asterisk) to identify versions with schema changes
   - Added `get_versions_with_metadata()` method to `DeltaAdapter`
   - Version history header now shows "Version History (* = schema change)" for clarity
+- **Delta Lake S3 Data Sample View** - Fixed "No File Loaded" error for S3 tables
+  - Fixed file path construction to include S3 scheme (`s3://`) when creating FileRef objects
+  - `_create_file_ref()` now reconstructs full S3 URIs from normalized paths
+  - Added region parameter to `DataSampleView.update_file_info()` for proper S3 access
+  - Delta view now passes AWS region from storage options to data sample view
+  - Improved error logging with `exc_info=True` for better debugging
   - Fixed version history scrolling bug where only subset of versions were visible
   - Changed VersionListView to use fractional height (`height: 1fr`) instead of percentage
   - Enabled vertical scrollbar programmatically for proper scrolling behavior

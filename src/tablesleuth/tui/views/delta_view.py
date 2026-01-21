@@ -988,22 +988,28 @@ class DeltaView(Screen):
             # Update data sample view with first file
             data_sample = self.query_one("#data-sample-view", DataSampleView)
             if version.data_files:
-                from tablesleuth.services.filesystem import FileSystem
                 from tablesleuth.services.parquet_service import ParquetInspector
 
                 first_file = version.data_files[0]
                 file_path = first_file.path
 
                 try:
-                    fs = FileSystem()
-                    if fs.exists(file_path):
-                        parquet_inspector = ParquetInspector()
-                        file_info = parquet_inspector.inspect_file(file_path)
-                        data_sample.update_file_info(file_info)
-                    else:
-                        data_sample.clear()
+                    # Get AWS region from adapter's storage options if available
+                    region = (
+                        self._adapter.storage_options.get("AWS_REGION")
+                        if self._adapter.storage_options
+                        else None
+                    )
+
+                    # Create inspector with region
+                    parquet_inspector = ParquetInspector(region=region)
+                    file_info = parquet_inspector.inspect_file(file_path)
+
+                    # Pass region to data sample view for S3 file access
+                    data_sample.update_file_info(file_info, region=region)
+
                 except Exception as e:
-                    logger.warning(f"Failed to load data sample: {e}")
+                    logger.warning(f"Failed to load data sample: {e}", exc_info=True)
                     data_sample.clear()
             else:
                 data_sample.clear()

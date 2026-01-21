@@ -94,11 +94,13 @@ class DeltaAdapter:
             return filesystem, path
         else:
             # Local filesystem - handle file:// prefix
+            original_uri = table_uri
+
             if table_uri.startswith("file:///"):
                 table_uri = table_uri[8:]
             elif table_uri.startswith("file://"):
                 table_uri = table_uri[7:]
-                # Ensure absolute path for macOS (doesn't contain : for Windows drive)
+                # macOS/Linux: Ensure absolute path has leading /
                 # Only prepend / if it looks like an absolute path without the leading /
                 if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
                     # This is likely a macOS/Linux absolute path missing the leading /
@@ -107,8 +109,19 @@ class DeltaAdapter:
             elif table_uri.startswith("file:\\"):
                 table_uri = table_uri[6:].lstrip("\\")
 
-            # Note: We don't prepend "/" to relative paths - they should remain relative
-            # The macOS fix above only applies to file:// URIs that are missing the leading /
+            # Additional check: If the original URI had file:// prefix and the path
+            # doesn't start with / or \ or contain : (Windows drive), and it's not
+            # a relative path (doesn't start with . or contain /), it's likely a
+            # macOS absolute path missing the leading /
+            # This handles cases where deltalake returns file://private/var/...
+            if (
+                original_uri.startswith("file://")
+                and not table_uri.startswith(("/", "\\", "."))
+                and ":" not in table_uri
+                and "/" in table_uri
+            ):  # Has path separators, so it's a path not just a name
+                # This looks like an absolute Unix path missing the leading /
+                table_uri = "/" + table_uri
 
             return None, table_uri
 
@@ -465,8 +478,19 @@ class DeltaAdapter:
         # Construct full path by joining table path with relative file path
         # The add_action.path is relative to the table root
         if filesystem is not None:
-            # Cloud storage - use forward slashes and preserve URI scheme
-            full_path = f"{table_path}/{add_action.path}"
+            # Cloud storage - reconstruct full URI with scheme
+            # Determine the scheme based on filesystem type
+            if isinstance(filesystem, pafs.S3FileSystem):
+                scheme = "s3://"
+            elif hasattr(filesystem, "__class__") and "GCS" in filesystem.__class__.__name__:
+                scheme = "gs://"
+            elif hasattr(filesystem, "__class__") and "Azure" in filesystem.__class__.__name__:
+                scheme = "abfs://"
+            else:
+                # Fallback - assume S3
+                scheme = "s3://"
+
+            full_path = f"{scheme}{table_path}/{add_action.path}"
         else:
             # Local filesystem - use Path for proper path joining
             full_path = str(Path(table_path) / add_action.path)

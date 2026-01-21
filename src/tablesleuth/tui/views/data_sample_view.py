@@ -267,11 +267,12 @@ class DataSampleView(Container):
             # Reload data with new column selection
             self._load_sample_data()
 
-    def update_file_info(self, file_info: ParquetFileInfo) -> None:
+    def update_file_info(self, file_info: ParquetFileInfo, region: str | None = None) -> None:
         """Update the displayed file information and load sample data.
 
         Args:
             file_info: ParquetFileInfo with file metadata
+            region: AWS region for S3 access (optional)
         """
         self._file_info = file_info
 
@@ -279,7 +280,7 @@ class DataSampleView(Container):
         try:
             from tablesleuth.services.filesystem import FileSystem
 
-            fs = FileSystem()
+            fs = FileSystem(region=region)
             if is_s3_path(file_info.path):
                 filesystem = fs.get_filesystem(file_info.path)
                 normalized_path = fs.normalize_s3_path(file_info.path)
@@ -287,7 +288,7 @@ class DataSampleView(Container):
             else:
                 self._parquet_file = ParquetFile(file_info.path)
         except Exception as e:
-            logger.error(f"Could not load ParquetFile: {e}")
+            logger.error(f"Could not load ParquetFile: {e}", exc_info=True)
             self._show_error(f"Error loading file: {e}")
             return
 
