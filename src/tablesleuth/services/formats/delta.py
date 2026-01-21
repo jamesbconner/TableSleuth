@@ -18,6 +18,11 @@ from tablesleuth.models import FileRef, SnapshotInfo, TableHandle
 
 from .delta_log_parser import AddAction, DeltaLogParser
 
+try:
+    from pyarrow import fs as pafs
+except ImportError:
+    pafs = None  # type: ignore[assignment]
+
 logger = logging.getLogger(__name__)
 
 
@@ -39,6 +44,75 @@ class DeltaAdapter:
                 - Azure: {"AZURE_STORAGE_ACCOUNT_NAME": "...", "AZURE_STORAGE_ACCOUNT_KEY": "..."}
         """
         self.storage_options = storage_options or {}
+
+    def _get_filesystem_and_path(
+        self, table_uri: str
+    ) -> tuple[pafs.FileSystem | None, str]:
+        """Get PyArrow filesystem and normalized path for a table URI.
+
+        Args:
+            table_uri: Table URI (local path or cloud URI like s3://bucket/path)
+
+        Returns:
+            Tuple of (filesystem, normalized_path)
+            - filesystem: PyArrow filesystem for cloud storage, None for local
+            - normalized_path: Normalized path component
+
+        Raises:
+            ImportError: If PyArrow is not installed for cloud storage
+        """
+        # Check if this is a cloud URI
+        is_cloud = table_uri.startswith(("s3://", "gs://", "abfs://", "abfss://"))
+
+        if is_cloud:
+            # Cloud storage - create PyArrow filesystem
+            if pafs is None:
+                raise ImportError(
+                    "PyArrow is required for cloud storage support. "
+                    "Install with: pip install pyarrow"
+                )
+
+            # Create filesystem from URI and storage options
+            filesystem, path = pafs.FileSystem.from_uri(table_uri)
+
+            # Apply storage options if provided
+            if self.storage_options:
+                # Convert storage options to PyArrow format
+                if table_uri.startswith("s3://"):
+                    # S3 filesystem
+                    s3_options = {}
+                    if "AWS_ACCESS_KEY_ID" in self.storage_options:
+                        s3_options["access_key"] = self.storage_options["AWS_ACCESS_KEY_ID"]
+                    if "AWS_SECRET_ACCESS_KEY" in self.storage_options:
+                        s3_options["secret_key"] = self.storage_options["AWS_SECRET_ACCESS_KEY"]
+                    if "AWS_REGION" in self.storage_options:
+                        s3_options["region"] = self.storage_options["AWS_REGION"]
+                    if "AWS_ENDPOINT_URL" in self.storage_options:
+                        s3_options["endpoint_override"] = self.storage_options[
+                            "AWS_ENDPOINT_URL"
+                        ]
+
+                    if s3_options:
+                        filesystem = pafs.S3FileSystem(**s3_options)
+
+            return filesystem, path
+        else:
+            # Local filesystem - handle file:// prefix
+            if table_uri.startswith("file:///"):
+                table_uri = table_uri[8:]
+            elif table_uri.startswith("file://"):
+                table_uri = table_uri[7:]
+                # Ensure absolute path for macOS (doesn't contain : for Windows drive)
+                if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
+                    table_uri = "/" + table_uri
+            elif table_uri.startswith("file:\\"):
+                table_uri = table_uri[6:].lstrip("\\")
+
+            # Ensure absolute path for macOS (doesn't contain : for Windows drive)
+            if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
+                table_uri = "/" + table_uri
+
+            return None, table_uri
 
     def _is_delta_table(self, path: str) -> bool:
         """Check if path contains a valid Delta table.
@@ -241,24 +315,21 @@ class DeltaAdapter:
         # Get the transaction log path for reading commit info
         table_uri = dt.table_uri
 
-        # Handle file URI prefix
-        if table_uri.startswith("file:///"):
-            table_uri = table_uri[8:]  # Remove "file:///" prefix
-        elif table_uri.startswith("file://"):
-            table_uri = table_uri[7:]  # Remove "file://" prefix
-            # Ensure we have an absolute path (macOS sometimes returns paths without leading /)
-            # Only prepend / if it's not a Windows path (doesn't contain : for drive letter)
-            if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
-                table_uri = "/" + table_uri
-        elif table_uri.startswith("file:\\"):
-            # Windows file URI
-            table_uri = table_uri[6:].lstrip("\\")  # Remove "file:\" prefix and leading backslashes
+        # Get filesystem and normalized path
+        filesystem, table_path = self._get_filesystem_and_path(table_uri)
 
-        delta_log_path = Path(table_uri) / "_delta_log"
-        version_file = delta_log_path / f"{version:020d}.json"
+        # Build delta log path
+        if filesystem is not None:
+            # Cloud storage - use forward slashes
+            delta_log_path = f"{table_path}/_delta_log"
+            version_file = f"{delta_log_path}/{version:020d}.json"
+        else:
+            # Local filesystem
+            delta_log_path = Path(table_path) / "_delta_log"
+            version_file = str(delta_log_path / f"{version:020d}.json")
 
         # Parse the current version file for commit info
-        parsed = DeltaLogParser.parse_version_file(str(version_file))
+        parsed = DeltaLogParser.parse_version_file(version_file, filesystem)
         commit_info = parsed["commit_info"]
 
         # Build summary dictionary from current version
@@ -286,12 +357,15 @@ class DeltaAdapter:
         active_files: dict[str, AddAction] = {}  # path -> AddAction
 
         for v in range(version + 1):
-            v_file = delta_log_path / f"{v:020d}.json"
-            if not v_file.exists():
-                continue
+            if filesystem is not None:
+                # Cloud storage
+                v_file = f"{delta_log_path}/{v:020d}.json"
+            else:
+                # Local filesystem
+                v_file = str(delta_log_path / f"{v:020d}.json")
 
             try:
-                v_parsed = DeltaLogParser.parse_version_file(str(v_file))
+                v_parsed = DeltaLogParser.parse_version_file(v_file, filesystem)
 
                 # Add new files
                 for add_action in v_parsed["add_actions"]:
@@ -302,12 +376,17 @@ class DeltaAdapter:
                     if remove_action.path in active_files:
                         del active_files[remove_action.path]
 
+            except FileNotFoundError:
+                # Version file doesn't exist, skip
+                continue
             except Exception as e:
                 logger.warning(f"Failed to parse version {v}: {e}")
                 continue
 
         # Convert accumulated add actions to FileRef objects
-        data_files = [self._create_file_ref(action, table_uri) for action in active_files.values()]
+        data_files = [
+            self._create_file_ref(action, table_path) for action in active_files.values()
+        ]
 
         # Determine operation type
         operation = commit_info.operation if commit_info else "UNKNOWN"
@@ -377,41 +456,51 @@ class DeltaAdapter:
             ValueError: If version number is out of range or no schema found
         """
         dt: DeltaTable = table.native
-
-        # Get the table URI to parse metadata directly
         table_uri = dt.table_uri
 
-        # Handle file URI prefix
-        if table_uri.startswith("file:///"):
-            table_uri = table_uri[8:]  # Remove "file:///" prefix
-        elif table_uri.startswith("file://"):
-            table_uri = table_uri[7:]  # Remove "file://" prefix
-            # Ensure we have an absolute path (macOS sometimes returns paths without leading /)
-            # Only prepend / if it's not a Windows path (doesn't contain : for drive letter)
-            if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
-                table_uri = "/" + table_uri
-        elif table_uri.startswith("file:\\"):
-            # Windows file URI
-            table_uri = table_uri[6:].lstrip("\\")  # Remove "file:\" prefix and leading backslashes
-        # If no file:// prefix, assume it's already a local path (common on macOS/Linux)
+        # Get filesystem and normalized path
+        filesystem, table_path = self._get_filesystem_and_path(table_uri)
 
-        # Ensure we have an absolute path (macOS sometimes returns paths without leading /)
-        # Only prepend / if it's not a Windows path (doesn't contain : for drive letter)
-        if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
-            table_uri = "/" + table_uri
-
-        delta_log_path = Path(table_uri) / "_delta_log"
-        version_file = delta_log_path / f"{version:020d}.json"
+        # Build delta log path
+        if filesystem is not None:
+            # Cloud storage
+            delta_log_path = f"{table_path}/_delta_log"
+            version_file = f"{delta_log_path}/{version:020d}.json"
+        else:
+            # Local filesystem
+            delta_log_path = Path(table_path) / "_delta_log"
+            version_file = str(delta_log_path / f"{version:020d}.json")
 
         # Check if version file exists
-        if not version_file.exists():
+        try:
+            DeltaLogParser.parse_version_file(version_file, filesystem)
+        except FileNotFoundError:
             # Try to determine the max version
-            version_files = list(delta_log_path.glob("*.json"))
-            # Filter to only numeric version files (exclude checkpoint files)
-            version_files = [f for f in version_files if f.stem.isdigit()]
+            if filesystem is not None:
+                # Cloud storage - list files
+                try:
+                    file_info = filesystem.get_file_info(pafs.FileSelector(delta_log_path))
+                    version_files = [
+                        f.path
+                        for f in file_info
+                        if f.path.endswith(".json")
+                        and not "checkpoint" in f.path
+                        and f.path.split("/")[-1].split(".")[0].isdigit()
+                    ]
+                except Exception:
+                    version_files = []
+            else:
+                # Local filesystem
+                version_files = list(delta_log_path.glob("*.json"))
+                version_files = [f for f in version_files if f.stem.isdigit()]
 
             if version_files:
-                max_version = max(int(f.stem) for f in version_files)
+                if filesystem is not None:
+                    max_version = max(
+                        int(f.split("/")[-1].split(".")[0]) for f in version_files
+                    )
+                else:
+                    max_version = max(int(f.stem) for f in version_files)
                 raise ValueError(
                     f"Version {version} is out of range.\nValid versions: 0 to {max_version}"
                 )
@@ -419,19 +508,33 @@ class DeltaAdapter:
                 raise ValueError(f"Version {version} is out of range.\nNo version files found")
 
         # Search backwards from requested version to find most recent metaData entry
-        # Delta Lake only writes metaData when schema changes (typically version 0)
         schema_dict: dict[str, str] = {}
 
         for v in range(version, -1, -1):
-            v_file = delta_log_path / f"{v:020d}.json"
+            if filesystem is not None:
+                v_file = f"{delta_log_path}/{v:020d}.json"
+            else:
+                v_file = str(delta_log_path / f"{v:020d}.json")
 
-            if not v_file.exists():
-                continue
+            try:
+                parsed = DeltaLogParser.parse_version_file(v_file, filesystem)
 
-            with open(v_file) as f:
-                for line in f:
+                # Check if this version has metadata by parsing the file again for metaData entry
+                # (DeltaLogParser doesn't extract metaData, only commitInfo/add/remove)
+                if filesystem is not None:
+                    with filesystem.open_input_file(v_file) as f:
+                        content = f.read().decode("utf-8")
+                else:
+                    with open(v_file, encoding="utf-8") as f:
+                        content = f.read()
+
+                for line in content.splitlines():
+                    line = line.strip()
+                    if not line:
+                        continue
+
                     try:
-                        entry = json.loads(line.strip())
+                        entry = json.loads(line)
 
                         # Look for metaData entry
                         if "metaData" in entry:
@@ -460,6 +563,12 @@ class DeltaAdapter:
 
                     except json.JSONDecodeError:
                         continue
+
+            except FileNotFoundError:
+                continue
+            except Exception as e:
+                logger.warning(f"Failed to parse version {v} for schema: {e}")
+                continue
 
         # If we get here, no schema was found in any version
         logger.warning(f"No schema found for version {version} (searched back to version 0)")

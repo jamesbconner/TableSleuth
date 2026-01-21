@@ -2,6 +2,8 @@
 
 This module provides utilities for parsing Delta Lake's JSON transaction log files
 and extracting commit information, add actions, and remove actions.
+
+Supports both local filesystem and cloud storage (S3, Azure, GCS) via PyArrow filesystem.
 """
 
 from __future__ import annotations
@@ -10,6 +12,11 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+try:
+    from pyarrow import fs as pafs
+except ImportError:
+    pafs = None  # type: ignore[assignment]
 
 
 @dataclass
@@ -75,11 +82,14 @@ class DeltaLogParser:
     """Parser for Delta Lake transaction log JSON files."""
 
     @staticmethod
-    def parse_version_file(file_path: str) -> dict[str, Any]:
-        """Parse a single version JSON file.
+    def parse_version_file(
+        file_path: str, filesystem: pafs.FileSystem | None = None
+    ) -> dict[str, Any]:
+        """Parse a single version JSON file from local or cloud storage.
 
         Args:
-            file_path: Path to the version JSON file
+            file_path: Path to the version JSON file (local path or cloud URI path component)
+            filesystem: PyArrow filesystem for cloud storage (None for local files)
 
         Returns:
             Dictionary with:
@@ -92,73 +102,92 @@ class DeltaLogParser:
             json.JSONDecodeError: If file contains malformed JSON
             ValueError: If required fields are missing
         """
-        path = Path(file_path)
-        if not path.exists():
-            raise FileNotFoundError(f"Version file not found: {file_path}")
-
         commit_info: CommitInfo | None = None
         add_actions: list[AddAction] = []
         remove_actions: list[RemoveAction] = []
 
         try:
-            with open(path, encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line:
-                        continue
+            # Read file content based on storage type
+            if filesystem is not None:
+                # Cloud storage - use PyArrow filesystem
+                if pafs is None:
+                    raise ImportError(
+                        "PyArrow is required for cloud storage support. "
+                        "Install with: pip install pyarrow"
+                    )
+                
+                try:
+                    with filesystem.open_input_file(file_path) as f:
+                        content = f.read().decode("utf-8")
+                except FileNotFoundError:
+                    raise FileNotFoundError(f"Version file not found: {file_path}")
+            else:
+                # Local filesystem
+                path = Path(file_path)
+                if not path.exists():
+                    raise FileNotFoundError(f"Version file not found: {file_path}")
+                
+                with open(path, encoding="utf-8") as f:
+                    content = f.read()
 
-                    try:
-                        entry = json.loads(line)
-                    except json.JSONDecodeError as e:
-                        raise json.JSONDecodeError(
-                            f"Malformed JSON in {file_path}: {e.msg}", e.doc, e.pos
-                        ) from e
+            # Parse JSON lines
+            for line in content.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
 
-                    # Parse commitInfo
-                    if "commitInfo" in entry:
-                        commit_data = entry["commitInfo"]
-                        commit_info = CommitInfo(
-                            timestamp=commit_data.get("timestamp", 0),
-                            operation=commit_data.get("operation", "UNKNOWN"),
-                            operation_parameters=commit_data.get("operationParameters", {}),
-                            operation_metrics=commit_data.get("operationMetrics", {}),
-                            user_metadata=commit_data.get("userMetadata"),
-                            engine_info=commit_data.get("engineInfo"),
-                        )
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError as e:
+                    raise json.JSONDecodeError(
+                        f"Malformed JSON in {file_path}: {e.msg}", e.doc, e.pos
+                    ) from e
 
-                    # Parse add action
-                    elif "add" in entry:
-                        add_data = entry["add"]
-                        stats_str = add_data.get("stats")
-                        stats = None
-                        if stats_str:
-                            try:
-                                stats = json.loads(stats_str)
-                            except json.JSONDecodeError as e:
-                                raise ValueError(
-                                    f"Malformed stats JSON in add action in {file_path}: {e.msg}"
-                                ) from e
+                # Parse commitInfo
+                if "commitInfo" in entry:
+                    commit_data = entry["commitInfo"]
+                    commit_info = CommitInfo(
+                        timestamp=commit_data.get("timestamp", 0),
+                        operation=commit_data.get("operation", "UNKNOWN"),
+                        operation_parameters=commit_data.get("operationParameters", {}),
+                        operation_metrics=commit_data.get("operationMetrics", {}),
+                        user_metadata=commit_data.get("userMetadata"),
+                        engine_info=commit_data.get("engineInfo"),
+                    )
 
-                        add_action = AddAction(
-                            path=add_data["path"],
-                            size=add_data["size"],
-                            modification_time=add_data.get("modificationTime", 0),
-                            data_change=add_data.get("dataChange", True),
-                            stats=stats,
-                            partition_values=add_data.get("partitionValues", {}),
-                        )
-                        add_actions.append(add_action)
+                # Parse add action
+                elif "add" in entry:
+                    add_data = entry["add"]
+                    stats_str = add_data.get("stats")
+                    stats = None
+                    if stats_str:
+                        try:
+                            stats = json.loads(stats_str)
+                        except json.JSONDecodeError as e:
+                            raise ValueError(
+                                f"Malformed stats JSON in add action in {file_path}: {e.msg}"
+                            ) from e
 
-                    # Parse remove action
-                    elif "remove" in entry:
-                        remove_data = entry["remove"]
-                        remove_action = RemoveAction(
-                            path=remove_data["path"],
-                            deletion_timestamp=remove_data.get("deletionTimestamp", 0),
-                            data_change=remove_data.get("dataChange", True),
-                            size=remove_data.get("size"),
-                        )
-                        remove_actions.append(remove_action)
+                    add_action = AddAction(
+                        path=add_data["path"],
+                        size=add_data["size"],
+                        modification_time=add_data.get("modificationTime", 0),
+                        data_change=add_data.get("dataChange", True),
+                        stats=stats,
+                        partition_values=add_data.get("partitionValues", {}),
+                    )
+                    add_actions.append(add_action)
+
+                # Parse remove action
+                elif "remove" in entry:
+                    remove_data = entry["remove"]
+                    remove_action = RemoveAction(
+                        path=remove_data["path"],
+                        deletion_timestamp=remove_data.get("deletionTimestamp", 0),
+                        data_change=remove_data.get("dataChange", True),
+                        size=remove_data.get("size"),
+                    )
+                    remove_actions.append(remove_action)
 
         except Exception as e:
             if isinstance(e, FileNotFoundError | json.JSONDecodeError):
