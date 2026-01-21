@@ -1,12 +1,13 @@
-# Table Sleuth User Guide - MVP 0
+# Table Sleuth User Guide
 
 ## Overview
 
-Table Sleuth is a Parquet file forensics and Iceberg table analysis tool with a powerful terminal user interface (TUI). It provides:
+Table Sleuth is a comprehensive tool for analyzing Parquet files, Apache Iceberg tables, and Delta Lake tables with a powerful terminal user interface (TUI). It provides:
 
 - **Parquet Inspection**: Deep metadata analysis, schema viewing, row group inspection
 - **Column Profiling**: Statistical analysis via local GizmoSQL
 - **Iceberg Support**: Table browsing, snapshot navigation, and comparison
+- **Delta Lake Support**: Version history, forensic analysis, and optimization recommendations
 - **Performance Testing**: Measure merge-on-read overhead across snapshots
 
 ## Installation
@@ -482,6 +483,133 @@ tls_skip_verify = false
 | `Escape` | Exit Compare mode or close dialogs |
 | `↑/↓` | Navigate snapshot list |
 | `Tab` | Switch between panels |
+
+## Delta Lake Features
+
+### Version History and Time Travel
+
+Navigate through Delta table versions to understand table evolution:
+
+```bash
+# Inspect latest version
+tablesleuth delta path/to/delta/table
+
+# Time travel to specific version
+tablesleuth delta path/to/delta/table --version 5
+
+# Inspect S3-based Delta table
+tablesleuth delta s3://bucket/path/to/delta/table
+```
+
+### Delta Lake TUI Interface
+
+The Delta Lake viewer provides a comprehensive interface with multiple panels and tabs:
+
+**Left Panel: Version History**
+- Lists all table versions (most recent first)
+- Shows timestamp, operation type, file count, and record count
+- Select any version to view details
+- Compare mode checkbox for version comparison
+
+**Right Panel: Tabbed Views**
+
+1. **Overview Tab**
+   - Version number and timestamp
+   - Operation type (WRITE, MERGE, UPDATE, DELETE, OPTIMIZE, VACUUM)
+   - Data file count and total size
+   - Total record count
+   - Operation-specific metrics (rows affected, bytes written, etc.)
+
+2. **Files Tab**
+   - List of all data files in the selected version
+   - File path, size, record count, and partition values
+   - Sortable columns for analysis
+   - Identify large files or partition skew
+
+3. **Schema Tab**
+   - Complete table schema at the selected version
+   - Column names and data types
+   - Track schema evolution across versions
+   - Identify schema changes
+
+4. **Data Sample Tab**
+   - Preview data from the first file in the version
+   - View actual column values
+   - Inspect data quality
+   - Verify schema interpretation
+
+5. **Forensics Tab**
+   - **File Size Distribution**: Histogram showing file size buckets
+   - **Small File Analysis**: Count and percentage of files <10MB
+   - **Storage Waste**: Active vs tombstoned files, reclaimable storage
+   - **Checkpoint Health**: Status, log tail length, issues and recommendations
+
+6. **Recommendations Tab**
+   - Prioritized optimization recommendations (High/Medium/Low)
+   - OPTIMIZE recommendations for small files
+   - VACUUM recommendations for storage waste
+   - ZORDER recommendations for degraded clustering
+   - CHECKPOINT recommendations for log tail issues
+   - Each recommendation includes reason, impact, and command
+
+7. **Compare Tab** (enabled in Compare Mode)
+   - Side-by-side comparison of two selected versions
+   - File count changes
+   - Record count changes
+   - Size changes (bytes added/removed)
+   - Delta calculations
+
+### Version Comparison
+
+Compare any two versions to understand changes:
+
+1. Press `c` to enable Compare Mode
+2. Select first version with Enter
+3. Select second version with Enter
+4. View comparison in the Compare tab:
+   - File changes (added/removed)
+   - Record changes (net delta)
+   - Size changes (storage impact)
+
+### Forensic Analysis Capabilities
+
+Delta Lake forensics provides deep insights into table health:
+
+**File Size Analysis**
+- Identify small file problems (<10MB)
+- Calculate file size distribution histogram
+- Estimate benefits of OPTIMIZE operations
+- Get recommendations for file consolidation
+
+**Storage Waste Analysis**
+- Track tombstoned (deleted) files
+- Calculate reclaimable storage beyond retention period
+- Monitor storage waste percentage
+- Get VACUUM recommendations with retention periods
+
+**Checkpoint Health**
+- Monitor transaction log health
+- Track log tail length (JSON files since last checkpoint)
+- Identify checkpoint issues (missing, corrupted, or stale)
+- Get proactive maintenance recommendations
+
+**Optimization Recommendations**
+- Automatically generated based on forensic analysis
+- Prioritized by impact (High/Medium/Low)
+- Includes estimated benefits and specific commands
+- Covers OPTIMIZE, VACUUM, ZORDER, and CHECKPOINT operations
+
+### Delta Lake Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `Enter` | Select version to view details |
+| `c` | Toggle Compare Mode |
+| `Escape` | Dismiss notifications |
+| `↑/↓` | Navigate version list |
+| `Tab` | Switch between tabs |
+| `r` | Refresh table metadata and analysis |
+| `q` | Quit the viewer |
 
 ## Troubleshooting
 

@@ -1,6 +1,7 @@
 """TUI view components for Table Sleuth."""
 
 from .data_sample_view import DataSampleView
+from .delta_view import DeltaView
 from .file_detail_view import FileDetailView
 from .file_list_view import FileListView
 from .iceberg_view import IcebergView, SnapshotListView
@@ -19,4 +20,5 @@ __all__ = [
     "StructureView",
     "IcebergView",
     "SnapshotListView",
+    "DeltaView",
 ]
