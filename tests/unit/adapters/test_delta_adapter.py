@@ -365,7 +365,16 @@ class TestDeltaAdapter:
         assert isinstance(data_files[0], FileRef)
         # Path should be absolute (table_path / relative_path)
         assert data_files[0].path.endswith("part-00000.snappy.parquet")
-        assert str(temp_delta_table) in data_files[0].path
+
+        # Resolve both paths to handle Windows short path vs long path differences
+        # (e.g., RUNNER~1 vs runneradmin on GitHub Actions)
+        expected_table_path = temp_delta_table.resolve()
+        actual_file_path = Path(data_files[0].path).resolve()
+        assert (
+            expected_table_path in actual_file_path.parents
+            or expected_table_path == actual_file_path.parent
+        )
+
         assert data_files[0].file_size_bytes == 1024
         assert data_files[0].record_count == 100
         assert data_files[0].source == "delta"
