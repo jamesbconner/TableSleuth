@@ -9,6 +9,7 @@ Supports both local filesystem and cloud storage (S3, Azure, GCS) via PyArrow fi
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,8 @@ try:
     from pyarrow import fs as pafs
 except ImportError:
     pafs = None
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -162,7 +165,15 @@ class DeltaLogParser:
                     stats = None
                     if stats_str:
                         try:
-                            stats = json.loads(stats_str)
+                            parsed_stats = json.loads(stats_str)
+                            # Validate that stats is a dict, not a primitive type
+                            if isinstance(parsed_stats, dict):
+                                stats = parsed_stats
+                            else:
+                                logger.warning(
+                                    f"Invalid stats type in add action in {file_path}: "
+                                    f"expected dict, got {type(parsed_stats).__name__}"
+                                )
                         except json.JSONDecodeError as e:
                             raise ValueError(
                                 f"Malformed stats JSON in add action in {file_path}: {e.msg}"

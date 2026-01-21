@@ -79,7 +79,8 @@ def get_filesystem_and_path(
             table_uri = table_uri[7:]
             # macOS/Linux: Ensure absolute path has leading /
             # Only prepend / if it looks like an absolute path without the leading /
-            if not table_uri.startswith(("/", "\\")) and ":" not in table_uri:
+            # Don't prepend for relative paths (starting with .)
+            if not table_uri.startswith(("/", "\\", ".")) and ":" not in table_uri:
                 # This is likely a macOS/Linux absolute path missing the leading /
                 # (e.g., "private/var/..." should be "/private/var/...")
                 table_uri = "/" + table_uri
@@ -88,7 +89,7 @@ def get_filesystem_and_path(
 
         # Additional check: If the original URI had file:// prefix and the path
         # doesn't start with / or \ or contain : (Windows drive), and it's not
-        # a relative path (doesn't start with . or contain /), it's likely a
+        # a relative path (doesn't start with .), it's likely a
         # macOS absolute path missing the leading /
         # This handles cases where deltalake returns file://private/var/...
         if (
