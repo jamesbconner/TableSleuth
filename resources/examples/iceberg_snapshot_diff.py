@@ -76,8 +76,8 @@ def compare_snapshots(catalog: str, table: str, snapshot_from: int, snapshot_to:
     print(f"  Change: {size_change / 1024**3:+.2f} GB")
 
     # Calculate record changes
-    records_from = sum(f.record_count for f in snap_from.data_files)
-    records_to = sum(f.record_count for f in snap_to.data_files)
+    records_from = sum(f.record_count for f in snap_from.data_files if f.record_count is not None)
+    records_to = sum(f.record_count for f in snap_to.data_files if f.record_count is not None)
     records_change = records_to - records_from
 
     print("\nRecords:")

@@ -35,7 +35,7 @@ def analyze_table(adapter: IcebergAdapter, catalog: str, table: str) -> dict:
 
         # Calculate metrics
         total_size = sum(f.file_size_bytes for f in latest.data_files)
-        total_records = sum(f.record_count for f in latest.data_files)
+        total_records = sum(f.record_count for f in latest.data_files if f.record_count is not None)
 
         # Calculate average file size
         avg_file_size_mb = (

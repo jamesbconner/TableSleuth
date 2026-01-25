@@ -78,13 +78,16 @@ def inspect_s3_table_by_arn():
 
         # Calculate totals
         total_size = sum(f.file_size_bytes for f in data_files)
-        total_records = sum(f.record_count for f in data_files)
+        total_records = sum(f.record_count for f in data_files if f.record_count is not None)
 
         print("\nTotals:")
         print(f"  Total Size: {total_size:,} bytes ({total_size / 1024**3:.2f} GB)")
         print(f"  Total Records: {total_records:,}")
         print(f"  Average File Size: {total_size / len(data_files):,.0f} bytes")
-        print(f"  Average Records per File: {total_records / len(data_files):,.0f}")
+        if total_records > 0:
+            files_with_counts = [f for f in data_files if f.record_count is not None]
+            if files_with_counts:
+                print(f"  Average Records per File: {total_records / len(files_with_counts):,.0f}")
 
 
 def inspect_s3_table_by_catalog():
