@@ -20,8 +20,12 @@ A powerful terminal-based tool for deep inspection of Parquet files, Apache Iceb
 
 ### Iceberg Table Analysis
 - **Snapshot Navigation** - Browse table history and metadata evolution
-- **Performance Testing** - Compare query performance across snapshots
-- **Delete File Inspection** - Analyze MOR (Merge-on-Read) delete files
+- **Performance Testing** - Compare query performance across snapshots with comprehensive analysis
+  - Multi-factor performance attribution (data volume, MOR overhead, scan efficiency)
+  - Accurate MOR overhead detection with read amplification metrics
+  - Order-agnostic comparison (works regardless of snapshot chronology)
+  - Actionable compaction recommendations with specific thresholds
+- **Delete File Inspection** - Analyze MOR (Merge-on-Read) delete files and read amplification
 - **Schema Evolution** - Track schema changes over time
 - **Catalog Support** - Local SQLite, AWS Glue, and AWS S3 Tables
 
@@ -274,23 +278,38 @@ See [User Guide](docs/USER_GUIDE.md) for complete keyboard shortcuts and feature
 
 ## AWS Deployment
 
-Deploy TableSleuth to AWS EC2 with automated infrastructure provisioning using AWS CDK:
+Deploy TableSleuth to AWS EC2 with production-ready infrastructure using AWS CDK (Cloud Development Kit):
 
 ```bash
 cd resources/aws-cdk
-export SSH_ALLOWED_CIDR="$(curl -s ifconfig.me)/32"
+
+# Set required environment variables
+export SSH_ALLOWED_CIDR="$(curl -s ifconfig.me)/32"  # Your IP for SSH access
 export GIZMOSQL_USERNAME="admin"
 export GIZMOSQL_PASSWORD="secure-password"
+
+# Deploy to dev environment
 cdk deploy -c environment=dev
 ```
 
-**Features:**
-- Least-privilege IAM policies
-- EBS encryption and VPC Flow Logs
-- Multi-environment support (dev/staging/prod)
-- Infrastructure as code with change preview
+**Key Features:**
+- **Infrastructure as Code** - Version-controlled, reviewable infrastructure changes
+- **Security Best Practices** - Least-privilege IAM, EBS encryption, VPC Flow Logs
+- **Multi-Environment** - Separate dev/staging/prod configurations via CDK context
+- **Automated Setup** - GizmoSQL service, PyIceberg Glue integration, and TableSleuth pre-installed
+- **Change Preview** - Review infrastructure changes before deployment with `cdk diff`
 
-See **[resources/aws-cdk/README.md](resources/aws-cdk/README.md)** for complete deployment guide and **[resources/aws-cdk/QUICKSTART.md](resources/aws-cdk/QUICKSTART.md)** for 10-minute setup.
+**What's Included:**
+- EC2 instance with TableSleuth and GizmoSQL pre-configured
+- IAM role with S3, Glue, and S3 Tables permissions
+- Security group with SSH access from your IP
+- Systemd service for GizmoSQL (auto-starts on boot)
+- Complete PyIceberg configuration for AWS Glue catalog
+
+**Documentation:**
+- **[CDK README](resources/aws-cdk/README.md)** - Complete deployment guide
+- **[CDK Quick Start](resources/aws-cdk/QUICKSTART.md)** - Deploy in 10 minutes
+- **[Future Improvements](resources/aws-cdk/FUTURE_IMPROVEMENTS.md)** - Planned enhancements
 
 ## Optional: GizmoSQL Profiling
 
@@ -362,14 +381,23 @@ See [Development Setup](DEVELOPMENT_SETUP.md) for complete development environme
 
 ## What's New
 
-### v0.5.1 (In Development)
+### v0.5.1 (Latest)
 - 🚀 **AWS CDK Infrastructure** - Production-ready CDK implementation for EC2 deployment
+  - Replaces legacy boto3 scripts with infrastructure-as-code approach
   - Follows AWS CDK best practices (least-privilege IAM, EBS encryption, VPC Flow Logs)
-  - Multi-environment support (dev, staging, prod)
-  - Type-safe configuration with environment variables
+  - Multi-environment support (dev, staging, prod) with context-based configuration
+  - Type-safe configuration using dataclasses and environment variables
+  - Automated GizmoSQL service setup with systemd
+  - Complete PyIceberg Glue integration out-of-the-box
   - See [resources/aws-cdk/README.md](resources/aws-cdk/README.md) for details
+- 🔍 **Enhanced Iceberg Performance Analysis** - Better multi-factor performance comparison
+  - Order-agnostic analysis (works regardless of snapshot chronology)
+  - Multi-factor attribution: data volume, file counts, MOR overhead, delete ratios, scan efficiency
+  - Accurate MOR overhead detection (only when delete files actually exist)
+  - Read amplification metrics and compaction recommendations
+  - Detailed contributing factors with specific metrics and percentages
 - 🔒 **Enhanced Security** - Improved IAM permissions and encryption
-- 📚 **Consolidated Documentation** - Streamlined deployment guides
+- 📚 **Consolidated Documentation** - Streamlined deployment guides and removed legacy content
 
 ### v0.5.0 (Current)
 - 🎉 **Delta Lake Support** - Full Delta table inspection and forensics
