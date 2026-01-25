@@ -432,7 +432,7 @@ su - ec2-user -c 'pip install --upgrade pip'
 su - ec2-user -c 'pip install --user --upgrade --no-cache-dir tablesleuth'
 
 echo "Creating tablesleuth.toml configuration..."
-cat > /home/ec2-user/tablesleuth.toml <<TOMLEOF
+cat > /home/ec2-user/tablesleuth.toml <<'TOMLEOF'
 [catalog]
 # Set your default Iceberg catalog name here
 # Example: default = "my_glue_catalog"
@@ -528,8 +528,8 @@ export AWS_DEFAULT_REGION="{region}"
 # Example: export PYICEBERG_CATALOG__MY_CATALOG__REGION="{region}"
 
 # GizmoSQL configuration
-export GIZMOSQL_USERNAME="{self.config.gizmosql_username}"
-export GIZMOSQL_PASSWORD="{self.config.gizmosql_password}"
+export GIZMOSQL_USERNAME='{self.config.gizmosql_username}'
+export GIZMOSQL_PASSWORD='{self.config.gizmosql_password}'
 
 # GizmoSQL aliases
 alias gizmosvr='gizmosql_server -U "${{GIZMOSQL_USERNAME}}" -P "${{GIZMOSQL_PASSWORD}}" -Q -I "install aws; install httpfs; install iceberg; load aws; load httpfs; load iceberg; CREATE SECRET (TYPE s3, PROVIDER credential_chain); {gizmosql_attach}" -T ~/.certs/cert0.pem ~/.certs/cert0.key'

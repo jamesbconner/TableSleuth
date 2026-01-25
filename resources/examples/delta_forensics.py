@@ -19,7 +19,7 @@ Usage:
 import sys
 from pathlib import Path
 
-from tablesleuth.services.delta_forensics import DeltaForensicsService
+from tablesleuth.services.delta_forensics import DeltaForensics
 from tablesleuth.services.formats.delta import DeltaAdapter
 
 
@@ -46,73 +46,74 @@ def analyze_delta_table(table_path: str):
         print("No versions found in table")
         return
 
-    # Initialize forensics service
-    forensics = DeltaForensicsService(adapter, table_handle)
+    # Get current snapshot for analysis
+    current_snapshot = snapshots[0]  # Most recent snapshot
 
-    # Analyze file sizes
+    # Analyze file sizes (static method)
     print("\n" + "=" * 80)
     print("FILE SIZE ANALYSIS")
     print("=" * 80)
 
-    file_analysis = forensics.analyze_file_sizes()
-    print(f"Total files: {file_analysis['total_files']}")
-    print(f"Small files (<10MB): {file_analysis['small_files_count']}")
-    print(f"Small files percentage: {file_analysis['small_files_pct']:.1f}%")
-    print(f"Average file size: {file_analysis['avg_size_mb']:.2f} MB")
-    print(f"Median file size: {file_analysis['median_size_mb']:.2f} MB")
+    file_analysis = DeltaForensics.analyze_file_sizes(current_snapshot)
+    print(f"Total files: {file_analysis['total_file_count']}")
+    print(f"Small files (<10MB): {file_analysis['small_file_count']}")
+    print(f"Small files percentage: {file_analysis['small_file_percentage']:.1f}%")
+    print(f"Median file size: {file_analysis['median_size_bytes'] / 1024**2:.2f} MB")
 
-    if file_analysis["small_files_pct"] > 30:
+    if file_analysis["small_file_percentage"] > 30:
         print("\n⚠️  WARNING: High percentage of small files detected!")
         print("   Consider running OPTIMIZE to compact files")
 
-    # Analyze storage waste
+    # Analyze storage waste (static method)
     print("\n" + "=" * 80)
     print("STORAGE WASTE ANALYSIS")
     print("=" * 80)
 
-    waste_analysis = forensics.analyze_storage_waste()
-    print(f"Tombstoned files: {waste_analysis['tombstoned_files']}")
-    print(f"Tombstoned size: {waste_analysis['tombstoned_size_gb']:.2f} GB")
-    print(f"Reclaimable percentage: {waste_analysis['reclaimable_pct']:.1f}%")
+    waste_analysis = DeltaForensics.analyze_storage_waste(snapshots)
+    print(f"Tombstoned files: {waste_analysis['tombstoned_file_count']}")
+    print(f"Tombstoned size: {waste_analysis['tombstoned_size_bytes'] / 1024**3:.2f} GB")
+    print(f"Reclaimable percentage: {waste_analysis['reclaimable_percentage']:.1f}%")
 
-    if waste_analysis["reclaimable_pct"] > 20:
+    if waste_analysis["reclaimable_percentage"] > 20:
         print("\n⚠️  WARNING: Significant storage waste detected!")
         print("   Consider running VACUUM to reclaim space")
 
-    # Analyze DML operations
+    # Analyze DML operations (static method)
     print("\n" + "=" * 80)
     print("DML OPERATION ANALYSIS")
     print("=" * 80)
 
-    dml_analysis = forensics.analyze_dml_operations()
+    dml_analysis = DeltaForensics.analyze_dml_operation(snapshots)
     print(f"Total operations: {dml_analysis['total_operations']}")
-    print(f"MERGE operations: {dml_analysis['merge_count']}")
-    print(f"UPDATE operations: {dml_analysis['update_count']}")
-    print(f"DELETE operations: {dml_analysis['delete_count']}")
+    print(f"MERGE operations: {dml_analysis['merge_operations']}")
+    print(f"UPDATE operations: {dml_analysis['update_operations']}")
+    print(f"DELETE operations: {dml_analysis['delete_operations']}")
     print(f"Average rewrite amplification: {dml_analysis['avg_rewrite_amplification']:.2f}x")
 
     if dml_analysis["avg_rewrite_amplification"] > 5:
         print("\n⚠️  WARNING: High rewrite amplification detected!")
         print("   Consider using partition pruning or Z-ORDER")
 
-    # Get recommendations
+    # Get recommendations (static method)
     print("\n" + "=" * 80)
     print("OPTIMIZATION RECOMMENDATIONS")
     print("=" * 80)
 
-    recommendations = forensics.get_recommendations()
+    recommendations = DeltaForensics.get_recommendations(
+        file_analysis, waste_analysis, dml_analysis, {}, {}
+    )
 
     if not recommendations:
         print("\n✓ No optimization recommendations - table is healthy!")
     else:
         for i, rec in enumerate(recommendations, 1):
             priority_icon = (
-                "🔴" if rec["priority"] == "HIGH" else "🟡" if rec["priority"] == "MEDIUM" else "🟢"
+                "🔴" if rec["priority"] == "high" else "🟡" if rec["priority"] == "medium" else "🟢"
             )
-            print(f"\n{i}. {priority_icon} {rec['title']} (Priority: {rec['priority']})")
+            print(f"\n{i}. {priority_icon} {rec['title']} (Priority: {rec['priority'].upper()})")
             print(f"   {rec['description']}")
-            if rec.get("command"):
-                print(f"   Command: {rec['command']}")
+            if rec.get("action"):
+                print(f"   Action: {rec['action']}")
 
     # Summary
     print("\n" + "=" * 80)
@@ -120,8 +121,8 @@ def analyze_delta_table(table_path: str):
     print("=" * 80)
     print(f"Table: {table_path}")
     print(f"Versions: {len(snapshots)}")
-    print(f"Files: {file_analysis['total_files']}")
-    print(f"Total size: {file_analysis['total_size_gb']:.2f} GB")
+    print(f"Files: {file_analysis['total_file_count']}")
+    print(f"Total size: {file_analysis['total_size_bytes'] / 1024**3:.2f} GB")
     print(f"Recommendations: {len(recommendations)}")
 
 

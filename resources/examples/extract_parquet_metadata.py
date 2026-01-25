@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Example: Extract Parquet metadata programmatically.
 
-Demonstrates using ParquetService to extract metadata without TUI:
+Demonstrates using ParquetInspector to extract metadata without TUI:
 - Schema information
 - Row group statistics
 - Column statistics
@@ -20,7 +20,7 @@ import argparse
 import json
 import sys
 
-from tablesleuth.services.parquet_service import ParquetService
+from tablesleuth.services.parquet_service import ParquetInspector
 
 
 def extract_metadata(file_path: str, output_format: str = "text"):
@@ -28,69 +28,62 @@ def extract_metadata(file_path: str, output_format: str = "text"):
     print(f"Extracting metadata from: {file_path}")
     print("=" * 80)
 
-    service = ParquetService()
+    inspector = ParquetInspector()
 
     # Get file metadata
     try:
-        metadata = service.get_file_metadata(file_path)
+        file_info = inspector.inspect_file(file_path)
     except Exception as e:
         print(f"Error reading file: {e}")
         sys.exit(1)
 
     # Build metadata dictionary
     result = {
-        "file_path": file_path,
-        "num_rows": metadata.num_rows,
-        "num_row_groups": metadata.num_row_groups,
-        "num_columns": metadata.num_columns,
-        "created_by": metadata.created_by,
-        "format_version": metadata.format_version,
-        "serialized_size": metadata.serialized_size,
+        "file_path": file_info.path,
+        "num_rows": file_info.num_rows,
+        "num_row_groups": file_info.num_row_groups,
+        "num_columns": file_info.num_columns,
+        "created_by": file_info.created_by,
+        "format_version": file_info.format_version,
+        "file_size_bytes": file_info.file_size_bytes,
         "schema": [],
         "row_groups": [],
     }
 
     # Extract schema
-    schema = metadata.schema
-    for i in range(len(schema)):
-        col = schema.column(i)
+    for col_name, col_info in file_info.schema.items():
         result["schema"].append(
             {
-                "name": col.name,
-                "physical_type": col.physical_type,
-                "logical_type": str(col.logical_type) if col.logical_type else None,
-                "max_definition_level": col.max_definition_level,
-                "max_repetition_level": col.max_repetition_level,
+                "name": col_name,
+                "physical_type": col_info.get("physical_type"),
+                "logical_type": col_info.get("logical_type"),
             }
         )
 
     # Extract row group statistics
-    for rg_idx in range(metadata.num_row_groups):
-        rg = metadata.row_group(rg_idx)
+    for rg in file_info.row_groups:
         rg_info = {
-            "index": rg_idx,
+            "index": rg.index,
             "num_rows": rg.num_rows,
             "total_byte_size": rg.total_byte_size,
             "columns": [],
         }
 
-        for col_idx in range(rg.num_columns):
-            col = rg.column(col_idx)
+        for col in rg.columns:
             col_info = {
-                "path": col.path_in_schema,
+                "name": col.name,
                 "compression": col.compression,
                 "total_compressed_size": col.total_compressed_size,
                 "total_uncompressed_size": col.total_uncompressed_size,
             }
 
             # Add statistics if available
-            if col.is_stats_set:
-                stats = col.statistics
+            if col.statistics:
                 col_info["statistics"] = {
-                    "min": str(stats.min) if stats.has_min_max else None,
-                    "max": str(stats.max) if stats.has_min_max else None,
-                    "null_count": stats.null_count,
-                    "distinct_count": stats.distinct_count if stats.has_distinct_count else None,
+                    "min": col.statistics.get("min"),
+                    "max": col.statistics.get("max"),
+                    "null_count": col.statistics.get("null_count"),
+                    "distinct_count": col.statistics.get("distinct_count"),
                 }
 
             rg_info["columns"].append(col_info)
@@ -108,6 +101,7 @@ def extract_metadata(file_path: str, output_format: str = "text"):
         print(f"Columns: {result['num_columns']}")
         print(f"Created by: {result['created_by']}")
         print(f"Format version: {result['format_version']}")
+        print(f"File size: {result['file_size_bytes'] / 1024**2:.2f} MB")
 
         print("\nSchema:")
         for col in result["schema"]:
@@ -129,9 +123,9 @@ def extract_metadata(file_path: str, output_format: str = "text"):
                         if col["total_compressed_size"] > 0
                         else 1.0
                     )
-                    print(f"      - {col['path']}: {col['compression']} ({compression_ratio:.2f}x)")
+                    print(f"      - {col['name']}: {col['compression']} ({compression_ratio:.2f}x)")
 
-                    if "statistics" in col and col["statistics"]["min"]:
+                    if "statistics" in col and col["statistics"].get("min"):
                         stats = col["statistics"]
                         print(f"        Min: {stats['min']}, Max: {stats['max']}")
                         print(f"        Nulls: {stats['null_count']}")
