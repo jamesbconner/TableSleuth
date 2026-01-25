@@ -298,10 +298,8 @@ export S3TABLES_TABLE_ARN="{self.config.s3tables_table_arn}"
 
         # Build GizmoSQL S3 Tables attachment conditionally
         gizmosql_attach = ""
-        if self.config.s3tables_bucket_arn:
-            gizmosql_attach = (
-                "ATTACH '${S3TABLES_BUCKET_ARN}' AS tpch (TYPE iceberg, ENDPOINT_TYPE s3_tables);"
-            )
+        if self.config.s3tables_bucket_arn and self.config.s3tables_table_arn:
+            gizmosql_attach = f"ATTACH '{self.config.s3tables_bucket_arn}' AS tpch (TYPE iceberg, ENDPOINT_TYPE s3_tables);"
 
         user_data = f"""#!/bin/bash
 set -euxo pipefail
