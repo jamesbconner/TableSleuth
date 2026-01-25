@@ -1,4 +1,4 @@
-﻿# TableSleuth
+# TableSleuth
 
 
 [![PyPI version](https://badge.fury.io/py/tablesleuth.svg)](https://badge.fury.io/py/tablesleuth)
