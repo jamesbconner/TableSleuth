@@ -550,7 +550,7 @@ User=ec2-user
 WorkingDirectory=/home/ec2-user
 Environment="GIZMOSQL_USERNAME={self.config.gizmosql_username}"
 Environment="GIZMOSQL_PASSWORD={self.config.gizmosql_password}"
-ExecStart=/usr/local/bin/gizmosql_server -U {self.config.gizmosql_username} -P {self.config.gizmosql_password} -Q -I "install aws; install httpfs; install iceberg; load aws; load httpfs; load iceberg; CREATE SECRET (TYPE s3, PROVIDER credential_chain); {gizmosql_attach}" -T /home/ec2-user/.certs/cert0.pem /home/ec2-user/.certs/cert0.key
+ExecStart=/usr/local/bin/gizmosql_server -U "${{GIZMOSQL_USERNAME}}" -P "${{GIZMOSQL_PASSWORD}}" -Q -I "install aws; install httpfs; install iceberg; load aws; load httpfs; load iceberg; CREATE SECRET (TYPE s3, PROVIDER credential_chain); {gizmosql_attach}" -T /home/ec2-user/.certs/cert0.pem /home/ec2-user/.certs/cert0.key
 Restart=on-failure
 RestartSec=5s
 
@@ -668,7 +668,9 @@ echo "GizmoSQL server is running as a systemd service."
             description="AWS region",
         )
 
-        instance_type_str = "Spot" if self.config.use_spot else "On-Demand"
+        # Note: Since ec2.Instance construct doesn't support spot instances,
+        # we always use on-demand regardless of the use_spot configuration
+        instance_type_str = "On-Demand"
         CfnOutput(
             self,
             "InstanceType",
