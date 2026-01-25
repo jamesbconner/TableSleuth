@@ -21,6 +21,35 @@ from aws_cdk import (
 from constructs import Construct
 
 
+def escape_for_toml(value: str) -> str:
+    """Escape a string for use in TOML.
+
+    Args:
+        value: String to escape
+
+    Returns:
+        Escaped string safe for TOML
+    """
+    # Escape backslashes first, then quotes
+    return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def escape_for_bash_single_quote(value: str) -> str:
+    """Escape a string for use in bash single quotes.
+
+    In bash single quotes, you cannot escape anything except the single quote itself.
+    To include a single quote, you must end the quoted string, add an escaped quote, and start a new quoted string.
+
+    Args:
+        value: String to escape
+
+    Returns:
+        Escaped string safe for bash single quotes
+    """
+    # Replace ' with '\''
+    return value.replace("'", "'\\''")
+
+
 @dataclass
 class TablesleuthConfig:
     """Configuration for TableSleuth stack.
@@ -440,8 +469,8 @@ cat > /home/ec2-user/tablesleuth.toml <<'TOMLEOF'
 
 [gizmosql]
 uri = "grpc+tls://localhost:31337"
-username = "{self.config.gizmosql_username}"
-password = "{self.config.gizmosql_password}"
+username = "{escape_for_toml(self.config.gizmosql_username)}"
+password = "{escape_for_toml(self.config.gizmosql_password)}"
 tls_skip_verify = true
 TOMLEOF
 
@@ -528,8 +557,8 @@ export AWS_DEFAULT_REGION="{region}"
 # Example: export PYICEBERG_CATALOG__MY_CATALOG__REGION="{region}"
 
 # GizmoSQL configuration
-export GIZMOSQL_USERNAME='{self.config.gizmosql_username}'
-export GIZMOSQL_PASSWORD='{self.config.gizmosql_password}'
+export GIZMOSQL_USERNAME='{escape_for_bash_single_quote(self.config.gizmosql_username)}'
+export GIZMOSQL_PASSWORD='{escape_for_bash_single_quote(self.config.gizmosql_password)}'
 
 # GizmoSQL aliases
 alias gizmosvr='gizmosql_server -U "${{GIZMOSQL_USERNAME}}" -P "${{GIZMOSQL_PASSWORD}}" -Q -I "install aws; install httpfs; install iceberg; load aws; load httpfs; load iceberg; CREATE SECRET (TYPE s3, PROVIDER credential_chain); {gizmosql_attach}" -T ~/.certs/cert0.pem ~/.certs/cert0.key'
@@ -548,8 +577,8 @@ After=network.target
 Type=simple
 User=ec2-user
 WorkingDirectory=/home/ec2-user
-Environment="GIZMOSQL_USERNAME={self.config.gizmosql_username}"
-Environment="GIZMOSQL_PASSWORD={self.config.gizmosql_password}"
+Environment="GIZMOSQL_USERNAME={escape_for_toml(self.config.gizmosql_username)}"
+Environment="GIZMOSQL_PASSWORD={escape_for_toml(self.config.gizmosql_password)}"
 ExecStart=/usr/local/bin/gizmosql_server -U "${{GIZMOSQL_USERNAME}}" -P "${{GIZMOSQL_PASSWORD}}" -Q -I "install aws; install httpfs; install iceberg; load aws; load httpfs; load iceberg; CREATE SECRET (TYPE s3, PROVIDER credential_chain); {gizmosql_attach}" -T /home/ec2-user/.certs/cert0.pem /home/ec2-user/.certs/cert0.key
 Restart=on-failure
 RestartSec=5s

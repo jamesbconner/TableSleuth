@@ -4,7 +4,6 @@
 Demonstrates using TableSleuth to analyze Delta tables for:
 - Small file problems
 - Storage waste (tombstones)
-- DML operation patterns
 - Optimization recommendations
 
 Prerequisites:
@@ -46,8 +45,13 @@ def analyze_delta_table(table_path: str):
         print("No versions found in table")
         return
 
-    # Get current snapshot for analysis
-    current_snapshot = snapshots[0]  # Most recent snapshot
+    # Get current snapshot for analysis (last one is most recent)
+    current_snapshot = snapshots[-1]
+    current_version = current_snapshot.version
+
+    print(f"Current version: {current_version}")
+    print(f"Total records: {current_snapshot.total_records:,}")
+    print(f"Total files: {len(current_snapshot.data_files)}")
 
     # Analyze file sizes (static method)
     print("\n" + "=" * 80)
@@ -59,6 +63,8 @@ def analyze_delta_table(table_path: str):
     print(f"Small files (<10MB): {file_analysis['small_file_count']}")
     print(f"Small files percentage: {file_analysis['small_file_percentage']:.1f}%")
     print(f"Median file size: {file_analysis['median_size_bytes'] / 1024**2:.2f} MB")
+    print(f"Min file size: {file_analysis['min_size_bytes'] / 1024**2:.2f} MB")
+    print(f"Max file size: {file_analysis['max_size_bytes'] / 1024**2:.2f} MB")
 
     if file_analysis["small_file_percentage"] > 30:
         print("\n⚠️  WARNING: High percentage of small files detected!")
@@ -69,38 +75,38 @@ def analyze_delta_table(table_path: str):
     print("STORAGE WASTE ANALYSIS")
     print("=" * 80)
 
-    waste_analysis = DeltaForensics.analyze_storage_waste(snapshots)
-    print(f"Tombstoned files: {waste_analysis['tombstoned_file_count']}")
-    print(f"Tombstoned size: {waste_analysis['tombstoned_size_bytes'] / 1024**3:.2f} GB")
-    print(f"Reclaimable percentage: {waste_analysis['reclaimable_percentage']:.1f}%")
+    # Extract storage options from table path if S3
+    storage_options = None
+    if table_path.startswith("s3://"):
+        # For S3, you might need to pass storage options
+        # storage_options = {"AWS_REGION": "us-east-2"}
+        pass
 
-    if waste_analysis["reclaimable_percentage"] > 20:
+    waste_analysis = DeltaForensics.analyze_storage_waste(
+        table_handle, current_version, storage_options=storage_options
+    )
+
+    active_files = waste_analysis["active_files"]
+    tombstone_files = waste_analysis["tombstone_files"]
+
+    print(f"Active files: {active_files['count']}")
+    print(f"Active size: {active_files['total_size_bytes'] / 1024**3:.2f} GB")
+    print(f"Tombstoned files: {tombstone_files['count']}")
+    print(f"Tombstoned size: {tombstone_files['total_size_bytes'] / 1024**3:.2f} GB")
+    print(f"Waste percentage: {waste_analysis['waste_percentage']:.1f}%")
+    print(f"Reclaimable: {waste_analysis['reclaimable_bytes'] / 1024**3:.2f} GB")
+
+    if waste_analysis["waste_percentage"] > 20:
         print("\n⚠️  WARNING: Significant storage waste detected!")
         print("   Consider running VACUUM to reclaim space")
-
-    # Analyze DML operations (static method)
-    print("\n" + "=" * 80)
-    print("DML OPERATION ANALYSIS")
-    print("=" * 80)
-
-    dml_analysis = DeltaForensics.analyze_dml_operation(snapshots)
-    print(f"Total operations: {dml_analysis['total_operations']}")
-    print(f"MERGE operations: {dml_analysis['merge_operations']}")
-    print(f"UPDATE operations: {dml_analysis['update_operations']}")
-    print(f"DELETE operations: {dml_analysis['delete_operations']}")
-    print(f"Average rewrite amplification: {dml_analysis['avg_rewrite_amplification']:.2f}x")
-
-    if dml_analysis["avg_rewrite_amplification"] > 5:
-        print("\n⚠️  WARNING: High rewrite amplification detected!")
-        print("   Consider using partition pruning or Z-ORDER")
 
     # Get recommendations (static method)
     print("\n" + "=" * 80)
     print("OPTIMIZATION RECOMMENDATIONS")
     print("=" * 80)
 
-    recommendations = DeltaForensics.get_recommendations(
-        file_analysis, waste_analysis, dml_analysis, {}, {}
+    recommendations = DeltaForensics.generate_recommendations(
+        table_handle, current_snapshot, storage_options=storage_options
     )
 
     if not recommendations:
@@ -121,6 +127,7 @@ def analyze_delta_table(table_path: str):
     print("=" * 80)
     print(f"Table: {table_path}")
     print(f"Versions: {len(snapshots)}")
+    print(f"Current version: {current_version}")
     print(f"Files: {file_analysis['total_file_count']}")
     print(f"Total size: {file_analysis['total_size_bytes'] / 1024**3:.2f} GB")
     print(f"Recommendations: {len(recommendations)}")
