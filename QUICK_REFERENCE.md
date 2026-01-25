@@ -24,11 +24,14 @@ tablesleuth parquet /path/to/data/
 # Inspect S3 file
 tablesleuth parquet s3://bucket/path/file.parquet
 
-# Inspect Iceberg table
-tablesleuth iceberg db.table --catalog local
+# Inspect Iceberg table from catalog
+tablesleuth iceberg --catalog local --table db.table
 
-# Inspect AWS S3 Tables
-tablesleuth iceberg "arn:aws:s3tables:region:account:bucket/name/table/db.table"
+# Inspect Iceberg table from metadata file
+tablesleuth iceberg /path/to/metadata.json
+
+# Inspect AWS S3 Tables (use parquet command with ARN)
+tablesleuth parquet "arn:aws:s3tables:region:account:bucket/name/table/db.table"
 ```
 
 ## Development Commands

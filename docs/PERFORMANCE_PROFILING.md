@@ -494,7 +494,9 @@ gizmosql_client --command Execute --use-tls --tls-skip-verify \
   --username gizmosql_username --password gizmosql_password "SELECT 1"
 
 # Restart server
-gizmosql_server -P gizmosql_password -Q -T ~/.certs/cert0.pem ~/.certs/cert0.key
+gizmosql_server -U gizmosql_username -P gizmosql_password -Q \
+  -I "install aws; install httpfs; install iceberg; load aws; load httpfs; load iceberg; CREATE SECRET (TYPE s3, PROVIDER credential_chain);" \
+  -T ~/.certs/cert0.pem ~/.certs/cert0.key
 ```
 
 ### Snapshot Registration Fails

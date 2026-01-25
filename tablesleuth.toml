@@ -19,7 +19,7 @@ tls_skip_verify = true
 # These are legacy settings for Docker deployments which are no longer recommended
 
 # To start GizmoSQL:
-# If using the tablesleuth_create_env.py script, gizmosql is installed automatically
+# If using the AWS CDK deployment, GizmoSQL is installed automatically
 #   and an alias is created that allows for a single command to startup the server with
 #   the correct params.
 #

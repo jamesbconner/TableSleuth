@@ -113,13 +113,18 @@ tls_skip_verify = true  # For self-signed certificates
 #### Basic Startup
 
 ```bash
-gizmosql_server -P gizmosql_password -Q -T ~/.certs/cert0.pem ~/.certs/cert0.key
+# Basic startup with AWS/S3/Iceberg support (recommended)
+gizmosql_server -U gizmosql_username -P gizmosql_password -Q \
+  -I "install aws; install httpfs; install iceberg; load aws; load httpfs; load iceberg; CREATE SECRET (TYPE s3, PROVIDER credential_chain);" \
+  -T ~/.certs/cert0.pem ~/.certs/cert0.key
 ```
+
+**Note:** The `-I` initialization commands install and load DuckDB extensions needed for AWS/S3/Glue access. For alternative S3 authentication methods (static credentials, environment variables, etc.), see the [DuckDB S3 API documentation](https://duckdb.org/docs/stable/core_extensions/httpfs/s3api).
 
 #### With S3 Tables Support
 
 ```bash
-gizmosql_server -P gizmosql_password -Q \
+gizmosql_server -U gizmosql_username -P gizmosql_password -Q \
   -I "install aws; install httpfs; install iceberg; \
       load aws; load httpfs; load iceberg; \
       CREATE SECRET (TYPE s3, PROVIDER credential_chain); \
@@ -128,11 +133,31 @@ gizmosql_server -P gizmosql_password -Q \
 ```
 
 **Server Options**:
+- `-U <username>`: Username for authentication (required)
 - `-P <password>`: Password for authentication (required)
 - `-Q`: Print queries for debugging (optional)
-- `-I <sql>`: Initialization SQL commands (optional)
+- `-I <sql>`: Initialization SQL commands (required for S3/Glue access)
 - `-T <cert> <key>`: TLS certificate and key files (required)
 - Default port: `31337`
+
+**Initialization Commands Explained**:
+- `install aws; load aws;` - AWS extension for S3 access and credential management
+- `install httpfs; load httpfs;` - HTTPFS extension for HTTP/HTTPS access
+- `install iceberg; load iceberg;` - Iceberg extension for Iceberg table support
+- `CREATE SECRET (TYPE s3, PROVIDER credential_chain);` - Use AWS credential chain for S3 authentication (reads from ~/.aws/credentials, environment variables, or IAM role)
+- `ATTACH '...' AS tpch (...)` - (Optional) Attach S3 Tables bucket as Iceberg catalog
+
+**Alternative S3 Authentication Methods**:
+
+GizmoSQL uses DuckDB under the hood. For alternative S3 authentication options beyond credential_chain, see:
+- [DuckDB S3 API Documentation](https://duckdb.org/docs/stable/core_extensions/httpfs/s3api)
+
+Options include:
+- Static credentials
+- Environment variables
+- Config file
+- IAM role
+- And more
 
 ### 4. Verify Connection
 
@@ -217,7 +242,7 @@ tablesleuth iceberg --catalog tpch --table tpch.lineitem
 
 ```bash
 # Load additional extensions
-gizmosql_server -P gizmosql_password -Q \
+gizmosql_server -U gizmosql_username -P gizmosql_password -Q \
   -I "install spatial; load spatial; \
       install json; load json;" \
   -T ~/.certs/cert0.pem ~/.certs/cert0.key
@@ -226,7 +251,7 @@ gizmosql_server -P gizmosql_password -Q \
 #### Multiple S3 Tables Attachments
 
 ```bash
-gizmosql_server -P gizmosql_password -Q \
+gizmosql_server -U gizmosql_username -P gizmosql_password -Q \
   -I "install aws; install httpfs; install iceberg; \
       load aws; load httpfs; load iceberg; \
       CREATE SECRET (TYPE s3, PROVIDER credential_chain); \
@@ -239,7 +264,8 @@ gizmosql_server -P gizmosql_password -Q \
 
 ```bash
 # Use different port
-gizmosql_server -P gizmosql_password -Q --port 10502 \
+gizmosql_server -U gizmosql_username -P gizmosql_password -Q --port 10502 \
+  -I "install aws; install httpfs; install iceberg; load aws; load httpfs; load iceberg; CREATE SECRET (TYPE s3, PROVIDER credential_chain);" \
   -T ~/.certs/cert0.pem ~/.certs/cert0.key
 ```
 
@@ -307,7 +333,8 @@ lsof -i :31337
 kill <PID>
 
 # Or use different port
-gizmosql_server -P gizmosql_password -Q --port 10502 \
+gizmosql_server -U gizmosql_username -P gizmosql_password -Q --port 10502 \
+  -I "install aws; install httpfs; install iceberg; load aws; load httpfs; load iceberg; CREATE SECRET (TYPE s3, PROVIDER credential_chain);" \
   -T ~/.certs/cert0.pem ~/.certs/cert0.key
 ```
 
@@ -433,7 +460,9 @@ top -pid $(pgrep gizmosql_server)
 ```bash
 # Restart GizmoSQL server
 pkill gizmosql_server
-gizmosql_server -P gizmosql_password -Q -T ~/.certs/cert0.pem ~/.certs/cert0.key
+gizmosql_server -U gizmosql_username -P gizmosql_password -Q \
+  -I "install aws; install httpfs; install iceberg; load aws; load httpfs; load iceberg; CREATE SECRET (TYPE s3, PROVIDER credential_chain);" \
+  -T ~/.certs/cert0.pem ~/.certs/cert0.key
 
 # Check for large files
 ls -lh data/*.parquet
@@ -548,8 +577,11 @@ After=network.target
 [Service]
 Type=simple
 User=your-username
+Environment="GIZMOSQL_USERNAME=gizmosql_username"
 Environment="GIZMOSQL_PASSWORD=gizmosql_password"
-ExecStart=/usr/local/bin/gizmosql_server --port 31337 --print-queries
+ExecStart=/usr/local/bin/gizmosql_server -U gizmosql_username -P gizmosql_password -Q \
+  -I "install aws; install httpfs; install iceberg; load aws; load httpfs; load iceberg; CREATE SECRET (TYPE s3, PROVIDER credential_chain);" \
+  -T /home/your-username/.certs/cert0.pem /home/your-username/.certs/cert0.key
 Restart=on-failure
 
 [Install]
@@ -577,12 +609,19 @@ Create `~/Library/LaunchAgents/com.gizmodata.gizmosql.plist`:
     <key>ProgramArguments</key>
     <array>
         <string>/usr/local/bin/gizmosql_server</string>
-        <string>--port</string>
-        <string>31337</string>
-        <string>--print-queries</string>
+        <string>-U</string>
+        <string>gizmosql_username</string>
+        <string>-P</string>
+        <string>gizmosql_password</string>
+        <string>-Q</string>
+        <string>-T</string>
+        <string>/Users/YOUR_USERNAME/.certs/cert0.pem</string>
+        <string>/Users/YOUR_USERNAME/.certs/cert0.key</string>
     </array>
     <key>EnvironmentVariables</key>
     <dict>
+        <key>GIZMOSQL_USERNAME</key>
+        <string>gizmosql_username</string>
         <key>GIZMOSQL_PASSWORD</key>
         <string>gizmosql_password</string>
     </dict>
@@ -608,12 +647,14 @@ launchctl start com.gizmodata.gizmosql
 
 **Start GizmoSQL (Basic)**:
 ```bash
-gizmosql_server -P gizmosql_password -Q -T ~/.certs/cert0.pem ~/.certs/cert0.key
+gizmosql_server -U gizmosql_username -P gizmosql_password -Q \
+  -I "install aws; install httpfs; install iceberg; load aws; load httpfs; load iceberg; CREATE SECRET (TYPE s3, PROVIDER credential_chain);" \
+  -T ~/.certs/cert0.pem ~/.certs/cert0.key
 ```
 
 **Start with S3 Tables**:
 ```bash
-gizmosql_server -P gizmosql_password -Q \
+gizmosql_server -U gizmosql_username -P gizmosql_password -Q \
   -I "install aws; install httpfs; install iceberg; load aws; load httpfs; load iceberg; CREATE SECRET (TYPE s3, PROVIDER credential_chain); ATTACH 'arn:aws:s3tables:us-east-2:123456789012:bucket/my-bucket' AS tpch (TYPE iceberg, ENDPOINT_TYPE s3_tables);" \
   -T ~/.certs/cert0.pem ~/.certs/cert0.key
 ```
@@ -639,7 +680,9 @@ pkill gizmosql_server
 ```bash
 # Logs print to stdout with -Q flag
 # Redirect to file:
-gizmosql_server -P gizmosql_password -Q -T ~/.certs/cert0.pem ~/.certs/cert0.key > gizmosql.log 2>&1
+gizmosql_server -U gizmosql_username -P gizmosql_password -Q \
+  -I "install aws; install httpfs; install iceberg; load aws; load httpfs; load iceberg; CREATE SECRET (TYPE s3, PROVIDER credential_chain);" \
+  -T ~/.certs/cert0.pem ~/.certs/cert0.key > gizmosql.log 2>&1
 ```
 
 ### Configuration Template
@@ -657,6 +700,7 @@ tls_skip_verify = true
 
 | Option | Description | Example |
 |--------|-------------|---------|
+| `-U` | Username (required) | `-U gizmosql_username` |
 | `-P` | Password (required) | `-P gizmosql_password` |
 | `-Q` | Print queries | `-Q` |
 | `-I` | Initialization SQL | `-I "load aws;"` |
@@ -684,7 +728,7 @@ export AWS_REGION="us-east-2"
 - [ARCHITECTURE.md](ARCHITECTURE.md) - System architecture
 - [PERFORMANCE_PROFILING.md](PERFORMANCE_PROFILING.md) - Performance testing guide
 - [TABLESLEUTH_SETUP.md](../TABLESLEUTH_SETUP.md) - Complete setup guide
-- [EC2_DEPLOYMENT_GUIDE.md](EC2_DEPLOYMENT_GUIDE.md) - AWS EC2 deployment
+- [AWS CDK Deployment](../resources/aws-cdk/README.md) - AWS EC2 deployment with CDK
 
 ## External Resources
 

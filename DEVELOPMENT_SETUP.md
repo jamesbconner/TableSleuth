@@ -128,7 +128,9 @@ mkdir -p ~/.certs
 openssl req -x509 -newkey rsa:2048 -keyout ~/.certs/test.key -out ~/.certs/test.pem -days 365 -nodes -subj "/CN=localhost"
 
 # Start test server
-gizmosql_server -P test_password -Q -T ~/.certs/test.pem ~/.certs/test.key
+gizmosql_server -U test_user -P test_password -Q \
+  -I "install aws; install httpfs; install iceberg; load aws; load httpfs; load iceberg; CREATE SECRET (TYPE s3, PROVIDER credential_chain);" \
+  -T ~/.certs/test.pem ~/.certs/test.key
 ```
 
 ## Development Workflow

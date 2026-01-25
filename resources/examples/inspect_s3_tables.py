@@ -10,7 +10,7 @@ Prerequisites:
     - PyIceberg with AWS extras: pip install "pyiceberg[glue,s3fs]"
 
 Usage:
-    python examples/inspect_s3_tables.py
+    python resources/examples/inspect_s3_tables.py
 """
 
 from tablesleuth.services.formats.iceberg import IcebergAdapter
@@ -35,8 +35,11 @@ def inspect_s3_table_by_arn():
 
     # Get table metadata
     table = table_handle.native
-    print(f"\nTable Location: {table.location()}")
-    print(f"Table Identifier: {table.identifier}")
+    print(f"\nTable Location: {table.metadata.location}")
+    
+    # Handle both Table and StaticTable types
+    identifier = getattr(table, 'identifier', 'N/A')
+    print(f"Table Identifier: {identifier}")
 
     # List snapshots
     snapshots = adapter.list_snapshots(table_handle)

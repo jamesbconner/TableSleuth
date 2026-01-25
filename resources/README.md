@@ -1,106 +1,139 @@
-# AWS Deployment Resources
+# TableSleuth Infrastructure as Code
 
-This directory contains scripts for deploying TableSleuth to AWS EC2.
+This directory contains Infrastructure as Code (IaC) and example scripts for deploying and using TableSleuth.
 
-## Configuration
+## Contents
 
-Before using the deployment scripts, create a configuration file:
+### AWS CDK (`aws-cdk/`)
 
-1. Copy the template:
-   ```bash
-   cp config.json.template config.json
-   ```
+Production-ready AWS infrastructure using AWS CDK.
 
-2. Edit `config.json` with your specific values:
-   ```json
-   {
-     "ssh_allowed_cidr": "YOUR_IP_ADDRESS/32",
-     "s3tables_bucket_arn": "arn:aws:s3tables:REGION:ACCOUNT_ID:bucket/BUCKET_NAME",
-     "s3tables_table_arn": "arn:aws:s3tables:REGION:ACCOUNT_ID:bucket/BUCKET_NAME/table/*",
-     "gizmosql_username": "gizmosql_username",
-     "gizmosql_password": "gizmosql_password"
-   }
-   ```
-
-   - `ssh_allowed_cidr`: Your public IP address with /32 suffix for SSH access
-   - `s3tables_bucket_arn`: (Optional) ARN of your S3 Tables bucket - only needed for AWS S3 Tables (managed Iceberg)
-   - `s3tables_table_arn`: (Optional) ARN pattern for S3 Tables - only needed for AWS S3 Tables
-   - `gizmosql_username`: Username for GizmoSQL server authentication
-   - `gizmosql_password`: Password for GizmoSQL server authentication
-
-   **Important Notes:**
-   - The GizmoSQL credentials here should match those in `tablesleuth.toml` at the project root. Update both files if you change the username or password.
-   - S3 Tables ARNs are only required if you're using AWS S3 Tables (managed Iceberg service). If you're using regular S3 buckets with Glue catalog or other Iceberg catalogs, you can omit these fields or set them to `null`.
-
-## Usage
-
-### Create Environment
-
+**Quick Start:**
 ```bash
-# Dry run to see what would be created
-python tablesleuth_create_env.py --dry-run
-
-# Create the environment (On-Demand instance - stable, recommended)
-python tablesleuth_create_env.py
-
-# Create with different instance type
-python tablesleuth_create_env.py --instance-type m4.xlarge
-
-# Create with Spot instance (cheaper but may be interrupted)
-python tablesleuth_create_env.py --use-spot
-
-# Use custom config file
-python tablesleuth_create_env.py --config /path/to/config.json
-
-# Multiple instances with different sizes (will create separate instances)
-python tablesleuth_create_env.py --instance-type m4.large
-python tablesleuth_create_env.py --instance-type m4.xlarge
+cd resources/aws-cdk
+export SSH_ALLOWED_CIDR="$(curl -s ifconfig.me)/32"
+export GIZMOSQL_PASSWORD="secure-password"
+cdk deploy -c environment=dev
 ```
 
-**Instance Types:**
-- **On-Demand (default)**: Stable, won't be interrupted, recommended for testing
-- **Spot (--use-spot)**: Cheaper but may be interrupted by AWS, use for short-term tasks
+**Documentation:**
+- [README.md](aws-cdk/README.md) - Complete deployment guide
+- [QUICKSTART.md](aws-cdk/QUICKSTART.md) - 10-minute deployment
+- [CONFIGURATION.md](aws-cdk/CONFIGURATION.md) - Configuration best practices
+- [IMPLEMENTATION.md](aws-cdk/IMPLEMENTATION.md) - Technical details
 
-### Teardown Environment
+---
 
+### Example Scripts (`examples/`)
+
+Programmatic usage examples for automation and analysis.
+
+**Available Examples:**
+- `inspect_s3_tables.py` - AWS S3 Tables inspection
+- `delta_forensics.py` - Delta Lake health analysis
+- `iceberg_snapshot_diff.py` - Iceberg snapshot comparison
+- `discover_parquet_files.py` - Parquet file discovery
+- `extract_parquet_metadata.py` - Metadata extraction
+- `batch_table_analysis.py` - Batch table analysis
+
+**Documentation:**
+- [examples/README.md](examples/README.md) - Complete examples guide
+
+---
+
+## Available Platforms
+
+### AWS (CDK)
+
+Production-ready AWS infrastructure using AWS CDK.
+
+**Location:** `resources/aws-cdk/`
+
+**Quick Start:**
 ```bash
-# Dry run to see what would be destroyed
-python tablesleuth_teardown_env.py --dry-run
-
-# Destroy the environment
-python tablesleuth_teardown_env.py
+cd resources/aws-cdk
+export SSH_ALLOWED_CIDR="$(curl -s ifconfig.me)/32"
+export GIZMOSQL_PASSWORD="secure-password"
+cdk deploy -c environment=dev
 ```
 
-## Security Notes
+**Documentation:**
+- [README.md](aws-cdk/README.md) - Complete deployment guide
+- [QUICKSTART.md](aws-cdk/QUICKSTART.md) - 10-minute deployment
+- [CONFIGURATION.md](aws-cdk/CONFIGURATION.md) - Configuration best practices
+- [IMPLEMENTATION.md](aws-cdk/IMPLEMENTATION.md) - Technical details
 
-- The `config.json` file is git-ignored to prevent committing sensitive information
-- SSH access is restricted to the IP address specified in `ssh_allowed_cidr`
-- The EC2 instance has IAM permissions for S3 and S3 Tables access only
-- Private SSH keys (*.pem) are also git-ignored
+**Features:**
+- Least-privilege IAM policies
+- EBS encryption and VPC Flow Logs
+- Multi-environment support (dev/staging/prod)
+- Infrastructure as code with change preview
+- Automatic rollback on failures
 
-## What Gets Created
+---
 
-- VPC with public subnet and internet gateway
-- Security group allowing SSH from your IP only
-- IAM role with S3 and S3 Tables permissions
-- EC2 Spot instance with Python 3.13.9, git, awscli, GizmoSQL CLI
-- TableSleuth repository cloned and dependencies installed
-- TLS certificates for DuckDB server in `~/.certs`
+## Future Platforms
 
-## Using S3 Tables on EC2
+### Azure (Planned)
 
-Once deployed, the EC2 instance can access AWS S3 Tables directly:
+Azure Resource Manager (ARM) templates or Bicep for Azure deployment.
 
-```bash
-# SSH to instance
-ssh -i tablesleuth-ssh-key.pem ec2-user@<instance-ip>
+**Status:** Not yet implemented
 
-# Activate environment
-cd ~/Code/TableSleuth
-source .venv/bin/activate
+---
 
-# Analyze S3 Tables using ARN
-tablesleuth parquet "arn:aws:s3tables:us-east-2:835323357340:bucket/tpch-sf100/table/tpch.customer"
-```
+### Google Cloud Platform (Planned)
 
-See [../docs/s3_tables_guide.md](../docs/s3_tables_guide.md) for more details.
+Terraform or Deployment Manager for GCP deployment.
+
+**Status:** Not yet implemented
+
+---
+
+## Contributing
+
+When adding support for new cloud platforms:
+
+1. Create a subdirectory: `resources/<platform>-<tool>/`
+   - Example: `resources/azure-arm/`, `resources/gcp-terraform/`
+
+2. Include comprehensive documentation:
+   - README.md with quick start
+   - Configuration guide
+   - Troubleshooting guide
+
+3. Follow platform best practices:
+   - Least-privilege access
+   - Encryption at rest and in transit
+   - Network security
+   - Cost optimization
+
+4. Provide examples for multiple environments (dev/staging/prod)
+
+5. Update this README with the new platform
+
+---
+
+## General Requirements
+
+All IaC implementations should:
+
+- ✅ Create VPC/network with proper security groups
+- ✅ Deploy compute instance with TableSleuth pre-installed
+- ✅ Configure Python 3.13+, Git, AWS CLI
+- ✅ Install and configure GizmoSQL
+- ✅ Set up TLS certificates
+- ✅ Configure environment variables
+- ✅ Enable encryption (storage and network)
+- ✅ Implement least-privilege access
+- ✅ Support multiple environments
+- ✅ Provide cost estimates
+- ✅ Include teardown/cleanup procedures
+
+---
+
+## Support
+
+For platform-specific issues, see the documentation in each platform's directory.
+
+For general TableSleuth questions, see the main [README.md](../README.md).

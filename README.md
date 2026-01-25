@@ -1,4 +1,4 @@
-# TableSleuth
+﻿# TableSleuth
 
 [![PyPI version](https://badge.fury.io/py/tablesleuth.svg)](https://badge.fury.io/py/tablesleuth)
 [![Python versions](https://img.shields.io/pypi/pyversions/tablesleuth.svg)](https://pypi.org/project/tablesleuth/)
@@ -120,10 +120,10 @@ tablesleuth parquet data/file.parquet
 tablesleuth parquet data/warehouse/
 
 # Inspect an Iceberg table
-tablesleuth iceberg db.table --catalog local
+tablesleuth iceberg --catalog local --table db.table
 
-# Inspect AWS S3 Tables (using ARN)
-tablesleuth iceberg "arn:aws:s3tables:us-east-2:123456789012:bucket/my-bucket/table/db.table"
+# Inspect AWS S3 Tables (using ARN with parquet command)
+tablesleuth parquet "arn:aws:s3tables:us-east-2:123456789012:bucket/my-bucket/table/db.table"
 ```
 
 **📚 Documentation:**
@@ -227,25 +227,36 @@ catalog:
 ```bash
 # Configuration management
 tablesleuth init                    # Initialize config files
+tablesleuth init --force            # Overwrite existing config files
 tablesleuth config-check            # Validate configuration
 tablesleuth config-check -v         # Detailed validation
+tablesleuth config-check --with-gizmosql  # Include GizmoSQL connection test
 
 # Inspect Parquet files
 tablesleuth parquet file.parquet
 tablesleuth parquet directory/
 tablesleuth parquet s3://bucket/path/file.parquet
+tablesleuth parquet file.parquet -v  # Verbose mode
+
+# Inspect Parquet files from Iceberg tables (discovers data files)
+tablesleuth parquet --catalog local table.name
+tablesleuth parquet --catalog glue --region us-east-2 db.table
+
+# Inspect S3 Tables (use parquet command with ARN)
+tablesleuth parquet "arn:aws:s3tables:region:account:bucket/name/table/db.table"
 
 # Inspect Iceberg tables
-tablesleuth iceberg db.table --catalog local
-tablesleuth iceberg "arn:aws:s3tables:region:account:bucket/name/table/db.table"
-
-# Launch Iceberg viewer
 tablesleuth iceberg --catalog local --table db.table
+tablesleuth iceberg /path/to/metadata.json
+tablesleuth iceberg s3://bucket/warehouse/table/metadata/metadata.json
+tablesleuth iceberg --catalog local --table db.table -v  # Verbose mode
 
 # Inspect Delta Lake tables
 tablesleuth delta path/to/delta/table
 tablesleuth delta s3://bucket/path/to/delta/table
 tablesleuth delta path/to/delta/table --version 5  # Time travel to version 5
+tablesleuth delta s3://bucket/table/ --storage-option AWS_REGION=us-west-2
+tablesleuth delta path/to/delta/table -v  # Verbose mode
 ```
 
 ### TUI Navigation
@@ -261,6 +272,26 @@ tablesleuth delta path/to/delta/table --version 5  # Time travel to version 5
 
 See [User Guide](docs/USER_GUIDE.md) for complete keyboard shortcuts and features.
 
+## AWS Deployment
+
+Deploy TableSleuth to AWS EC2 with automated infrastructure provisioning using AWS CDK:
+
+```bash
+cd resources/aws-cdk
+export SSH_ALLOWED_CIDR="$(curl -s ifconfig.me)/32"
+export GIZMOSQL_USERNAME="admin"
+export GIZMOSQL_PASSWORD="secure-password"
+cdk deploy -c environment=dev
+```
+
+**Features:**
+- Least-privilege IAM policies
+- EBS encryption and VPC Flow Logs
+- Multi-environment support (dev/staging/prod)
+- Infrastructure as code with change preview
+
+See **[resources/aws-cdk/README.md](resources/aws-cdk/README.md)** for complete deployment guide and **[resources/aws-cdk/QUICKSTART.md](resources/aws-cdk/QUICKSTART.md)** for 10-minute setup.
+
 ## Optional: GizmoSQL Profiling
 
 Enable column profiling and performance testing with GizmoSQL (DuckDB over Arrow Flight SQL).
@@ -272,8 +303,12 @@ curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.10/gizmosq
   | sudo unzip -o -d /usr/local/bin -
 
 # Start server
-gizmosql_server -P password -Q -T ~/.certs/cert0.pem ~/.certs/cert0.key
+gizmosql_server -U username -P password -Q \
+  -I "install aws; install httpfs; install iceberg; load aws; load httpfs; load iceberg; CREATE SECRET (TYPE s3, PROVIDER credential_chain);" \
+  -T ~/.certs/cert0.pem ~/.certs/cert0.key
 ```
+
+**Note:** The `-I` initialization commands install DuckDB extensions for AWS/S3/Glue access. For alternative S3 authentication methods, see the [DuckDB S3 API documentation](https://duckdb.org/docs/stable/core_extensions/httpfs/s3api).
 
 See [GizmoSQL Deployment Guide](docs/GIZMOSQL_DEPLOYMENT_GUIDE.md) for complete setup and EC2 deployment.
 
@@ -312,10 +347,13 @@ See [Development Setup](DEVELOPMENT_SETUP.md) for complete development environme
 - **[Setup Guide](TABLESLEUTH_SETUP.md)** - Installation and configuration
 - **[User Guide](docs/USER_GUIDE.md)** - Complete feature documentation
 
+### AWS Deployment
+- **[CDK Deployment](resources/aws-cdk/README.md)** - Production-ready AWS infrastructure
+- **[CDK Quick Start](resources/aws-cdk/QUICKSTART.md)** - Deploy in 10 minutes
+
 ### Advanced Topics
 - **[Performance Profiling](docs/PERFORMANCE_PROFILING.md)** - Query performance analysis
 - **[GizmoSQL Deployment](docs/GIZMOSQL_DEPLOYMENT_GUIDE.md)** - Profiling backend setup
-- **[EC2 Deployment](docs/EC2_DEPLOYMENT_GUIDE.md)** - Automated AWS deployment
 
 ### Development
 - **[Development Setup](DEVELOPMENT_SETUP.md)** - Dev environment and workflows
@@ -324,13 +362,31 @@ See [Development Setup](DEVELOPMENT_SETUP.md) for complete development environme
 
 ## What's New
 
-### v0.4.2 (Current)
+### v0.5.1 (In Development)
+- 🚀 **AWS CDK Infrastructure** - Production-ready CDK implementation for EC2 deployment
+  - Follows AWS CDK best practices (least-privilege IAM, EBS encryption, VPC Flow Logs)
+  - Multi-environment support (dev, staging, prod)
+  - Type-safe configuration with environment variables
+  - See [resources/aws-cdk/README.md](resources/aws-cdk/README.md) for details
+- 🔒 **Enhanced Security** - Improved IAM permissions and encryption
+- 📚 **Consolidated Documentation** - Streamlined deployment guides
+
+### v0.5.0 (Current)
+- 🎉 **Delta Lake Support** - Full Delta table inspection and forensics
+  - Version history navigation and time travel
+  - File size analysis and small file detection
+  - Storage waste tracking (tombstoned files)
+  - DML forensics (MERGE, UPDATE, DELETE operations)
+  - Z-Order effectiveness monitoring
+  - Checkpoint health assessment
+  - Optimization recommendations
+
+### v0.4.2
 - 🎉 **Available on PyPI!** Install with `pip install tablesleuth`
 - 🔄 Package renamed to `tablesleuth` for consistency
 - 🤖 Automated CI/CD with GitHub Actions
 - 📦 Enhanced PyPI metadata and publishing workflow
 - 🐛 Bug fixes and stability improvements
-- ✅ All features from v0.4.0 and v0.3.0
 
 ### v0.4.0
 - 🎉 PyPI release

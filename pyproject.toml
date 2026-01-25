@@ -59,7 +59,7 @@ classifiers = [
 
 # Table format support
 dependencies = [
-    "pyiceberg[s3fs,sql-sqlite]>=0.9.1",
+    "pyiceberg[s3fs,sql-sqlite,glue]>=0.9.1",
     "deltalake>=0.22.0",
     "textual>=0.86.2",
     "pyarrow>=22.0.0",

@@ -219,15 +219,45 @@ tls_skip_verify = true
 ### 4. Start GizmoSQL Server
 
 ```bash
-# Start server with TLS
-gizmosql_server -P gizmosql_password -Q -T ~/.certs/cert0.pem ~/.certs/cert0.key
+# Start server with TLS and AWS/S3 support
+gizmosql_server -U gizmosql_username -P gizmosql_password -Q \
+  -I "install aws; install httpfs; install iceberg; load aws; load httpfs; load iceberg; CREATE SECRET (TYPE s3, PROVIDER credential_chain);" \
+  -T ~/.certs/cert0.pem ~/.certs/cert0.key
 
 # Or run in background
-nohup gizmosql_server -P gizmosql_password -Q -T ~/.certs/cert0.pem ~/.certs/cert0.key &
+nohup gizmosql_server -U gizmosql_username -P gizmosql_password -Q \
+  -I "install aws; install httpfs; install iceberg; load aws; load httpfs; load iceberg; CREATE SECRET (TYPE s3, PROVIDER credential_chain);" \
+  -T ~/.certs/cert0.pem ~/.certs/cert0.key &
 
 # Or in separate tmux session
-tmux new-session -d -s gizmo 'gizmosql_server -P gizmosql_password -Q -T ~/.certs/cert0.pem ~/.certs/cert0.key'
+tmux new-session -d -s gizmo 'gizmosql_server -U gizmosql_username -P gizmosql_password -Q \
+  -I "install aws; install httpfs; install iceberg; load aws; load httpfs; load iceberg; CREATE SECRET (TYPE s3, PROVIDER credential_chain);" \
+  -T ~/.certs/cert0.pem ~/.certs/cert0.key'
+
+# With S3 Tables attachment (optional)
+gizmosql_server -U gizmosql_username -P gizmosql_password -Q \
+  -I "install aws; install httpfs; install iceberg; load aws; load httpfs; load iceberg; CREATE SECRET (TYPE s3, PROVIDER credential_chain); ATTACH 'arn:aws:s3tables:us-east-2:123456789012:bucket/my-bucket' AS tpch (TYPE iceberg, ENDPOINT_TYPE s3_tables);" \
+  -T ~/.certs/cert0.pem ~/.certs/cert0.key
 ```
+
+**Initialization Commands Explained:**
+- `install aws; load aws;` - AWS extension for S3 access
+- `install httpfs; load httpfs;` - HTTPFS extension for HTTP/HTTPS access
+- `install iceberg; load iceberg;` - Iceberg extension for Iceberg table support
+- `CREATE SECRET (TYPE s3, PROVIDER credential_chain);` - Use AWS credential chain for S3 authentication
+- `ATTACH '...' AS tpch (...)` - (Optional) Attach S3 Tables bucket as Iceberg catalog
+
+**Alternative S3 Authentication Methods:**
+
+GizmoSQL uses DuckDB under the hood. The examples above use `credential_chain` which reads AWS credentials from `~/.aws/credentials`, environment variables, or IAM roles. For alternative S3 authentication options, see:
+- [DuckDB S3 API Documentation](https://duckdb.org/docs/stable/core_extensions/httpfs/s3api)
+
+Options include:
+- Static credentials in the SECRET
+- Environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+- Config file
+- IAM role (automatic on EC2)
+- And more
 
 ### 5. Test GizmoSQL Connection
 
@@ -249,41 +279,74 @@ For production deployments with large datasets, use the automated EC2 setup.
 ### Quick Start
 
 ```bash
-# Navigate to resources directory
-cd resources
+# Navigate to AWS CDK directory
+cd resources/aws-cdk
 
-# Copy and edit configuration
-cp config.json.template config.json
-# Edit config.json with your settings
+# Set required environment variables
+export SSH_ALLOWED_CIDR="$(curl -s ifconfig.me)/32"
+export GIZMOSQL_PASSWORD="secure-password"
+
+# Optional: Set additional configuration
+export GIZMOSQL_USERNAME="admin"
+export S3TABLES_BUCKET_ARN="arn:aws:s3tables:..."
+export S3TABLES_TABLE_ARN="arn:aws:s3tables:..."
+
+# Bootstrap CDK (first time only)
+cdk bootstrap
 
 # Preview deployment (recommended)
-python tablesleuth_create_env.py --dry-run
+cdk diff -c environment=dev
 
 # Deploy
-python tablesleuth_create_env.py --region us-east-2
+cdk deploy -c environment=dev
+
+# Retrieve SSH key from Parameter Store
+KEY_NAME=$(aws cloudformation describe-stacks \
+  --stack-name TablesleuthStack-dev \
+  --query 'Stacks[0].Outputs[?OutputKey==`KeyPairName`].OutputValue' \
+  --output text)
+
+aws ssm get-parameter \
+  --name /ec2/keypair/${KEY_NAME} \
+  --with-decryption \
+  --query Parameter.Value \
+  --output text > ${KEY_NAME}.pem
+
+chmod 600 ${KEY_NAME}.pem
+
+# Get public DNS
+PUBLIC_DNS=$(aws cloudformation describe-stacks \
+  --stack-name TablesleuthStack-dev \
+  --query 'Stacks[0].Outputs[?OutputKey==`PublicDNS`].OutputValue' \
+  --output text)
 
 # Connect
-ssh -i ./tablesleuth-ssh-key.pem ec2-user@<PUBLIC_DNS>
+ssh -i ${KEY_NAME}.pem ec2-user@${PUBLIC_DNS}
 ```
 
 ### What Gets Created
 
-The automated script creates:
+The CDK stack creates:
 - VPC with public subnet and internet gateway
 - Security group (SSH access from your IP only)
-- IAM role with S3, Glue, and S3 Tables permissions
-- EC2 instance with Python 3.13.9, GizmoSQL, and Table Sleuth
+- IAM role with least-privilege S3, Glue, and S3 Tables permissions
+- EC2 instance with encrypted EBS volume
+- VPC Flow Logs for network monitoring
+- Python 3.13.9, GizmoSQL, and TableSleuth pre-installed
 - TLS certificates for GizmoSQL
 - Complete environment configuration
 
-### Instance Options
+### Environment Options
 
 ```bash
-# On-Demand instance (stable, higher cost)
-python tablesleuth_create_env.py --region us-east-2 --instance-type m4.xlarge
+# Development environment (smaller instance, spot pricing)
+cdk deploy -c environment=dev
 
-# Spot instance (50-90% cheaper, can be interrupted)
-python tablesleuth_create_env.py --region us-east-2 --instance-type m4.xlarge --use-spot
+# Production environment (larger instance, on-demand)
+cdk deploy -c environment=prod
+
+# Custom environment (edit cdk.json first)
+cdk deploy -c environment=staging
 ```
 
 ### After Deployment
@@ -292,7 +355,7 @@ python tablesleuth_create_env.py --region us-east-2 --instance-type m4.xlarge --
 # Start GizmoSQL server
 gizmosvr
 
-# Run Table Sleuth
+# Run TableSleuth
 cd ~/Code/TableSleuth
 source .venv/bin/activate
 tablesleuth iceberg --catalog your-catalog --table your.table

@@ -247,9 +247,22 @@ tablesleuth/
 │       ├── test_data.parquet
 │       └── test_iceberg_table/
 │
-├── resources/                          # Deployment resources
-│   ├── config.json.template            # EC2 config template
-│   └── tablesleuth_create_env.py       # EC2 setup script
+├── resources/                          # Infrastructure as Code & Examples
+│   ├── aws-cdk/                        # AWS CDK deployment
+│   │   ├── app.py                      # CDK app entry point
+│   │   ├── cdk.json                    # CDK configuration
+│   │   ├── requirements.txt            # CDK dependencies
+│   │   ├── tablesleuth_cdk/            # CDK stack
+│   │   └── *.md                        # CDK documentation
+│   ├── examples/                       # Example scripts
+│   │   ├── README.md                   # Examples documentation
+│   │   ├── inspect_s3_tables.py        # S3 Tables inspection
+│   │   ├── delta_forensics.py          # Delta health analysis
+│   │   ├── iceberg_snapshot_diff.py    # Snapshot comparison
+│   │   ├── discover_parquet_files.py   # File discovery
+│   │   ├── extract_parquet_metadata.py # Metadata extraction
+│   │   └── batch_table_analysis.py     # Batch analysis
+│   └── README.md                       # IaC overview
 │
 ├── docs/                               # Documentation
 │   ├── ARCHITECTURE.md                 # System architecture

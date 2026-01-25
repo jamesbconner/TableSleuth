@@ -1,0 +1,24 @@
+# CDK asset staging directory
+.cdk.staging
+cdk.out
+
+# Python
+*.pyc
+__pycache__/
+.venv/
+*.egg-info/
+
+# Environment variables (if using .env files)
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
