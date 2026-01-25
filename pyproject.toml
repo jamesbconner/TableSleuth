@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tablesleuth"
-version = "0.5.1"
+version = "0.5.2"
 description = "TableSleuth - a Textual TUI for Open Table Format forensics (Iceberg, Delta Lake) with data profiling."
 readme = "README.md"
 requires-python = ">=3.13,<3.15"
