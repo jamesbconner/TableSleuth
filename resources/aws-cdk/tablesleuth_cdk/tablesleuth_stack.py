@@ -4,7 +4,6 @@ Creates EC2 infrastructure for running TableSleuth on AWS.
 """
 
 from dataclasses import dataclass
-from typing import Any
 
 import aws_cdk as cdk
 from aws_cdk import (
@@ -32,6 +31,22 @@ def escape_for_toml(value: str) -> str:
     """
     # Escape backslashes first, then quotes
     return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def escape_for_systemd(value: str) -> str:
+    """Escape a string for use in systemd Environment directives.
+
+    Systemd interprets $ as variable references in double-quoted values.
+    We need to escape backslashes, double quotes, and dollar signs.
+
+    Args:
+        value: String to escape
+
+    Returns:
+        Escaped string safe for systemd Environment directives
+    """
+    # Escape backslashes first, then quotes, then dollar signs
+    return value.replace("\\", "\\\\").replace('"', '\\"').replace("$", "$$")
 
 
 def escape_for_bash_single_quote(value: str) -> str:
@@ -577,8 +592,8 @@ After=network.target
 Type=simple
 User=ec2-user
 WorkingDirectory=/home/ec2-user
-Environment="GIZMOSQL_USERNAME={escape_for_toml(self.config.gizmosql_username)}"
-Environment="GIZMOSQL_PASSWORD={escape_for_toml(self.config.gizmosql_password)}"
+Environment="GIZMOSQL_USERNAME={escape_for_systemd(self.config.gizmosql_username)}"
+Environment="GIZMOSQL_PASSWORD={escape_for_systemd(self.config.gizmosql_password)}"
 ExecStart=/usr/local/bin/gizmosql_server -U "${{GIZMOSQL_USERNAME}}" -P "${{GIZMOSQL_PASSWORD}}" -Q -I "install aws; install httpfs; install iceberg; load aws; load httpfs; load iceberg; CREATE SECRET (TYPE s3, PROVIDER credential_chain); {gizmosql_attach}" -T /home/ec2-user/.certs/cert0.pem /home/ec2-user/.certs/cert0.key
 Restart=on-failure
 RestartSec=5s
@@ -631,7 +646,9 @@ echo "GizmoSQL server is running as a systemd service."
             security_group=self.security_group,
             role=self.instance_role,
             key_pair=ec2.KeyPair.from_key_pair_name(
-                self, "ImportedKeyPair", self.key_pair.key_name
+                self,
+                "ImportedKeyPair",
+                self.key_pair.ref,  # Use .ref for CloudFormation reference
             ),
             user_data=ec2.UserData.custom(self._get_user_data()),
             # Enable EBS encryption for security
