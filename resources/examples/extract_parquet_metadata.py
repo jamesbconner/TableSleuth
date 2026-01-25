@@ -109,12 +109,12 @@ def extract_metadata(file_path: str, output_format: str = "text"):
         print(f"Created by: {result['created_by']}")
         print(f"Format version: {result['format_version']}")
 
-        print(f"\nSchema:")
+        print("\nSchema:")
         for col in result["schema"]:
             logical = f" ({col['logical_type']})" if col["logical_type"] else ""
             print(f"  - {col['name']}: {col['physical_type']}{logical}")
 
-        print(f"\nRow Groups:")
+        print("\nRow Groups:")
         for rg in result["row_groups"]:
             print(f"\n  Row Group {rg['index']}:")
             print(f"    Rows: {rg['num_rows']:,}")
@@ -122,7 +122,7 @@ def extract_metadata(file_path: str, output_format: str = "text"):
 
             # Show compression stats for first row group
             if rg["index"] == 0:
-                print(f"    Columns:")
+                print("    Columns:")
                 for col in rg["columns"][:5]:  # Show first 5 columns
                     compression_ratio = (
                         col["total_uncompressed_size"] / col["total_compressed_size"]
@@ -138,17 +138,13 @@ def extract_metadata(file_path: str, output_format: str = "text"):
 
         # Calculate totals
         total_compressed = sum(
-            col["total_compressed_size"]
-            for rg in result["row_groups"]
-            for col in rg["columns"]
+            col["total_compressed_size"] for rg in result["row_groups"] for col in rg["columns"]
         )
         total_uncompressed = sum(
-            col["total_uncompressed_size"]
-            for rg in result["row_groups"]
-            for col in rg["columns"]
+            col["total_uncompressed_size"] for rg in result["row_groups"] for col in rg["columns"]
         )
 
-        print(f"\nTotals:")
+        print("\nTotals:")
         print(f"  Compressed size: {total_compressed / 1024**2:.2f} MB")
         print(f"  Uncompressed size: {total_uncompressed / 1024**2:.2f} MB")
         print(f"  Compression ratio: {total_uncompressed / total_compressed:.2f}x")
@@ -171,9 +167,7 @@ Examples:
         """,
     )
     parser.add_argument("file", help="Parquet file path (local or S3)")
-    parser.add_argument(
-        "--output", choices=["json", "text"], default="text", help="Output format"
-    )
+    parser.add_argument("--output", choices=["json", "text"], default="text", help="Output format")
 
     args = parser.parse_args()
     extract_metadata(args.file, args.output)

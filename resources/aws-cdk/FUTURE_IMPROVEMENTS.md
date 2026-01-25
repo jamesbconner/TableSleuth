@@ -244,7 +244,7 @@ def test_vpc_created():
     app = cdk.App()
     stack = TablesleuthStack(app, "TestStack", config=test_config)
     template = assertions.Template.from_stack(stack)
-    
+
     template.resource_count_is("AWS::EC2::VPC", 1)
     template.has_resource_properties("AWS::EC2::VPC", {
         "CidrBlock": "10.10.0.0/16"
@@ -254,7 +254,7 @@ def test_ebs_encryption_enabled():
     app = cdk.App()
     stack = TablesleuthStack(app, "TestStack", config=test_config)
     template = assertions.Template.from_stack(stack)
-    
+
     template.has_resource_properties("AWS::EC2::Instance", {
         "BlockDeviceMappings": [
             {
@@ -269,7 +269,7 @@ def test_iam_least_privilege():
     app = cdk.App()
     stack = TablesleuthStack(app, "TestStack", config=test_config)
     template = assertions.Template.from_stack(stack)
-    
+
     # Ensure no wildcard actions
     template.has_resource_properties("AWS::IAM::Role", {
         "Policies": assertions.Match.array_with([
@@ -304,14 +304,14 @@ class SecurityAspect:
                 Annotations.of(node).add_error(
                     "S3 buckets must have encryption enabled"
                 )
-        
+
         # Check EC2 instances have encrypted EBS
         if isinstance(node, ec2.CfnInstance):
             if not node.block_device_mappings:
                 Annotations.of(node).add_warning(
                     "EC2 instances should have encrypted EBS volumes"
                 )
-        
+
         # Check security groups don't allow 0.0.0.0/0 SSH
         if isinstance(node, ec2.CfnSecurityGroup):
             for rule in node.security_group_ingress or []:
@@ -384,7 +384,7 @@ dashboard.add_widgets(
 class NetworkStack(Stack):
     def __init__(self, scope, construct_id, **kwargs):
         super().__init__(scope, construct_id, **kwargs)
-        
+
         self.vpc = ec2.Vpc(
             self,
             "TablesleuthVPC",
@@ -395,7 +395,7 @@ class NetworkStack(Stack):
 class ComputeStack(Stack):
     def __init__(self, scope, construct_id, vpc, **kwargs):
         super().__init__(scope, construct_id, **kwargs)
-        
+
         self.instance = ec2.Instance(
             self,
             "TablesleuthInstance",

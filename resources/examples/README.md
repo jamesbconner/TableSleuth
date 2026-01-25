@@ -166,10 +166,10 @@ catalog:
     type: sql
     uri: sqlite:////path/to/catalog.db
     warehouse: file:///path/to/warehouse
-  
+
   glue:
     type: glue
-    
+
   s3tables:
     type: glue
 ```

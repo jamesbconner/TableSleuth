@@ -47,7 +47,7 @@ def discover_from_path(path: str):
     total_size = sum(f.file_size_bytes for f in files if f.file_size_bytes)
     total_rows = sum(f.record_count for f in files if f.record_count)
 
-    print(f"\nStatistics:")
+    print("\nStatistics:")
     print(f"  Total size: {total_size / 1024**3:.2f} GB")
     if total_rows > 0:
         print(f"  Total rows: {total_rows:,}")
@@ -56,19 +56,17 @@ def discover_from_path(path: str):
     # File size distribution
     small_files = sum(1 for f in files if f.file_size_bytes and f.file_size_bytes < 10 * 1024**2)
     medium_files = sum(
-        1
-        for f in files
-        if f.file_size_bytes and 10 * 1024**2 <= f.file_size_bytes < 100 * 1024**2
+        1 for f in files if f.file_size_bytes and 10 * 1024**2 <= f.file_size_bytes < 100 * 1024**2
     )
     large_files = sum(1 for f in files if f.file_size_bytes and f.file_size_bytes >= 100 * 1024**2)
 
-    print(f"\nFile size distribution:")
+    print("\nFile size distribution:")
     print(f"  Small (<10MB): {small_files}")
     print(f"  Medium (10-100MB): {medium_files}")
     print(f"  Large (>100MB): {large_files}")
 
     # Show first few files
-    print(f"\nFirst 5 files:")
+    print("\nFirst 5 files:")
     for i, file in enumerate(files[:5], 1):
         print(f"\n  {i}. {file.path}")
         if file.file_size_bytes:
@@ -103,7 +101,7 @@ def discover_from_table(catalog: str, table: str):
     total_size = sum(f.file_size_bytes for f in files if f.file_size_bytes)
     total_rows = sum(f.record_count for f in files if f.record_count)
 
-    print(f"\nStatistics:")
+    print("\nStatistics:")
     print(f"  Total size: {total_size / 1024**3:.2f} GB")
     print(f"  Total rows: {total_rows:,}")
     print(f"  Average file size: {total_size / len(files) / 1024**2:.2f} MB")
@@ -121,28 +119,18 @@ def discover_from_table(catalog: str, table: str):
     # Show partition distribution
     if len(partitioned_files) <= 10:
         for partition, partition_files in partitioned_files.items():
-            partition_size = sum(
-                f.file_size_bytes for f in partition_files if f.file_size_bytes
-            )
-            print(
-                f"  {partition}: {len(partition_files)} files, {partition_size / 1024**2:.2f} MB"
-            )
+            partition_size = sum(f.file_size_bytes for f in partition_files if f.file_size_bytes)
+            print(f"  {partition}: {len(partition_files)} files, {partition_size / 1024**2:.2f} MB")
     else:
         # Show top 10 partitions by file count
-        sorted_partitions = sorted(
-            partitioned_files.items(), key=lambda x: len(x[1]), reverse=True
-        )
-        print(f"\nTop 10 partitions by file count:")
+        sorted_partitions = sorted(partitioned_files.items(), key=lambda x: len(x[1]), reverse=True)
+        print("\nTop 10 partitions by file count:")
         for partition, partition_files in sorted_partitions[:10]:
-            partition_size = sum(
-                f.file_size_bytes for f in partition_files if f.file_size_bytes
-            )
-            print(
-                f"  {partition}: {len(partition_files)} files, {partition_size / 1024**2:.2f} MB"
-            )
+            partition_size = sum(f.file_size_bytes for f in partition_files if f.file_size_bytes)
+            print(f"  {partition}: {len(partition_files)} files, {partition_size / 1024**2:.2f} MB")
 
     # Show first few files
-    print(f"\nFirst 5 files:")
+    print("\nFirst 5 files:")
     for i, file in enumerate(files[:5], 1):
         print(f"\n  {i}. {file.path}")
         if file.file_size_bytes:

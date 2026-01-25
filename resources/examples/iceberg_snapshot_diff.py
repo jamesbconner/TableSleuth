@@ -70,7 +70,7 @@ def compare_snapshots(catalog: str, table: str, snapshot_from: int, snapshot_to:
     size_to = sum(f.file_size_bytes for f in snap_to.data_files)
     size_change = size_to - size_from
 
-    print(f"\nStorage:")
+    print("\nStorage:")
     print(f"  From: {size_from / 1024**3:.2f} GB")
     print(f"  To: {size_to / 1024**3:.2f} GB")
     print(f"  Change: {size_change / 1024**3:+.2f} GB")
@@ -80,7 +80,7 @@ def compare_snapshots(catalog: str, table: str, snapshot_from: int, snapshot_to:
     records_to = sum(f.record_count for f in snap_to.data_files)
     records_change = records_to - records_from
 
-    print(f"\nRecords:")
+    print("\nRecords:")
     print(f"  From: {records_from:,}")
     print(f"  To: {records_to:,}")
     print(f"  Change: {records_change:+,}")
@@ -116,12 +116,12 @@ def compare_snapshots(catalog: str, table: str, snapshot_from: int, snapshot_to:
     print(f"Files unchanged: {len(files_from_paths & files_to_paths)}")
 
     if added_files:
-        print(f"\nFirst 5 added files:")
+        print("\nFirst 5 added files:")
         for i, path in enumerate(list(added_files)[:5], 1):
             print(f"  {i}. {path}")
 
     if removed_files:
-        print(f"\nFirst 5 removed files:")
+        print("\nFirst 5 removed files:")
         for i, path in enumerate(list(removed_files)[:5], 1):
             print(f"  {i}. {path}")
 
@@ -131,13 +131,9 @@ def compare_snapshots(catalog: str, table: str, snapshot_from: int, snapshot_to:
     print("=" * 80)
 
     mor_from = (
-        len(snap_from.delete_files) / len(snap_from.data_files) * 100
-        if snap_from.data_files
-        else 0
+        len(snap_from.delete_files) / len(snap_from.data_files) * 100 if snap_from.data_files else 0
     )
-    mor_to = (
-        len(snap_to.delete_files) / len(snap_to.data_files) * 100 if snap_to.data_files else 0
-    )
+    mor_to = len(snap_to.delete_files) / len(snap_to.data_files) * 100 if snap_to.data_files else 0
 
     print(f"MOR overhead (from): {mor_from:.1f}%")
     print(f"MOR overhead (to): {mor_to:.1f}%")
@@ -160,7 +156,9 @@ Examples:
     )
     parser.add_argument("--catalog", required=True, help="Catalog name")
     parser.add_argument("--table", required=True, help="Table identifier (e.g., db.table)")
-    parser.add_argument("--from", dest="snapshot_from", type=int, required=True, help="From snapshot ID")
+    parser.add_argument(
+        "--from", dest="snapshot_from", type=int, required=True, help="From snapshot ID"
+    )
     parser.add_argument("--to", dest="snapshot_to", type=int, required=True, help="To snapshot ID")
 
     args = parser.parse_args()

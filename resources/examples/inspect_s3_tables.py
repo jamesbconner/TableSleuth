@@ -36,9 +36,9 @@ def inspect_s3_table_by_arn():
     # Get table metadata
     table = table_handle.native
     print(f"\nTable Location: {table.metadata.location}")
-    
+
     # Handle both Table and StaticTable types
-    identifier = getattr(table, 'identifier', 'N/A')
+    identifier = getattr(table, "identifier", "N/A")
     print(f"Table Identifier: {identifier}")
 
     # List snapshots

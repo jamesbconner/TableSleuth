@@ -418,7 +418,7 @@ The CDK will reuse the existing key pair. Retrieve it from Parameter Store using
      --stack-name TablesleuthStack-dev \
      --query 'Stacks[0].Outputs[?OutputKey==`SecurityGroupId`].OutputValue' \
      --output text)
-   
+
    # Update ingress rule
    aws ec2 authorize-security-group-ingress \
      --group-id $SG_ID \

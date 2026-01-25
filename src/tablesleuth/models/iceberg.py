@@ -389,15 +389,23 @@ class PerformanceComparison:
         if abs(self.execution_time_delta_pct) < 10:
             lines.append("• Query performance is similar between snapshots")
         else:
-            slower_name = self.table_b_name if self.execution_time_delta_pct > 0 else self.table_a_name
-            faster_name = self.table_a_name if self.execution_time_delta_pct > 0 else self.table_b_name
+            slower_name = (
+                self.table_b_name if self.execution_time_delta_pct > 0 else self.table_a_name
+            )
+            faster_name = (
+                self.table_a_name if self.execution_time_delta_pct > 0 else self.table_b_name
+            )
             pct_diff = abs(self.execution_time_delta_pct)
-            
+
             slower_metrics = self.metrics_b if self.execution_time_delta_pct > 0 else self.metrics_a
             faster_metrics = self.metrics_a if self.execution_time_delta_pct > 0 else self.metrics_b
-            
-            slower_snapshot = self.snapshot_b_info if self.execution_time_delta_pct > 0 else self.snapshot_a_info
-            faster_snapshot = self.snapshot_a_info if self.execution_time_delta_pct > 0 else self.snapshot_b_info
+
+            slower_snapshot = (
+                self.snapshot_b_info if self.execution_time_delta_pct > 0 else self.snapshot_a_info
+            )
+            faster_snapshot = (
+                self.snapshot_a_info if self.execution_time_delta_pct > 0 else self.snapshot_b_info
+            )
 
             lines.append(f"• Query is {pct_diff:.1f}% slower on {slower_name}")
 
@@ -407,12 +415,18 @@ class PerformanceComparison:
             # Factor 1: Data volume (files scanned)
             if slower_metrics.files_scanned > faster_metrics.files_scanned:
                 file_diff = slower_metrics.files_scanned - faster_metrics.files_scanned
-                file_pct = (file_diff / faster_metrics.files_scanned * 100) if faster_metrics.files_scanned > 0 else 0
+                file_pct = (
+                    (file_diff / faster_metrics.files_scanned * 100)
+                    if faster_metrics.files_scanned > 0
+                    else 0
+                )
                 factors.append(f"  - {file_diff} more files to scan (+{file_pct:.1f}%)")
 
             # Factor 2: Data size
             if slower_metrics.bytes_scanned > faster_metrics.bytes_scanned:
-                size_diff_mb = (slower_metrics.bytes_scanned - faster_metrics.bytes_scanned) / (1024 * 1024)
+                size_diff_mb = (slower_metrics.bytes_scanned - faster_metrics.bytes_scanned) / (
+                    1024 * 1024
+                )
                 if size_diff_mb > 1:
                     factors.append(f"  - {size_diff_mb:.1f} MB more data to read")
 
@@ -420,14 +434,14 @@ class PerformanceComparison:
             if slower_snapshot and faster_snapshot:
                 slower_deletes = slower_snapshot.total_delete_files
                 faster_deletes = faster_snapshot.total_delete_files
-                
+
                 if slower_deletes > faster_deletes:
                     delete_diff = slower_deletes - faster_deletes
                     if slower_deletes > 0:
                         # Calculate read amplification impact
                         slower_amp = slower_snapshot.read_amplification
                         faster_amp = faster_snapshot.read_amplification
-                        
+
                         if slower_amp > faster_amp:
                             factors.append(
                                 f"  - MOR overhead: {slower_deletes} delete files "
@@ -449,7 +463,11 @@ class PerformanceComparison:
                 # Factor 5: Record count difference
                 if slower_snapshot.total_records > faster_snapshot.total_records:
                     record_diff = slower_snapshot.total_records - faster_snapshot.total_records
-                    record_pct = (record_diff / faster_snapshot.total_records * 100) if faster_snapshot.total_records > 0 else 0
+                    record_pct = (
+                        (record_diff / faster_snapshot.total_records * 100)
+                        if faster_snapshot.total_records > 0
+                        else 0
+                    )
                     if record_pct > 10:
                         factors.append(f"  - {record_diff:,} more records (+{record_pct:.1f}%)")
 
@@ -471,8 +489,10 @@ class PerformanceComparison:
         # Additional insights
         if self.snapshot_a_info and self.snapshot_b_info:
             # Check if compaction would help
-            slower_snapshot = self.snapshot_b_info if self.execution_time_delta_pct > 0 else self.snapshot_a_info
-            
+            slower_snapshot = (
+                self.snapshot_b_info if self.execution_time_delta_pct > 0 else self.snapshot_a_info
+            )
+
             if slower_snapshot.delete_ratio > 10 or slower_snapshot.read_amplification > 1.5:
                 lines.append("")
                 lines.append("💡 Recommendation:")

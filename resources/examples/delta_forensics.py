@@ -61,7 +61,7 @@ def analyze_delta_table(table_path: str):
     print(f"Average file size: {file_analysis['avg_size_mb']:.2f} MB")
     print(f"Median file size: {file_analysis['median_size_mb']:.2f} MB")
 
-    if file_analysis['small_files_pct'] > 30:
+    if file_analysis["small_files_pct"] > 30:
         print("\n⚠️  WARNING: High percentage of small files detected!")
         print("   Consider running OPTIMIZE to compact files")
 
@@ -75,7 +75,7 @@ def analyze_delta_table(table_path: str):
     print(f"Tombstoned size: {waste_analysis['tombstoned_size_gb']:.2f} GB")
     print(f"Reclaimable percentage: {waste_analysis['reclaimable_pct']:.1f}%")
 
-    if waste_analysis['reclaimable_pct'] > 20:
+    if waste_analysis["reclaimable_pct"] > 20:
         print("\n⚠️  WARNING: Significant storage waste detected!")
         print("   Consider running VACUUM to reclaim space")
 
@@ -91,7 +91,7 @@ def analyze_delta_table(table_path: str):
     print(f"DELETE operations: {dml_analysis['delete_count']}")
     print(f"Average rewrite amplification: {dml_analysis['avg_rewrite_amplification']:.2f}x")
 
-    if dml_analysis['avg_rewrite_amplification'] > 5:
+    if dml_analysis["avg_rewrite_amplification"] > 5:
         print("\n⚠️  WARNING: High rewrite amplification detected!")
         print("   Consider using partition pruning or Z-ORDER")
 
@@ -106,10 +106,12 @@ def analyze_delta_table(table_path: str):
         print("\n✓ No optimization recommendations - table is healthy!")
     else:
         for i, rec in enumerate(recommendations, 1):
-            priority_icon = "🔴" if rec['priority'] == "HIGH" else "🟡" if rec['priority'] == "MEDIUM" else "🟢"
+            priority_icon = (
+                "🔴" if rec["priority"] == "HIGH" else "🟡" if rec["priority"] == "MEDIUM" else "🟢"
+            )
             print(f"\n{i}. {priority_icon} {rec['title']} (Priority: {rec['priority']})")
             print(f"   {rec['description']}")
-            if rec.get('command'):
+            if rec.get("command"):
                 print(f"   Command: {rec['command']}")
 
     # Summary

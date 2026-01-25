@@ -292,7 +292,7 @@ def test_vpc_created():
     app = cdk.App()
     stack = TablesleuthStack(app, "TestStack", config=test_config)
     template = assertions.Template.from_stack(stack)
-    
+
     template.resource_count_is("AWS::EC2::VPC", 1)
 ```
 

@@ -48,9 +48,7 @@ def analyze_table(adapter: IcebergAdapter, catalog: str, table: str) -> dict:
         )
 
         # Identify small files
-        small_files = sum(
-            1 for f in latest.data_files if f.file_size_bytes < 10 * 1024**2
-        )  # <10MB
+        small_files = sum(1 for f in latest.data_files if f.file_size_bytes < 10 * 1024**2)  # <10MB
         small_files_pct = (small_files / len(latest.data_files) * 100) if latest.data_files else 0
 
         return {
@@ -105,15 +103,17 @@ def batch_analyze(catalog: str, tables: list[str]):
             print(f"  Total records: {result['total_records']:,}")
             print(f"  Avg file size: {result['avg_file_size_mb']:.2f} MB")
             print(f"  MOR overhead: {result['mor_overhead_pct']:.1f}%")
-            print(f"  Small files (<10MB): {result['small_files']} ({result['small_files_pct']:.1f}%)")
+            print(
+                f"  Small files (<10MB): {result['small_files']} ({result['small_files_pct']:.1f}%)"
+            )
 
             # Health indicators
             issues = []
-            if result['mor_overhead_pct'] > 20:
+            if result["mor_overhead_pct"] > 20:
                 issues.append("High MOR overhead")
-            if result['small_files_pct'] > 30:
+            if result["small_files_pct"] > 30:
                 issues.append("Many small files")
-            if result['avg_file_size_mb'] < 50:
+            if result["avg_file_size_mb"] < 50:
                 issues.append("Low average file size")
 
             if issues:
@@ -177,7 +177,9 @@ Examples:
     )
     parser.add_argument("--catalog", required=True, help="Catalog name")
     parser.add_argument(
-        "--tables", required=True, help="Comma-separated table identifiers (e.g., db.table1,db.table2)"
+        "--tables",
+        required=True,
+        help="Comma-separated table identifiers (e.g., db.table1,db.table2)",
     )
 
     args = parser.parse_args()

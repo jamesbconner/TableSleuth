@@ -106,7 +106,7 @@ For production use with large datasets in S3, deploy to EC2 with pre-configured 
    ```bash
    # Linux/macOS
    curl -s ifconfig.me
-   
+
    # Windows PowerShell
    Invoke-RestMethod -Uri "https://ifconfig.me/ip"
    ```

@@ -2,17 +2,20 @@
 
 Creates EC2 infrastructure for running TableSleuth on AWS.
 """
+
 from dataclasses import dataclass
 from typing import Any
 
 import aws_cdk as cdk
 from aws_cdk import (
-    Stack,
     CfnOutput,
+    Stack,
     Tags,
 )
 from aws_cdk import (
     aws_ec2 as ec2,
+)
+from aws_cdk import (
     aws_iam as iam,
 )
 from constructs import Construct

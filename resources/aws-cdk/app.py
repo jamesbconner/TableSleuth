@@ -8,11 +8,11 @@ Configuration follows CDK best practices:
 - Use environment variables for secrets
 - Use SSM Parameter Store for shared configuration (optional)
 """
+
 import os
 
 import aws_cdk as cdk
-
-from tablesleuth_cdk.tablesleuth_stack import TablesleuthStack, TablesleuthConfig
+from tablesleuth_cdk.tablesleuth_stack import TablesleuthConfig, TablesleuthStack
 
 
 def get_config(app: cdk.App, environment: str) -> TablesleuthConfig:
