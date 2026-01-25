@@ -10,7 +10,7 @@ Prerequisites:
     - PyIceberg with AWS extras: pip install "pyiceberg[glue,s3fs]"
 
 Usage:
-    python examples/inspect_s3_tables.py
+    python resources/examples/inspect_s3_tables.py
 """
 
 from tablesleuth.services.formats.iceberg import IcebergAdapter
@@ -35,8 +35,11 @@ def inspect_s3_table_by_arn():
 
     # Get table metadata
     table = table_handle.native
-    print(f"\nTable Location: {table.location()}")
-    print(f"Table Identifier: {table.identifier}")
+    print(f"\nTable Location: {table.metadata.location}")
+
+    # Handle both Table and StaticTable types
+    identifier = getattr(table, "identifier", "N/A")
+    print(f"Table Identifier: {identifier}")
 
     # List snapshots
     snapshots = adapter.list_snapshots(table_handle)
@@ -75,13 +78,16 @@ def inspect_s3_table_by_arn():
 
         # Calculate totals
         total_size = sum(f.file_size_bytes for f in data_files)
-        total_records = sum(f.record_count for f in data_files)
+        total_records = sum(f.record_count for f in data_files if f.record_count is not None)
 
         print("\nTotals:")
         print(f"  Total Size: {total_size:,} bytes ({total_size / 1024**3:.2f} GB)")
         print(f"  Total Records: {total_records:,}")
         print(f"  Average File Size: {total_size / len(data_files):,.0f} bytes")
-        print(f"  Average Records per File: {total_records / len(data_files):,.0f}")
+        if total_records > 0:
+            files_with_counts = [f for f in data_files if f.record_count is not None]
+            if files_with_counts:
+                print(f"  Average Records per File: {total_records / len(files_with_counts):,.0f}")
 
 
 def inspect_s3_table_by_catalog():

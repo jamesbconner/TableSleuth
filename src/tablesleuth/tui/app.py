@@ -516,7 +516,7 @@ class TableSleuthApp(App):
             error_msg = (
                 "GizmoSQL connection failed. Please ensure GizmoSQL is running.\n\n"
                 "Start GizmoSQL:\n"
-                "gizmosql_server -P gizmosql_password -Q -T ~/.certs/cert0.pem ~/.certs/cert0.key\n\n"
+                "gizmosql_server -U username -P password -Q -T ~/.certs/cert0.pem ~/.certs/cert0.key\n\n"
                 "Or install via: pip install gizmosql"
             )
 

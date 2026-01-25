@@ -2,6 +2,62 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.1] - 2026-01-25
+
+### Added
+
+- **AWS CDK Infrastructure** - Production-ready CDK implementation for EC2 deployment
+  - Complete infrastructure-as-code implementation replacing legacy boto3 scripts
+  - Multi-environment support (dev, staging, prod) with CDK context-based configuration
+  - Type-safe configuration using dataclasses and environment variables (no config.json anti-pattern)
+  - Automated GizmoSQL service setup with systemd (auto-starts on boot)
+  - Complete PyIceberg Glue integration pre-configured
+  - Security best practices: least-privilege IAM, EBS encryption, VPC Flow Logs
+  - Change preview with `cdk diff` before deployment
+  - Comprehensive documentation in `resources/aws-cdk/`
+- **Enhanced Iceberg Performance Analysis** - Comprehensive multi-factor performance comparison
+  - Order-agnostic analysis that works regardless of snapshot chronology
+  - Multi-factor attribution analyzing: data volume, file counts, MOR overhead, delete ratios, record counts, scan efficiency
+  - Accurate MOR overhead detection (only shown when delete files actually exist)
+  - Read amplification metrics comparing snapshots (e.g., 1.45x vs 1.00x)
+  - Detailed contributing factors with specific metrics and percentages
+  - Actionable compaction recommendations with specific thresholds (delete ratio > 10%, read amplification > 1.5x)
+  - Comprehensive analysis output showing all performance factors, not just one
+
+### Changed
+
+- **AWS Deployment** - Migrated from boto3 scripts to AWS CDK
+  - Removed legacy boto3 deployment scripts
+  - Removed `config.json.template` in favor of CDK context and environment variables
+  - Moved CDK infrastructure from `cdk/` to `resources/aws-cdk/`
+  - Consolidated CDK documentation from 9 files to 5 files
+- **PyIceberg Glue Integration** - Simplified dependency management
+  - Added `glue` to main PyIceberg dependency: `pyiceberg[s3fs,sql-sqlite,glue]>=0.9.1`
+  - Removed need for separate `tablesleuth[glue]` installation
+  - Updated all documentation to reflect simplified installation
+- **Performance Analysis** - Complete rewrite of `PerformanceComparison.analysis()` method
+  - Changed from tracking delete file counts to passing full `IcebergSnapshotInfo` objects
+  - Analyzes which snapshot is slower without assuming order
+  - Considers multiple factors simultaneously instead of single-factor attribution
+  - Provides structured output with bullet points and recommendations
+
+### Fixed
+
+- **MOR Overhead False Positive** - Fixed incorrect attribution of performance differences to MOR overhead
+  - Performance analysis no longer assumes snapshot B is newer than snapshot A
+  - MOR overhead only mentioned when slower snapshot has more delete files AND higher read amplification
+  - Performance differences due to data volume now correctly identified with file count metrics
+  - Analysis considers all contributing factors, not just delete files
+
+### Documentation
+
+- Updated README.md with v0.5.1 features and CDK deployment details
+- Added `debug/MOR_OVERHEAD_FIX.md` documenting comprehensive performance analysis improvements
+- Updated `resources/aws-cdk/README.md` with complete CDK deployment guide
+- Consolidated CDK documentation (removed redundant Windows guide, merged spot instance limitation)
+- Updated all GizmoSQL references to include full initialization commands
+- Standardized GIZMOSQL_USERNAME and GIZMOSQL_PASSWORD references across documentation
+
 ## [0.5.0] - 2026-01-21
 
 ### Added

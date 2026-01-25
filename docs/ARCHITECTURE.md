@@ -178,10 +178,10 @@ tablesleuth parquet s3://bucket/path/file.parquet
 # Analyze directory (recursive)
 tablesleuth parquet data/warehouse/
 
-# Analyze Iceberg table data files
+# Analyze Iceberg table data files (discovers Parquet files from table)
 tablesleuth parquet --catalog ratebeer ratebeer.reviews
 
-# Analyze S3 Tables Iceberg table (ARN)
+# Analyze S3 Tables Iceberg table (ARN - discovers Parquet files)
 tablesleuth parquet "arn:aws:s3tables:us-east-2:123456789012:bucket/my-bucket/table/db.table"
 ```
 
@@ -975,18 +975,21 @@ chmod 644 ~/.certs/cert0.pem
 
 **Basic (no TLS)**:
 ```bash
-gizmosql_server -P gizmosql_password -Q
+# Not recommended for production - use TLS
+gizmosql_server -U gizmosql_username -P gizmosql_password -Q \
+  -I "install aws; install httpfs; install iceberg; load aws; load httpfs; load iceberg; CREATE SECRET (TYPE s3, PROVIDER credential_chain);"
 ```
 
-**With TLS**:
+**With TLS (recommended)**:
 ```bash
-gizmosql_server -P gizmosql_password -Q \
+gizmosql_server -U gizmosql_username -P gizmosql_password -Q \
+  -I "install aws; install httpfs; install iceberg; load aws; load httpfs; load iceberg; CREATE SECRET (TYPE s3, PROVIDER credential_chain);" \
   -T ~/.certs/cert0.pem ~/.certs/cert0.key
 ```
 
 **With S3 Tables Initialization**:
 ```bash
-gizmosql_server -P gizmosql_password -Q \
+gizmosql_server -U gizmosql_username -P gizmosql_password -Q \
   -I "install aws; install httpfs; install iceberg; \
       load aws; load httpfs; load iceberg; \
       CREATE SECRET (TYPE s3, PROVIDER credential_chain); \
@@ -1331,10 +1334,17 @@ tablesleuth/
 │       ├── test_data.parquet
 │       └── test_iceberg_table/
 │
-├── resources/                          # Deployment resources
-│   ├── config.json.template            # EC2 config template
-│   ├── tablesleuth_create_env.py       # EC2 setup script
-│   └── user_data.sh                    # EC2 user data script
+├── resources/                          # Infrastructure as Code & Examples
+│   ├── aws-cdk/                        # AWS CDK deployment
+│   │   ├── app.py                      # CDK app entry point
+│   │   ├── cdk.json                    # CDK configuration
+│   │   ├── requirements.txt            # CDK dependencies
+│   │   ├── tablesleuth_cdk/            # CDK stack
+│   │   └── *.md                        # CDK documentation
+│   ├── examples/                       # Example scripts
+│   │   ├── README.md                   # Examples documentation
+│   │   └── *.py                        # Example scripts
+│   └── README.md                       # IaC overview
 │
 ├── docs/                               # Documentation
 │   ├── ARCHITECTURE.md                 # This file

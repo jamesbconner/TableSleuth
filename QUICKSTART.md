@@ -80,7 +80,7 @@ catalog:
 
 ## AWS EC2 Deployment
 
-For production use with large datasets in S3, deploy to EC2 with pre-configured environment.
+For production use with large datasets in S3, deploy to EC2 with pre-configured environment using AWS CDK.
 
 ### Prerequisites
 
@@ -96,124 +96,212 @@ For production use with large datasets in S3, deploy to EC2 with pre-configured 
    aws sts get-caller-identity  # Verify your account
    ```
 
-3. **Your Public IP** for SSH access:
+3. **Node.js and CDK CLI**:
    ```bash
-   curl -4 ifconfig.me
+   npm install -g aws-cdk
+   cdk --version
    ```
 
-### Configuration
-
-1. **Clone repository locally**:
+4. **Your Public IP** for SSH access:
    ```bash
-   git clone https://github.com/jamesbconner/TableSleuth.git
-   cd TableSleuth/resources
+   # Linux/macOS
+   curl -s ifconfig.me
+
+   # Windows PowerShell
+   Invoke-RestMethod -Uri "https://ifconfig.me/ip"
    ```
 
-2. **Create deployment config**:
-   ```bash
-   cp config.json.template config.json
-   ```
-
-3. **Edit `config.json`**:
-   ```json
-   {
-     "ssh_allowed_cidr": "YOUR_IP/32", // Limits access to the EC2 Instance
-     "gizmosql_username": "gizmosql_username", // Used for creating aliases
-     "gizmosql_password": "gizmosql_password", // Used for creating aliases
-     "s3tables_bucket_arn": null,  // Optional: only for S3 Tables
-     "s3tables_table_arn": null    // Optional: only for S3 Tables
-   }
-   ```
-
-4. **Update `tablesleuth.toml`** (project root):
-   ```toml
-   [gizmosql]
-   # This config us used by the Table Sleuth service when tasked with performing
-   #   a performance test or comparison between snapshots.
-   uri = "grpc+tls://localhost:31337"
-   username = "gizmosql_username"  # Must match config.json
-   password = "gizmosql_password"  # Must match config.json
-   tls_skip_verify = true
-   ```
-
-### Deploy to EC2
+### Deploy to AWS EC2
 
 ```bash
-# Dry run to preview
-python tablesleuth_create_env.py --dry-run
+cd resources/aws-cdk
 
-# Create environment with default instance (m4.large, On-Demand)
-python tablesleuth_create_env.py --region us-east-2
+# Set required environment variables
+export SSH_ALLOWED_CIDR="$(curl -s ifconfig.me)/32"
+export GIZMOSQL_USERNAME="database-username"
+export GIZMOSQL_PASSWORD="secure-password"
 
-# Create with larger instance for big datasets
-python tablesleuth_create_env.py --region us-east-2 --instance-type m4.xlarge
+# Windows PowerShell:
+# $MY_IP = Invoke-RestMethod -Uri "https://ifconfig.me/ip"
+# $env:SSH_ALLOWED_CIDR = "$MY_IP/32"
+# $env:GIZMOSQL_USERNAME="database-username"
+# $env:GIZMOSQL_PASSWORD = "secure-password"
 
-# Use Spot instance (cheaper, may be interrupted)
-python tablesleuth_create_env.py --region us-east-2 --use-spot
+# Bootstrap CDK (first time only)
+cdk bootstrap
 
-# Spot instance with specific type
-python tablesleuth_create_env.py --region us-east-2 --instance-type m4.2xlarge --use-spot
+# Preview deployment
+cdk diff -c environment=dev
+
+# Deploy
+cdk deploy -c environment=dev
 ```
 
-**Instance Type Recommendations:**
-- **m4.large** (2 vCPU, 8 GB RAM) - Default, good for small-medium datasets
-- **m4.xlarge** (4 vCPU, 16 GB RAM) - Better for larger datasets and complex queries
-- **m4.2xlarge** (8 vCPU, 32 GB RAM) - Large datasets with heavy profiling
-- **m4.4xlarge** (16 vCPU, 64 GB RAM) - Very large datasets or multiple concurrent analyses
+**Environment Options:**
+- **dev** - t3.small instance (cost-effective for testing)
+- **prod** - m4.xlarge instance (stable for production)
+- **Custom** - Edit `cdk.json` to add your own environment
 
-The script will:
-- Create VPC, subnet, security group
+The CDK stack will:
+- Create VPC, subnet, security group, internet gateway
 - Create IAM role with S3 and Glue permissions
 - Launch EC2 instance with Python 3.13, GizmoSQL, and TableSleuth
 - Generate TLS certificates for GizmoSQL
-- Clone and configure TableSleuth
+- Clone TableSleuth repository to `~/Code/TableSleuth`
+- Install `tablesleuth` package with `pip install tablesleuth`
+- Create `~/tablesleuth.toml` with GizmoSQL configuration
+- Start GizmoSQL server as a systemd service
+
+### Retrieve SSH Key
+
+After deployment, retrieve the private key from AWS Parameter Store:
+
+```bash
+# Get key pair name from stack outputs
+KEY_NAME=$(aws cloudformation describe-stacks \
+  --stack-name TablesleuthStack-dev \
+  --query 'Stacks[0].Outputs[?OutputKey==`KeyPairName`].OutputValue' \
+  --output text)
+
+# Get key pair ID
+KEY_ID=$(aws ec2 describe-key-pairs \
+  --key-names $KEY_NAME \
+  --query 'KeyPairs[0].KeyPairId' \
+  --output text)
+
+# Retrieve private key
+aws ssm get-parameter \
+  --name /ec2/keypair/$KEY_ID \
+  --with-decryption \
+  --query Parameter.Value \
+  --output text > $KEY_NAME.pem
+
+chmod 600 $KEY_NAME.pem
+```
 
 ### Connect to EC2
 
 ```bash
-# SSH into instance (IP shown in script output)
-ssh -i ~/.ssh/tablesleuth-key.pem ec2-user@<INSTANCE_IP>
+# Get public DNS from stack outputs
+PUBLIC_DNS=$(aws cloudformation describe-stacks \
+  --stack-name TablesleuthStack-dev \
+  --query 'Stacks[0].Outputs[?OutputKey==`PublicDNS`].OutputValue' \
+  --output text)
+
+# SSH into instance
+ssh -i $KEY_NAME.pem ec2-user@$PUBLIC_DNS
+```
+
+### Configure AWS Credentials on EC2
+
+**Important:** After connecting to the EC2 instance, you must configure AWS credentials so you can access your S3 data and Glue catalogs.
+
+```bash
+# Configure AWS credentials
+aws configure
+
+# You'll be prompted for:
+# AWS Access Key ID: [your-access-key]
+# AWS Secret Access Key: [your-secret-key]
+# Default region name: [us-east-2]
+# Default output format: [json]
+```
+
+**Restart GizmoSQL after configuring credentials:**
+
+The GizmoSQL server starts automatically on boot, but it needs AWS credentials to access S3. After running `aws configure`, restart the service:
+
+```bash
+# Restart GizmoSQL service
+sudo systemctl restart gizmosql
+
+# Verify it's running
+sudo systemctl status gizmosql
+
+# Check logs if needed
+sudo journalctl -u gizmosql -f
 ```
 
 ### Configure Iceberg Catalogs on EC2
 
-Edit `~/.pyiceberg.yaml` on the EC2 instance:
+Edit `~/.pyiceberg.yaml` on the EC2 instance to add your Glue catalogs:
 
 ```yaml
 catalog:
-  # Glue catalog for regular S3 + Iceberg tables
-  dataset1-glue:
+  # Example Glue catalog
+  my_catalog:
     type: glue
     region: us-east-2
 
-  dataset2-glue:
+  # Another Glue catalog
+  another_catalog:
     type: glue
-    region: us-east-2
+    region: us-west-2
 
-  # S3 Tables catalog (managed Iceberg) - if using S3 Tables
-  dataset3-s3tables:
+  # S3 Tables catalog (if using S3 Tables)
+  my_s3tables:
     type: rest
-    warehouse: arn:aws:s3tables:us-east-2:835323357340:bucket/dataset3
+    warehouse: arn:aws:s3tables:us-east-2:123456789012:bucket/my-bucket
     uri: https://s3tables.us-east-2.amazonaws.com/iceberg
     rest.sigv4-enabled: "true"
     rest.signing-name: s3tables
     rest.signing-region: us-east-2
 ```
 
-**Note:** If you configured S3 Tables ARNs in `resources/config.json`, the deployment script automatically creates this configuration for you.
+**Update tablesleuth.toml with your default catalog:**
 
-### Start GizmoSQL Server
+Edit `~/tablesleuth.toml` and set your default catalog:
 
+```toml
+[catalog]
+default = "my_catalog"  # Change to your catalog name
+
+[gizmosql]
+uri = "grpc+tls://localhost:31337"
+username = "admin"
+password = "your-password"
+tls_skip_verify = true
+```
+
+**Note:** The `~/tablesleuth.toml` file is automatically created with GizmoSQL configuration during deployment.
+
+### GizmoSQL Server
+
+GizmoSQL server is automatically started as a systemd service during deployment.
+
+**Check status:**
 ```bash
-# Option 1: Use alias (runs in foreground)
+sudo systemctl status gizmosql
+```
+
+**View logs:**
+```bash
+sudo journalctl -u gizmosql -f
+```
+
+**Restart if needed:**
+```bash
+sudo systemctl restart gizmosql
+```
+
+**Manual start (if needed):**
+```bash
+# Use the pre-configured alias
 gizmosvr
 
-# Option 2: Background process
-nohup gizmosql_server -P gizmosql_password -Q -T ~/.certs/cert0.pem ~/.certs/cert0.key &
-
-# Option 3: In separate tmux window
-tmux new-session -d -s gizmo 'gizmosvr'
+# Or run directly
+gizmosql_server -U $GIZMOSQL_USERNAME -P $GIZMOSQL_PASSWORD -Q \
+  -I "install aws; install httpfs; install iceberg; load aws; load httpfs; load iceberg; CREATE SECRET (TYPE s3, PROVIDER credential_chain);" \
+  -T ~/.certs/cert0.pem ~/.certs/cert0.key
 ```
+
+**Note on S3 Authentication:** The initialization commands use `credential_chain` which reads AWS credentials from `~/.aws/credentials`, environment variables, or IAM roles. GizmoSQL uses DuckDB under the hood - for alternative S3 authentication methods (static credentials, environment variables, etc.), see the [DuckDB S3 API documentation](https://duckdb.org/docs/stable/core_extensions/httpfs/s3api).
+
+**Initialization Commands Explained:**
+- `install aws; load aws;` - AWS extension for S3 access
+- `install httpfs; load httpfs;` - HTTPFS extension for HTTP/HTTPS access
+- `install iceberg; load iceberg;` - Iceberg extension for Iceberg tables
+- `CREATE SECRET (TYPE s3, PROVIDER credential_chain);` - Use AWS credential chain for authentication
 
 ### Configure tmux for Better Colors
 
@@ -233,15 +321,15 @@ Then reload: `tmux source-file ~/.tmux.conf`
 # Start tmux session
 tmux
 
-# Activate virtual environment
+# Activate virtual environment (if using repository version)
 cd ~/Code/TableSleuth
 source .venv/bin/activate
 
-# Ensure dependencies are current
-uv sync --all-extras
+# Or just use the installed package directly
+# (no venv activation needed)
 
-# Run TableSleuth
-tablesleuth iceberg --catalog dataset1 --table dataset1.table1
+# Run TableSleuth with your catalog and table
+tablesleuth iceberg --catalog my_catalog --table my_database.my_table
 ```
 
 ---
@@ -260,8 +348,11 @@ tablesleuth parquet s3://bucket/path/file.parquet
 # Directory (recursive)
 tablesleuth parquet data/warehouse/
 
-# Iceberg table files
-tablesleuth iceberg --catalog ratebeer ratebeer.reviews
+# Iceberg table from catalog
+tablesleuth iceberg --catalog my_catalog --table my_database.my_table
+
+# Iceberg table from metadata file
+tablesleuth iceberg /path/to/metadata.json
 ```
 
 ### Navigate the TUI
@@ -290,11 +381,11 @@ q       - Quit
 ### View Snapshots
 
 ```bash
-# Using Glue catalog as defined in the ~/.pyiceberg.yaml
-tablesleuth iceberg --catalog dataset1 --table dataset1.table1
+# Using Glue catalog as defined in ~/.pyiceberg.yaml
+tablesleuth iceberg --catalog my_catalog --table my_database.my_table
 
-# Using S3 Tables catalog as defined in the ~/.pyiceberg.yaml
-tablesleuth iceberg --catalog dataset2 --table dataset2.table1
+# Using S3 Tables catalog as defined in ~/.pyiceberg.yaml
+tablesleuth iceberg --catalog my_s3tables --table my_database.my_table
 ```
 
 ### Snapshot Tabs
@@ -428,11 +519,11 @@ tablesleuth parquet data/file.parquet
 tablesleuth parquet s3://bucket/path/file.parquet
 
 # Iceberg table (Glue catalog)
-tablesleuth iceberg --catalog ratebeer --table ratebeer.reviews
+tablesleuth iceberg --catalog my_catalog --table my_database.my_table
 
 # Iceberg table (S3 Tables)
-tablesleuth iceberg --catalog tpch --table tpch.lineitem
+tablesleuth iceberg --catalog my_s3tables --table my_database.my_table
 
 # Verbose logging
-tablesleuth iceberg --catalog ratebeer --table ratebeer.reviews -v
+tablesleuth iceberg --catalog my_catalog --table my_database.my_table -v
 ```

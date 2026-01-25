@@ -110,8 +110,12 @@ tablesleuth parquet data/warehouse/
 ### Inspect an Iceberg Table
 
 ```bash
-tablesleuth iceberg ratebeer.reviews --catalog local
+tablesleuth iceberg --catalog local --table ratebeer.reviews
 ```
+
+**Note**: The `iceberg` command has two modes:
+- **Catalog mode**: `tablesleuth iceberg --catalog NAME --table TABLE` (requires both options)
+- **Metadata file mode**: `tablesleuth iceberg /path/to/metadata.json` (direct path to metadata file)
 
 ### Verbose Mode
 
@@ -861,30 +865,6 @@ tablesleuth iceberg ratebeer.reviews --catalog local
    - Only profile when metadata insufficient
 
 ## Integration with Other Tools
-
-### Export Metadata (Future Feature)
-
-```bash
-# Export to JSON
-tablesleuth parquet data/file.parquet --export json > metadata.json
-
-# Export to Markdown
-tablesleuth parquet data/file.parquet --export markdown > report.md
-```
-
-### Scripting with Table Sleuth
-
-```bash
-# Check file validity
-if tablesleuth parquet data/file.parquet --validate; then
-  echo "File is valid"
-else
-  echo "File is invalid"
-fi
-
-# Get row count
-tablesleuth parquet data/file.parquet --format json | jq '.num_rows'
-```
 
 ### Integration with Data Pipelines
 

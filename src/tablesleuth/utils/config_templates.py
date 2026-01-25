@@ -57,7 +57,7 @@ tls_skip_verify = true
 #   curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.10/gizmosql_cli_linux_amd64.zip | sudo unzip -o -d /usr/local/bin -
 #
 # Starting the server:
-#   gizmosql_server -P gizmosql_password -Q -T ~/.certs/cert0.pem ~/.certs/cert0.key
+#   gizmosql_server -U username -P password -Q -T ~/.certs/cert0.pem ~/.certs/cert0.key
 #
 # Options:
 #   -P: Set password (must match config above)

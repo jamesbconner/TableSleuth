@@ -484,7 +484,150 @@ class TestPerformanceComparison:
         analysis = comparison.analysis
         assert "slower" in analysis.lower()
         assert "snap_2" in analysis
-        assert "5 additional files" in analysis
+        # New comprehensive analysis format
+        assert "5 more files to scan" in analysis
+        assert "+50.0%" in analysis
+
+    def test_analysis_with_mor_overhead(self):
+        """Test analysis text with MOR overhead."""
+        snapshot_a = IcebergSnapshotInfo(
+            snapshot_id=1,
+            parent_snapshot_id=None,
+            timestamp_ms=1000000,
+            operation="APPEND",
+            summary={},
+            manifest_list="s3://bucket/manifest1.avro",
+            schema_id=0,
+            total_records=1000,
+            total_data_files=10,
+            total_delete_files=0,
+            total_size_bytes=1000000,
+            position_deletes=0,
+            equality_deletes=0,
+        )
+
+        snapshot_b = IcebergSnapshotInfo(
+            snapshot_id=2,
+            parent_snapshot_id=1,
+            timestamp_ms=2000000,
+            operation="DELETE",
+            summary={},
+            manifest_list="s3://bucket/manifest2.avro",
+            schema_id=0,
+            total_records=1000,
+            total_data_files=10,
+            total_delete_files=5,
+            total_size_bytes=1000000,
+            position_deletes=150,
+            equality_deletes=0,
+        )
+
+        metrics_a = QueryPerformanceMetrics(
+            execution_time_ms=100.0,
+            files_scanned=10,
+            bytes_scanned=1000000,
+            rows_scanned=1000,
+            rows_returned=500,
+            memory_peak_mb=50.0,
+        )
+
+        metrics_b = QueryPerformanceMetrics(
+            execution_time_ms=150.0,
+            files_scanned=15,
+            bytes_scanned=1500000,
+            rows_scanned=1000,
+            rows_returned=400,
+            memory_peak_mb=60.0,
+        )
+
+        comparison = PerformanceComparison(
+            query="SELECT * FROM table",
+            table_a_name="snap_1",
+            table_b_name="snap_2",
+            metrics_a=metrics_a,
+            metrics_b=metrics_b,
+            snapshot_a_info=snapshot_a,
+            snapshot_b_info=snapshot_b,
+        )
+
+        analysis = comparison.analysis
+        assert "slower" in analysis.lower()
+        assert "snap_2" in analysis
+        # Should mention MOR overhead since snapshot_b has delete files
+        assert "MOR overhead" in analysis
+        assert "5 delete files" in analysis
+        assert "read amplification" in analysis.lower()
+        # Should also have recommendation
+        assert "Recommendation" in analysis or "compaction" in analysis.lower()
+
+    def test_analysis_order_agnostic(self):
+        """Test that analysis works regardless of snapshot order."""
+        snapshot_a = IcebergSnapshotInfo(
+            snapshot_id=2,
+            parent_snapshot_id=1,
+            timestamp_ms=2000000,
+            operation="APPEND",
+            summary={},
+            manifest_list="s3://bucket/manifest2.avro",
+            schema_id=0,
+            total_records=2000,
+            total_data_files=20,
+            total_delete_files=0,
+            total_size_bytes=2000000,
+            position_deletes=0,
+            equality_deletes=0,
+        )
+
+        snapshot_b = IcebergSnapshotInfo(
+            snapshot_id=1,
+            parent_snapshot_id=None,
+            timestamp_ms=1000000,
+            operation="APPEND",
+            summary={},
+            manifest_list="s3://bucket/manifest1.avro",
+            schema_id=0,
+            total_records=1000,
+            total_data_files=10,
+            total_delete_files=0,
+            total_size_bytes=1000000,
+            position_deletes=0,
+            equality_deletes=0,
+        )
+
+        metrics_a = QueryPerformanceMetrics(
+            execution_time_ms=150.0,
+            files_scanned=20,
+            bytes_scanned=2000000,
+            rows_scanned=2000,
+            rows_returned=1000,
+            memory_peak_mb=60.0,
+        )
+
+        metrics_b = QueryPerformanceMetrics(
+            execution_time_ms=100.0,
+            files_scanned=10,
+            bytes_scanned=1000000,
+            rows_scanned=1000,
+            rows_returned=500,
+            memory_peak_mb=50.0,
+        )
+
+        comparison = PerformanceComparison(
+            query="SELECT * FROM table",
+            table_a_name="snap_newer",
+            table_b_name="snap_older",
+            metrics_a=metrics_a,
+            metrics_b=metrics_b,
+            snapshot_a_info=snapshot_a,
+            snapshot_b_info=snapshot_b,
+        )
+
+        analysis = comparison.analysis
+        # Should correctly identify snap_newer as slower (even though it's newer)
+        assert "slower" in analysis.lower()
+        assert "snap_newer" in analysis
+        # Should mention data volume differences
+        assert "more files" in analysis or "more data" in analysis or "more records" in analysis
 
     def test_analysis_similar_performance(self):
         """Test analysis text for similar performance."""

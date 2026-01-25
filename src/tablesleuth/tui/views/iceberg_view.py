@@ -758,11 +758,16 @@ class IcebergView(Screen):
                 notification.error("Snapshots not registered. Please re-enable compare mode.")
                 return
 
-            # Run comparison
+            # Get full snapshot info from selected snapshots
+            snapshot_a, snapshot_b = self._selected_snapshots
+
+            # Run comparison with full snapshot info for comprehensive analysis
             comparison = self._performance_analyzer.compare_query_performance(
                 self._registered_table_a,
                 self._registered_table_b,
                 query,
+                snapshot_a_info=snapshot_a,
+                snapshot_b_info=snapshot_b,
             )
 
             # Update results view

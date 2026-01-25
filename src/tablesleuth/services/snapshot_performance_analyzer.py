@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 
 from tablesleuth.models.iceberg import (
+    IcebergSnapshotInfo,
     PerformanceComparison,
     QueryPerformanceMetrics,
 )
@@ -114,6 +115,8 @@ class SnapshotPerformanceAnalyzer:
         table_a: str,
         table_b: str,
         query_template: str,
+        snapshot_a_info: IcebergSnapshotInfo | None = None,
+        snapshot_b_info: IcebergSnapshotInfo | None = None,
     ) -> PerformanceComparison:
         """Run the same query against two tables and compare results.
 
@@ -121,6 +124,8 @@ class SnapshotPerformanceAnalyzer:
             table_a: Name of first snapshot table
             table_b: Name of second snapshot table
             query_template: SQL query template with {table} placeholder
+            snapshot_a_info: Full snapshot info for snapshot A (optional, for detailed analysis)
+            snapshot_b_info: Full snapshot info for snapshot B (optional, for detailed analysis)
 
         Returns:
             PerformanceComparison object
@@ -139,13 +144,15 @@ class SnapshotPerformanceAnalyzer:
         logger.debug(f"Running performance test on {table_b}")
         metrics_b = self._run_query_direct(query_b)
 
-        # Create comparison
+        # Create comparison with full snapshot info
         return PerformanceComparison(
             query=query_template,
             table_a_name=table_a,
             table_b_name=table_b,
             metrics_a=metrics_a,
             metrics_b=metrics_b,
+            snapshot_a_info=snapshot_a_info,
+            snapshot_b_info=snapshot_b_info,
         )
 
     def get_predefined_queries(self) -> dict[str, str]:
