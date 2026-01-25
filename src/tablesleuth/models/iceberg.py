@@ -334,6 +334,8 @@ class PerformanceComparison:
         table_b_name: Name of second snapshot table
         metrics_a: Performance metrics for first snapshot
         metrics_b: Performance metrics for second snapshot
+        snapshot_a_info: Full snapshot info for snapshot A (optional)
+        snapshot_b_info: Full snapshot info for snapshot B (optional)
     """
 
     query: str
@@ -341,6 +343,8 @@ class PerformanceComparison:
     table_b_name: str
     metrics_a: QueryPerformanceMetrics
     metrics_b: QueryPerformanceMetrics
+    snapshot_a_info: IcebergSnapshotInfo | None = None
+    snapshot_b_info: IcebergSnapshotInfo | None = None
 
     @property
     def execution_time_delta_pct(self) -> float:
@@ -368,34 +372,119 @@ class PerformanceComparison:
 
     @property
     def analysis(self) -> str:
-        """Generate analysis text.
+        """Generate comprehensive analysis of performance differences.
+
+        Considers multiple factors:
+        - Data volume (file count, record count, size)
+        - Delete files and MOR overhead
+        - Scan efficiency
+        - Read amplification
 
         Returns:
             Human-readable analysis of performance differences
         """
         lines = []
 
-        if self.execution_time_delta_pct > 10:
-            lines.append(
-                f"• Query is {self.execution_time_delta_pct:.1f}% slower on {self.table_b_name} "
-                f"due to MOR overhead"
-            )
-        elif self.execution_time_delta_pct < -10:
-            lines.append(
-                f"• Query is {abs(self.execution_time_delta_pct):.1f}% faster on {self.table_b_name}"
-            )
-        else:
+        # Determine which snapshot is slower
+        if abs(self.execution_time_delta_pct) < 10:
             lines.append("• Query performance is similar between snapshots")
+        else:
+            slower_name = self.table_b_name if self.execution_time_delta_pct > 0 else self.table_a_name
+            faster_name = self.table_a_name if self.execution_time_delta_pct > 0 else self.table_b_name
+            pct_diff = abs(self.execution_time_delta_pct)
+            
+            slower_metrics = self.metrics_b if self.execution_time_delta_pct > 0 else self.metrics_a
+            faster_metrics = self.metrics_a if self.execution_time_delta_pct > 0 else self.metrics_b
+            
+            slower_snapshot = self.snapshot_b_info if self.execution_time_delta_pct > 0 else self.snapshot_a_info
+            faster_snapshot = self.snapshot_a_info if self.execution_time_delta_pct > 0 else self.snapshot_b_info
 
-        if self.files_scanned_delta_pct > 0:
-            delta = self.metrics_b.files_scanned - self.metrics_a.files_scanned
-            lines.append(f"• {delta} additional files must be processed")
+            lines.append(f"• Query is {pct_diff:.1f}% slower on {slower_name}")
 
-        eff_delta = self.metrics_b.scan_efficiency - self.metrics_a.scan_efficiency
-        if eff_delta < -5:
-            lines.append(
-                f"• Scan efficiency dropped from {self.metrics_a.scan_efficiency:.1f}% "
-                f"to {self.metrics_b.scan_efficiency:.1f}%"
-            )
+            # Analyze contributing factors
+            factors = []
+
+            # Factor 1: Data volume (files scanned)
+            if slower_metrics.files_scanned > faster_metrics.files_scanned:
+                file_diff = slower_metrics.files_scanned - faster_metrics.files_scanned
+                file_pct = (file_diff / faster_metrics.files_scanned * 100) if faster_metrics.files_scanned > 0 else 0
+                factors.append(f"  - {file_diff} more files to scan (+{file_pct:.1f}%)")
+
+            # Factor 2: Data size
+            if slower_metrics.bytes_scanned > faster_metrics.bytes_scanned:
+                size_diff_mb = (slower_metrics.bytes_scanned - faster_metrics.bytes_scanned) / (1024 * 1024)
+                if size_diff_mb > 1:
+                    factors.append(f"  - {size_diff_mb:.1f} MB more data to read")
+
+            # Factor 3: MOR overhead (delete files)
+            if slower_snapshot and faster_snapshot:
+                slower_deletes = slower_snapshot.total_delete_files
+                faster_deletes = faster_snapshot.total_delete_files
+                
+                if slower_deletes > faster_deletes:
+                    delete_diff = slower_deletes - faster_deletes
+                    if slower_deletes > 0:
+                        # Calculate read amplification impact
+                        slower_amp = slower_snapshot.read_amplification
+                        faster_amp = faster_snapshot.read_amplification
+                        
+                        if slower_amp > faster_amp:
+                            factors.append(
+                                f"  - MOR overhead: {slower_deletes} delete files "
+                                f"(read amplification: {slower_amp:.2f}x vs {faster_amp:.2f}x)"
+                            )
+                        else:
+                            factors.append(f"  - {delete_diff} more delete files to process")
+
+                # Factor 4: Delete ratio impact on scan efficiency
+                if slower_snapshot.delete_ratio > faster_snapshot.delete_ratio:
+                    ratio_diff = slower_snapshot.delete_ratio - faster_snapshot.delete_ratio
+                    if ratio_diff > 5:
+                        factors.append(
+                            f"  - Higher delete ratio: {slower_snapshot.delete_ratio:.1f}% vs "
+                            f"{faster_snapshot.delete_ratio:.1f}% "
+                            f"({slower_snapshot.position_deletes + slower_snapshot.equality_deletes:,} deleted records)"
+                        )
+
+                # Factor 5: Record count difference
+                if slower_snapshot.total_records > faster_snapshot.total_records:
+                    record_diff = slower_snapshot.total_records - faster_snapshot.total_records
+                    record_pct = (record_diff / faster_snapshot.total_records * 100) if faster_snapshot.total_records > 0 else 0
+                    if record_pct > 10:
+                        factors.append(f"  - {record_diff:,} more records (+{record_pct:.1f}%)")
+
+            # Factor 6: Scan efficiency
+            eff_delta = slower_metrics.scan_efficiency - faster_metrics.scan_efficiency
+            if eff_delta < -5:
+                factors.append(
+                    f"  - Lower scan efficiency: {slower_metrics.scan_efficiency:.1f}% vs "
+                    f"{faster_metrics.scan_efficiency:.1f}%"
+                )
+
+            # Add factors to output
+            if factors:
+                lines.append("  Contributing factors:")
+                lines.extend(factors)
+            else:
+                lines.append("  (performance difference may be due to query execution variance)")
+
+        # Additional insights
+        if self.snapshot_a_info and self.snapshot_b_info:
+            # Check if compaction would help
+            slower_snapshot = self.snapshot_b_info if self.execution_time_delta_pct > 0 else self.snapshot_a_info
+            
+            if slower_snapshot.delete_ratio > 10 or slower_snapshot.read_amplification > 1.5:
+                lines.append("")
+                lines.append("💡 Recommendation:")
+                if slower_snapshot.delete_ratio > 10:
+                    lines.append(
+                        f"  - Consider compaction to remove {slower_snapshot.position_deletes + slower_snapshot.equality_deletes:,} "
+                        f"deleted records ({slower_snapshot.delete_ratio:.1f}% of table)"
+                    )
+                if slower_snapshot.read_amplification > 1.5:
+                    lines.append(
+                        f"  - High read amplification ({slower_snapshot.read_amplification:.2f}x) indicates "
+                        f"merge-on-read overhead"
+                    )
 
         return "\n".join(lines)
