@@ -16,6 +16,12 @@ from tablesleuth.services.formats.delta_utils import get_filesystem_and_path
 if TYPE_CHECKING:
     from pyarrow import fs as pafs
 
+# Runtime import for cloud storage operations
+try:
+    from pyarrow import fs as pafs_runtime
+except ImportError:
+    pafs_runtime = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -192,13 +198,25 @@ class DeltaLogFileSystem:
         """
         if self._is_cloud:
             assert self._filesystem is not None  # Type guard for mypy
+
+            # Runtime import of pafs for cloud operations
+            if pafs_runtime is None:
+                raise ImportError(
+                    "PyArrow is required for cloud storage support. "
+                    "Install with: pip install pyarrow"
+                )
+
             try:
-                selector = pafs.FileSelector(self._delta_log_path_str, recursive=False)
+                selector = pafs_runtime.FileSelector(self._delta_log_path_str, recursive=False)
                 file_infos = self._filesystem.get_file_info(selector)
 
                 checkpoint_files = []
                 for file_info in file_infos:
-                    if file_info.is_file and ".checkpoint." in file_info.path:
+                    # Use file_info.type to check if it's a file (not is_file attribute)
+                    if (
+                        file_info.type == pafs_runtime.FileType.File
+                        and ".checkpoint." in file_info.path
+                    ):
                         checkpoint_files.append(file_info.path)
 
                 return checkpoint_files
