@@ -4,7 +4,7 @@
 
 Table Sleuth is a Python-based Parquet file forensics and Iceberg table analysis tool built with a layered architecture that separates concerns between presentation, business logic, and data access. The system provides comprehensive inspection of Parquet files and Iceberg tables with support for multiple catalog types (local SQL, AWS Glue, AWS S3 Tables), column profiling via GizmoSQL/DuckDB, and performance testing across Iceberg snapshots.
 
-**Current Version**: 0.4.2.post1
+**Current Version**: 0.5.3
 
 This document provides a comprehensive overview of the system architecture, design patterns, and key technical decisions.
 
@@ -15,12 +15,19 @@ This document provides a comprehensive overview of the system architecture, desi
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                          CLI Layer                                      │
-│  ┌──────────────────┐  ┌──────────────────┐                             │
-│  │ parquet command  │  │ iceberg command  │                             │
-│  │ - Parquet files  │  │ - Snapshot view  │                             │
-│  │ - Directories    │  │ - Comparison     │                             │
-│  │ - Iceberg tables │  │ - Performance    │                             │
-│  └──────────────────┘  └──────────────────┘                             │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐       │
+│  │ parquet command  │  │ iceberg command  │  │ delta command    │       │
+│  │ - Parquet files  │  │ - Snapshot view  │  │ - Version history│       │
+│  │ - Directories    │  │ - Comparison     │  │ - Forensics      │       │
+│  │ - Iceberg tables │  │ - Performance    │  │ - Optimization   │       │
+│  └──────────────────┘  └──────────────────┘  └──────────────────┘       │
+│                                                                         │
+│  Modular CLI Structure (v0.5.3+):                                       │
+│  ┌──────────────────────────────────────────────────────────────┐       │
+│  │ cli/__init__.py - Auto-loading command discovery             │       │
+│  │ cli/helpers.py - Shared utilities                            │       │
+│  │ cli/init.py, config_check.py, parquet.py, iceberg.py, delta.py│     │
+│  └──────────────────────────────────────────────────────────────┘       │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -80,6 +87,15 @@ This document provides a comprehensive overview of the system architecture, desi
 │  │ - get_stats()    │  │ - Recursive scan │  │                  │       │
 │  └──────────────────┘  └──────────────────┘  └──────────────────┘       │
 │                                                                         │
+│  Delta Lake Services (v0.5.0+):                                         │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐       │
+│  │ DeltaAdapter     │  │ DeltaForensics   │  │ DeltaLogFileSystem│      │
+│  │ - Table loading  │  │ - File analysis  │  │ - Unified FS API │       │
+│  │ - Version history│  │ - Storage waste  │  │ - Local & cloud  │       │
+│  │ - File discovery │  │ - DML forensics  │  │ - Version files  │       │
+│  │ - Cloud support  │  │ - Optimization   │  │ - Checkpoints    │       │
+│  └──────────────────┘  └──────────────────┘  └──────────────────┘       │
+│                                                                         │
 │  Iceberg Services:                                                      │
 │  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐       │
 │  │ IcebergAdapter   │  │ IcebergMetadata  │  │ MORService       │       │
@@ -96,6 +112,8 @@ This document provides a comprehensive overview of the system architecture, desi
 │  │ - Register snaps │  │ - Query exec     │                             │
 │  │ - Namespace mgmt │  │ - Metrics        │                             │
 │  │ - Cleanup        │  │ - Comparison     │                             │
+│  │                  │  │ - Interface      │                             │
+│  │                  │  │   validation     │                             │
 │  └──────────────────┘  └──────────────────┘                             │
 │                                                                         │
 │  Profiling (Protocol-based):                                            │
@@ -161,7 +179,30 @@ This document provides a comprehensive overview of the system architecture, desi
 
 ## CLI Commands
 
-Table Sleuth provides two main commands following a **format-oriented design pattern**. Each command corresponds to a specific table format type, establishing a consistent and extensible structure for future format support (e.g., Delta Lake).
+Table Sleuth provides a **modular CLI architecture** (v0.5.3+) with auto-loading command discovery. Each command is in its own focused module, following a format-oriented design pattern.
+
+### CLI Architecture (v0.5.3+)
+
+**Structure**:
+```
+src/tablesleuth/cli/
+├── __init__.py          # Entry point with auto-loader
+├── helpers.py           # Shared utilities
+├── init.py              # Init command
+├── config_check.py      # Config validation
+├── parquet.py           # Parquet inspection
+├── iceberg.py           # Iceberg analysis
+└── delta.py             # Delta Lake inspection
+```
+
+**Auto-Loading Pattern**:
+Commands are automatically discovered and registered by convention (module name = function name). Adding a new command is as simple as dropping a file in the `cli/` directory.
+
+**Benefits**:
+- Single Responsibility: Each command in its own module
+- Zero-friction extensibility: New commands auto-register
+- Easy to test: Commands can be tested in isolation
+- Clear boundaries: Shared logic in helpers module
 
 ### 1. `parquet` Command
 
@@ -219,6 +260,34 @@ tablesleuth iceberg --catalog ratebeer --table ratebeer.reviews -v
 - Snapshot comparison (file/record changes)
 - Query performance testing between snapshots
 - Predefined query templates
+
+### 3. `delta` Command
+
+**Purpose**: Analyze Delta Lake tables with forensic analysis
+
+**Usage**:
+```bash
+# Analyze local Delta table
+tablesleuth delta path/to/delta/table
+
+# Analyze S3 Delta table
+tablesleuth delta s3://bucket/path/to/delta/table
+
+# Time travel to specific version
+tablesleuth delta path/to/table --version 5
+
+# With storage options
+tablesleuth delta s3://bucket/table/ --storage-option AWS_REGION=us-west-2
+```
+
+**Features**:
+- Version history navigation and time travel
+- File size analysis with small file detection
+- Storage waste tracking (tombstoned files)
+- DML operation forensics (MERGE, UPDATE, DELETE)
+- Z-Order effectiveness monitoring
+- Checkpoint health assessment
+- Optimization recommendations with priorities
 
 ## Architectural Layers
 
@@ -1259,9 +1328,17 @@ tests/
 tablesleuth/
 ├── src/tablesleuth/
 │   ├── __init__.py
-│   ├── cli.py                          # CLI entry point (parquet, iceberg commands)
 │   ├── config.py                       # Configuration management
 │   ├── exceptions.py                   # Custom exceptions
+│   │
+│   ├── cli/                            # CLI commands (v0.5.3+)
+│   │   ├── __init__.py                 # Entry point with auto-loader
+│   │   ├── helpers.py                  # Shared utilities
+│   │   ├── init.py                     # Init command
+│   │   ├── config_check.py             # Config validation
+│   │   ├── parquet.py                  # Parquet inspection
+│   │   ├── iceberg.py                  # Iceberg analysis
+│   │   └── delta.py                    # Delta Lake inspection
 │   │
 │   ├── models/                         # Data models
 │   │   ├── __init__.py
@@ -1275,6 +1352,7 @@ tablesleuth/
 │   │
 │   ├── services/                       # Business logic layer
 │   │   ├── __init__.py
+│   │   ├── delta_forensics.py          # Delta Lake forensics (v0.5.0+)
 │   │   ├── file_discovery.py           # File discovery service
 │   │   ├── filesystem.py               # Filesystem abstraction (S3/local)
 │   │   ├── iceberg_metadata_service.py # Iceberg metadata loading
@@ -1285,11 +1363,17 @@ tablesleuth/
 │   │   │
 │   │   ├── formats/                    # Format adapters
 │   │   │   ├── __init__.py
+│   │   │   ├── base.py                 # Base adapter protocol
+│   │   │   ├── delta.py                # Delta adapter (v0.5.0+)
+│   │   │   ├── delta_filesystem.py     # Delta filesystem abstraction (v0.5.3+)
+│   │   │   ├── delta_log_parser.py     # Delta log parser (v0.5.0+)
+│   │   │   ├── delta_utils.py          # Delta utilities (v0.5.0+)
 │   │   │   └── iceberg.py              # Iceberg adapter
 │   │   │
 │   │   └── profiling/                  # Profiling backends
 │   │       ├── __init__.py
-│   │       ├── backend.py              # Protocol definition
+│   │       ├── backend_base.py         # Protocol definition
+│   │       ├── fake_backend.py         # Testing backend
 │   │       └── gizmo_duckdb.py         # GizmoSQL implementation
 │   │
 │   ├── tui/                            # Terminal UI layer
@@ -1298,6 +1382,7 @@ tablesleuth/
 │   │   │
 │   │   ├── views/                      # Full-screen views
 │   │   │   ├── __init__.py
+│   │   │   ├── delta_view.py           # Delta table view (v0.5.0+)
 │   │   │   ├── file_list_view.py       # File list navigation
 │   │   │   ├── file_detail_view.py     # File metadata view
 │   │   │   ├── schema_view.py          # Schema inspection

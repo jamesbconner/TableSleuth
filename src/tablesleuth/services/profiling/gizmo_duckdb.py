@@ -459,26 +459,6 @@ class GizmoDuckDbProfiler(ProfilingBackend):
             + (f" (snapshot {snapshot_id})" if snapshot_id else "")
         )
 
-    def register_catalog(self, catalog_path: str, catalog_name: str = "test_catalog") -> None:
-        """Register an Iceberg catalog with DuckDB.
-
-        DEPRECATED: This method doesn't work as intended because DuckDB's Iceberg
-        extension doesn't support attaching PyIceberg SQLite catalogs. Use
-        register_iceberg_table() instead to register individual tables.
-
-        Args:
-            catalog_path: Path to the SQLite catalog database file
-            catalog_name: Name to use for the catalog in DuckDB
-
-        Raises:
-            RuntimeError: Always raises with deprecation message
-        """
-        raise RuntimeError(
-            "register_catalog() is deprecated. DuckDB's Iceberg extension cannot "
-            "attach PyIceberg SQLite catalogs. Use register_iceberg_table() to "
-            "register individual Iceberg tables by their metadata locations instead."
-        )
-
     def execute_query_with_metrics(self, query: str) -> tuple[Any, QueryPerformanceMetrics]:
         """Execute query and return results plus detailed metrics.
 

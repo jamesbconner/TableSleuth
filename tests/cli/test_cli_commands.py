@@ -8,7 +8,7 @@ import pytest
 from click.testing import CliRunner
 
 from tablesleuth.cli import main as cli
-from tablesleuth.cli import parquet
+from tablesleuth.cli.parquet import parquet
 from tablesleuth.models.file_ref import FileRef
 
 
@@ -68,7 +68,7 @@ class TestParquetCommand:
         assert result.exit_code == 1
         assert "does not exist" in result.output
 
-    @patch("tablesleuth.cli.TableSleuthApp")
+    @patch("tablesleuth.cli.parquet.TableSleuthApp")
     def test_parquet_single_file(self, mock_app, runner, temp_parquet_file):
         """Test inspecting a single parquet file."""
         # Mock the TUI app
@@ -85,7 +85,7 @@ class TestParquetCommand:
         mock_app.assert_called_once()
         mock_app_instance.run.assert_called_once()
 
-    @patch("tablesleuth.cli.TableSleuthApp")
+    @patch("tablesleuth.cli.parquet.TableSleuthApp")
     def test_parquet_directory(self, mock_app, runner, temp_parquet_file):
         """Test inspecting a directory."""
         mock_app_instance = Mock()
@@ -100,7 +100,7 @@ class TestParquetCommand:
 
     def test_parquet_with_verbose_flag(self, runner, temp_parquet_file):
         """Test parquet with verbose logging."""
-        with patch("tablesleuth.cli.TableSleuthApp") as mock_app:
+        with patch("tablesleuth.cli.parquet.TableSleuthApp") as mock_app:
             mock_app_instance = Mock()
             mock_app.return_value = mock_app_instance
 
@@ -108,9 +108,9 @@ class TestParquetCommand:
 
             assert result.exit_code == 0
 
-    @patch("tablesleuth.cli.IcebergAdapter")
-    @patch("tablesleuth.cli.FileDiscoveryService")
-    @patch("tablesleuth.cli.TableSleuthApp")
+    @patch("tablesleuth.cli.parquet.IcebergAdapter")
+    @patch("tablesleuth.cli.parquet.FileDiscoveryService")
+    @patch("tablesleuth.cli.parquet.TableSleuthApp")
     def test_parquet_iceberg_table(self, mock_app, mock_discovery, mock_adapter, runner):
         """Test inspecting an Iceberg table."""
         # Setup mocks
@@ -145,9 +145,9 @@ class TestParquetCommand:
             "db.table", "test_catalog"
         )
 
-    @patch("tablesleuth.cli.IcebergAdapter")
-    @patch("tablesleuth.cli.FileDiscoveryService")
-    @patch("tablesleuth.cli.TableSleuthApp")
+    @patch("tablesleuth.cli.parquet.IcebergAdapter")
+    @patch("tablesleuth.cli.parquet.FileDiscoveryService")
+    @patch("tablesleuth.cli.parquet.TableSleuthApp")
     def test_parquet_s3_tables_arn(self, mock_app, mock_discovery, mock_adapter, runner):
         """Test inspecting S3 Tables using ARN."""
         # Setup mocks
@@ -181,7 +181,7 @@ class TestParquetCommand:
         assert "Loading S3 Tables Iceberg table" in result.output
         assert "Found 1 data files" in result.output
 
-    @patch("tablesleuth.cli.IcebergAdapter")
+    @patch("tablesleuth.cli.parquet.IcebergAdapter")
     def test_parquet_s3_tables_invalid_arn(self, mock_adapter, runner):
         """Test inspecting with invalid S3 Tables ARN."""
         mock_adapter_instance = Mock()
@@ -196,10 +196,10 @@ class TestParquetCommand:
         assert result.exit_code == 1
         assert "Invalid S3 Tables ARN" in result.output
 
-    @patch("tablesleuth.cli.IcebergAdapter")
-    @patch("tablesleuth.cli.TableSleuthApp")
+    @patch("tablesleuth.cli.parquet.IcebergAdapter")
+    @patch("tablesleuth.cli.parquet.TableSleuthApp")
     @patch("boto3.client")
-    @patch("tablesleuth.cli.FileDiscoveryService")
+    @patch("tablesleuth.cli.parquet.FileDiscoveryService")
     def test_parquet_iceberg_table_error(
         self, mock_discovery, mock_boto3_client, mock_app, mock_adapter, runner
     ):
@@ -225,9 +225,9 @@ class TestParquetCommand:
         # Should not launch TUI
         mock_app.assert_not_called()
 
-    @patch("tablesleuth.cli.TableSleuthApp")
-    @patch("tablesleuth.cli.FileDiscoveryService")
-    @patch("tablesleuth.cli.IcebergAdapter")
+    @patch("tablesleuth.cli.parquet.TableSleuthApp")
+    @patch("tablesleuth.cli.parquet.FileDiscoveryService")
+    @patch("tablesleuth.cli.parquet.IcebergAdapter")
     def test_parquet_s3_path(self, mock_adapter, mock_discovery, mock_app, runner):
         """Test inspecting S3 path directly."""
         # Mock adapter
@@ -263,7 +263,7 @@ class TestParquetCommand:
         )
         mock_app.assert_called_once()
 
-    @patch("tablesleuth.cli.IcebergAdapter")
+    @patch("tablesleuth.cli.parquet.IcebergAdapter")
     def test_parquet_table_not_found_in_configured_catalog(self, mock_adapter, runner):
         """Test that table not found in configured catalog doesn't trigger Glue fallback."""
         mock_adapter_instance = Mock()
@@ -284,10 +284,10 @@ class TestParquetCommand:
         # Should see the original error
         assert "does not exist" in result.output
 
-    @patch("tablesleuth.cli.TableSleuthApp")
+    @patch("tablesleuth.cli.parquet.TableSleuthApp")
     @patch("boto3.client")
-    @patch("tablesleuth.cli.FileDiscoveryService")
-    @patch("tablesleuth.cli.IcebergAdapter")
+    @patch("tablesleuth.cli.parquet.FileDiscoveryService")
+    @patch("tablesleuth.cli.parquet.IcebergAdapter")
     def test_parquet_catalog_missing_mixed_case(
         self, mock_adapter, mock_discovery, mock_boto3_client, mock_app, runner, tmp_path
     ):
@@ -349,7 +349,7 @@ class TestParquetCommandErrorHandling:
         test_file = tmp_path / "data.txt"
         test_file.write_text("test")
 
-        with patch("tablesleuth.cli.TableSleuthApp") as mock_app:
+        with patch("tablesleuth.cli.parquet.TableSleuthApp") as mock_app:
             mock_app_instance = Mock()
             mock_app.return_value = mock_app_instance
 
@@ -365,7 +365,7 @@ class TestParquetCommandErrorHandling:
         assert result.exit_code == 1
         assert "No Parquet files found" in result.output
 
-    @patch("tablesleuth.cli.FileDiscoveryService")
+    @patch("tablesleuth.cli.parquet.FileDiscoveryService")
     def test_parquet_discovery_error(self, mock_discovery, runner, tmp_path):
         """Test error handling when file discovery fails."""
         test_file = tmp_path / "test.parquet"
@@ -385,17 +385,17 @@ class TestParquetCommandErrorHandling:
         test_file = tmp_path / "test.parquet"
         test_file.write_text("fake")
 
-        with patch("tablesleuth.cli.TableSleuthApp") as mock_app:
+        with patch("tablesleuth.cli.parquet.TableSleuthApp") as mock_app:
             mock_app_instance = Mock()
             mock_app.return_value = mock_app_instance
 
-            with patch("tablesleuth.cli.logging.basicConfig") as mock_logging:
+            with patch("tablesleuth.cli.helpers.logging.basicConfig") as mock_logging:
                 result = runner.invoke(cli, ["parquet", "--verbose", str(test_file)])
 
                 # Verify debug logging was configured
                 mock_logging.assert_called()
 
-    @patch("tablesleuth.cli.FileDiscoveryService")
+    @patch("tablesleuth.cli.parquet.FileDiscoveryService")
     def test_parquet_file_not_found_error(self, mock_discovery, runner, tmp_path):
         """Test FileNotFoundError handling."""
         test_file = tmp_path / "test.parquet"
@@ -410,7 +410,7 @@ class TestParquetCommandErrorHandling:
         assert result.exit_code == 1
         assert "File not found" in result.output
 
-    @patch("tablesleuth.cli.FileDiscoveryService")
+    @patch("tablesleuth.cli.parquet.FileDiscoveryService")
     def test_parquet_value_error(self, mock_discovery, runner, tmp_path):
         """Test ValueError handling."""
         test_file = tmp_path / "test.parquet"
@@ -425,7 +425,7 @@ class TestParquetCommandErrorHandling:
         assert result.exit_code == 1
         assert "Invalid input" in result.output
 
-    @patch("tablesleuth.cli.FileDiscoveryService")
+    @patch("tablesleuth.cli.parquet.FileDiscoveryService")
     def test_parquet_generic_error_with_verbose(self, mock_discovery, runner, tmp_path):
         """Test generic exception handling with verbose flag."""
         test_file = tmp_path / "test.parquet"
@@ -435,7 +435,7 @@ class TestParquetCommandErrorHandling:
         mock_discovery.return_value = mock_discovery_instance
         mock_discovery_instance.discover_from_path.side_effect = RuntimeError("Unexpected error")
 
-        with patch("tablesleuth.cli.logger") as mock_logger:
+        with patch("tablesleuth.cli.parquet.logger") as mock_logger:
             result = runner.invoke(cli, ["parquet", "--verbose", str(test_file)])
 
             assert result.exit_code == 1
@@ -482,7 +482,7 @@ class TestIcebergViewerCommand:
         assert "Error" in result.output
         assert "Must provide either" in result.output
 
-    @patch("tablesleuth.cli.IcebergMetadataService")
+    @patch("tablesleuth.cli.iceberg.IcebergMetadataService")
     def test_iceberg_metadata_file_not_found(self, mock_service, runner):
         """Test iceberg command with non-existent metadata file."""
         result = runner.invoke(cli, ["iceberg", "/nonexistent/metadata.json"])
@@ -490,8 +490,8 @@ class TestIcebergViewerCommand:
         assert result.exit_code == 1
         assert "Metadata file not found" in result.output
 
-    @patch("tablesleuth.cli.IcebergMetadataService")
-    @patch("tablesleuth.cli.GizmoDuckDbProfiler")
+    @patch("tablesleuth.cli.iceberg.IcebergMetadataService")
+    @patch("tablesleuth.cli.iceberg.GizmoDuckDbProfiler")
     def test_iceberg_with_metadata_path(self, mock_profiler, mock_service, runner, tmp_path):
         """Test iceberg command with metadata path."""
         # Create temp metadata file
@@ -513,7 +513,7 @@ class TestIcebergViewerCommand:
         mock_profiler.return_value = mock_profiler_instance
 
         # Mock the app to avoid actually running TUI
-        with patch("tablesleuth.cli.IcebergView"):
+        with patch("tablesleuth.cli.iceberg.IcebergView"):
             with patch("textual.app.App.run"):
                 result = runner.invoke(cli, ["iceberg", str(metadata_file)])
 
@@ -522,8 +522,8 @@ class TestIcebergViewerCommand:
                 assert "Format version: 2" in result.output
                 mock_service_instance.load_table.assert_called_once()
 
-    @patch("tablesleuth.cli.IcebergMetadataService")
-    @patch("tablesleuth.cli.GizmoDuckDbProfiler")
+    @patch("tablesleuth.cli.iceberg.IcebergMetadataService")
+    @patch("tablesleuth.cli.iceberg.GizmoDuckDbProfiler")
     def test_iceberg_with_catalog_and_table(self, mock_profiler, mock_service, runner):
         """Test iceberg command with catalog and table identifier."""
         mock_service_instance = Mock()
@@ -538,7 +538,7 @@ class TestIcebergViewerCommand:
         mock_profiler_instance = Mock()
         mock_profiler.return_value = mock_profiler_instance
 
-        with patch("tablesleuth.cli.IcebergView"):
+        with patch("tablesleuth.cli.iceberg.IcebergView"):
             with patch("textual.app.App.run"):
                 result = runner.invoke(
                     cli,
@@ -552,8 +552,8 @@ class TestIcebergViewerCommand:
                     table_identifier="db.table",
                 )
 
-    @patch("tablesleuth.cli.IcebergMetadataService")
-    @patch("tablesleuth.cli.GizmoDuckDbProfiler")
+    @patch("tablesleuth.cli.iceberg.IcebergMetadataService")
+    @patch("tablesleuth.cli.iceberg.GizmoDuckDbProfiler")
     def test_iceberg_profiler_initialization_error(
         self, mock_profiler, mock_service, runner, tmp_path
     ):
@@ -573,7 +573,7 @@ class TestIcebergViewerCommand:
         # Profiler fails to initialize
         mock_profiler.side_effect = Exception("Connection failed")
 
-        with patch("tablesleuth.cli.IcebergView"):
+        with patch("tablesleuth.cli.iceberg.IcebergView"):
             with patch("textual.app.App.run"):
                 result = runner.invoke(cli, ["iceberg", str(metadata_file)])
 
@@ -581,7 +581,7 @@ class TestIcebergViewerCommand:
                 assert "Warning: Could not initialize profiler" in result.output
                 assert "Performance testing will be disabled" in result.output
 
-    @patch("tablesleuth.cli.IcebergMetadataService")
+    @patch("tablesleuth.cli.iceberg.IcebergMetadataService")
     def test_iceberg_table_load_error(self, mock_service, runner):
         """Test iceberg command when table loading fails."""
         mock_service_instance = Mock()
@@ -596,8 +596,8 @@ class TestIcebergViewerCommand:
         assert result.exit_code == 1
         assert "Error" in result.output
 
-    @patch("tablesleuth.cli.IcebergMetadataService")
-    @patch("tablesleuth.cli.GizmoDuckDbProfiler")
+    @patch("tablesleuth.cli.iceberg.IcebergMetadataService")
+    @patch("tablesleuth.cli.iceberg.GizmoDuckDbProfiler")
     def test_iceberg_verbose_logging(self, mock_profiler, mock_service, runner, tmp_path):
         """Test verbose flag enables debug logging."""
         metadata_file = tmp_path / "metadata.json"
@@ -615,16 +615,16 @@ class TestIcebergViewerCommand:
         mock_profiler_instance = Mock()
         mock_profiler.return_value = mock_profiler_instance
 
-        with patch("tablesleuth.cli.IcebergView"):
+        with patch("tablesleuth.cli.iceberg.IcebergView"):
             with patch("textual.app.App.run"):
-                with patch("tablesleuth.cli.logging.basicConfig") as mock_logging:
+                with patch("tablesleuth.cli.helpers.logging.basicConfig") as mock_logging:
                     result = runner.invoke(cli, ["iceberg", "--verbose", str(metadata_file)])
 
                     # Verify debug logging was configured with DEBUG level
                     calls = [call for call in mock_logging.call_args_list]
                     assert any(call[1].get("level") == logging.DEBUG for call in calls if call[1])
 
-    @patch("tablesleuth.cli.IcebergMetadataService")
+    @patch("tablesleuth.cli.iceberg.IcebergMetadataService")
     def test_iceberg_file_not_found_error(self, mock_service, runner):
         """Test FileNotFoundError handling in iceberg command."""
         mock_service_instance = Mock()
@@ -639,7 +639,7 @@ class TestIcebergViewerCommand:
         assert result.exit_code == 1
         assert "File not found" in result.output
 
-    @patch("tablesleuth.cli.IcebergMetadataService")
+    @patch("tablesleuth.cli.iceberg.IcebergMetadataService")
     def test_iceberg_value_error(self, mock_service, runner):
         """Test ValueError handling in iceberg command."""
         mock_service_instance = Mock()
@@ -654,14 +654,14 @@ class TestIcebergViewerCommand:
         assert result.exit_code == 1
         assert "Invalid input" in result.output
 
-    @patch("tablesleuth.cli.IcebergMetadataService")
+    @patch("tablesleuth.cli.iceberg.IcebergMetadataService")
     def test_iceberg_generic_error_with_verbose(self, mock_service, runner):
         """Test generic exception handling with verbose flag in iceberg command."""
         mock_service_instance = Mock()
         mock_service.return_value = mock_service_instance
         mock_service_instance.load_table.side_effect = RuntimeError("Unexpected error")
 
-        with patch("tablesleuth.cli.logger") as mock_logger:
+        with patch("tablesleuth.cli.iceberg.logger") as mock_logger:
             result = runner.invoke(
                 cli,
                 ["iceberg", "--verbose", "--catalog", "test", "--table", "db.table"],
