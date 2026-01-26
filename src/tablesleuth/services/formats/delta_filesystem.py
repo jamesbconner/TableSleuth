@@ -235,18 +235,24 @@ class DeltaLogFileSystem:
 
             return checkpoint_files
 
-    def get_checkpoint_file_size(self, checkpoint_path: str) -> int:
+    def get_checkpoint_file_size(self, checkpoint_path: str) -> int | None:
         """Get the size of a checkpoint file.
 
         Args:
             checkpoint_path: Path to checkpoint file
 
         Returns:
-            File size in bytes
+            File size in bytes, or None if file doesn't exist
         """
         if self._is_cloud:
             assert self._filesystem is not None  # Type guard for mypy
-            file_info = self._filesystem.get_file_info(checkpoint_path)
-            return file_info.size  # type: ignore[no-any-return]
+            try:
+                file_info = self._filesystem.get_file_info(checkpoint_path)
+                return file_info.size  # type: ignore[no-any-return]
+            except FileNotFoundError:
+                return None
         else:
-            return Path(checkpoint_path).stat().st_size
+            try:
+                return Path(checkpoint_path).stat().st_size
+            except FileNotFoundError:
+                return None
