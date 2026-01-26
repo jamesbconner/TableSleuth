@@ -392,7 +392,7 @@ tls_skip_verify = true
 
             with patch("pathlib.Path.cwd", return_value=tmp_path):
                 # Mock GizmoSQL connection to succeed
-                with patch("tablesleuth.cli.GizmoDuckDbProfiler") as mock_profiler:
+                with patch("tablesleuth.cli.config_check.GizmoDuckDbProfiler") as mock_profiler:
                     mock_cursor = Mock()
                     mock_cursor.execute.return_value = None
                     mock_cursor.fetchone.return_value = (1,)
@@ -433,7 +433,7 @@ tls_skip_verify = true
 
             with patch("pathlib.Path.cwd", return_value=tmp_path):
                 # Mock GizmoSQL connection to fail
-                with patch("tablesleuth.cli.GizmoDuckDbProfiler") as mock_profiler:
+                with patch("tablesleuth.cli.config_check.GizmoDuckDbProfiler") as mock_profiler:
                     mock_profiler.return_value._connect.side_effect = Exception(
                         "Connection refused"
                     )

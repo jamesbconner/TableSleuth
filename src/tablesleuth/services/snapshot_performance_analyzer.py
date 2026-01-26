@@ -15,14 +15,41 @@ logger = logging.getLogger(__name__)
 
 
 class SnapshotPerformanceAnalyzer:
-    """Analyzes query performance across snapshots."""
+    """Analyzes query performance across snapshots.
+
+    This class requires a profiling backend that implements the
+    execute_query_with_metrics method for collecting performance metrics.
+    """
 
     def __init__(self, profiler: ProfilingBackend):
         """Initialize with a profiling backend.
 
         Args:
-            profiler: ProfilingBackend instance (typically GizmoDuckDbProfiler)
+            profiler: ProfilingBackend instance that implements execute_query_with_metrics
+
+        Raises:
+            ValueError: If profiler doesn't support required methods
+
+        Examples:
+            >>> from tablesleuth.services.profiling.gizmo_duckdb import GizmoDuckDbProfiler
+            >>> profiler = GizmoDuckDbProfiler(uri="grpc://localhost:31337")
+            >>> analyzer = SnapshotPerformanceAnalyzer(profiler)
         """
+        # Validate that profiler implements required interface
+        if not hasattr(profiler, "execute_query_with_metrics"):
+            raise ValueError(
+                f"Profiler {type(profiler).__name__} must implement "
+                "execute_query_with_metrics method. "
+                "Please use a profiler that supports performance metrics collection."
+            )
+
+        # Verify the method is callable
+        if not callable(getattr(profiler, "execute_query_with_metrics", None)):
+            raise ValueError(
+                f"Profiler {type(profiler).__name__}.execute_query_with_metrics "
+                "must be a callable method."
+            )
+
         self._profiler = profiler
 
     def run_query_test(
@@ -41,74 +68,25 @@ class SnapshotPerformanceAnalyzer:
 
         Raises:
             RuntimeError: If query execution fails
+
+        Examples:
+            >>> metrics = analyzer.run_query_test(
+            ...     "my_snapshot_table",
+            ...     "SELECT COUNT(*) FROM {table}"
+            ... )
+            >>> print(f"Execution time: {metrics.execution_time_ms}ms")
         """
         try:
             # Substitute table name if query contains placeholder
             query = query.replace("{table}", table_name)
 
             # Execute query with metrics collection
-            # Note: This assumes the profiler has execute_query_with_metrics method
-            if hasattr(self._profiler, "execute_query_with_metrics"):
-                _, metrics = self._profiler.execute_query_with_metrics(query)
-                return metrics  # type: ignore[no-any-return]
-            else:
-                # Fallback: execute query and create basic metrics
-                import time
-
-                start_time = time.time()
-                # Execute query (method depends on profiler implementation)
-                # This is a simplified version
-                execution_time_ms = (time.time() - start_time) * 1000
-
-                return QueryPerformanceMetrics(
-                    execution_time_ms=execution_time_ms,
-                    files_scanned=0,
-                    bytes_scanned=0,
-                    rows_scanned=0,
-                    rows_returned=0,
-                    memory_peak_mb=0.0,
-                )
+            _, metrics = self._profiler.execute_query_with_metrics(query)
+            return metrics  # type: ignore[no-any-return]
 
         except Exception as e:
             logger.error(f"Query test failed for {table_name}: {e}")
             raise RuntimeError(f"Query test failed: {e}") from e
-
-    def _run_query_direct(self, query: str) -> QueryPerformanceMetrics:
-        """Run a query directly without placeholder substitution.
-
-        Args:
-            query: SQL query to execute (already substituted)
-
-        Returns:
-            QueryPerformanceMetrics object
-
-        Raises:
-            RuntimeError: If query execution fails
-        """
-        try:
-            # Execute query with metrics collection
-            if hasattr(self._profiler, "execute_query_with_metrics"):
-                _, metrics = self._profiler.execute_query_with_metrics(query)
-                return metrics  # type: ignore[no-any-return]
-            else:
-                # Fallback: execute query and create basic metrics
-                import time
-
-                start_time = time.time()
-                execution_time_ms = (time.time() - start_time) * 1000
-
-                return QueryPerformanceMetrics(
-                    execution_time_ms=execution_time_ms,
-                    files_scanned=0,
-                    bytes_scanned=0,
-                    rows_scanned=0,
-                    rows_returned=0,
-                    memory_peak_mb=0.0,
-                )
-
-        except Exception as e:
-            logger.error(f"Query execution failed: {e}")
-            raise RuntimeError(f"Query execution failed: {e}") from e
 
     def compare_query_performance(
         self,
@@ -132,17 +110,23 @@ class SnapshotPerformanceAnalyzer:
 
         Raises:
             RuntimeError: If query execution fails
-        """
-        # Substitute table names in query template
-        query_a = query_template.replace("{table}", table_a)
-        query_b = query_template.replace("{table}", table_b)
 
-        # Run queries and collect metrics (pass None for table_name to skip double substitution)
+        Examples:
+            >>> comparison = analyzer.compare_query_performance(
+            ...     "snapshot_v1",
+            ...     "snapshot_v2",
+            ...     "SELECT COUNT(*) FROM {table}",
+            ...     snapshot_a_info=info_v1,
+            ...     snapshot_b_info=info_v2
+            ... )
+            >>> print(comparison.analysis)
+        """
+        # Run queries and collect metrics
         logger.debug(f"Running performance test on {table_a}")
-        metrics_a = self._run_query_direct(query_a)
+        metrics_a = self.run_query_test(table_a, query_template)
 
         logger.debug(f"Running performance test on {table_b}")
-        metrics_b = self._run_query_direct(query_b)
+        metrics_b = self.run_query_test(table_b, query_template)
 
         # Create comparison with full snapshot info
         return PerformanceComparison(
@@ -167,6 +151,12 @@ class SnapshotPerformanceAnalyzer:
 
         Returns:
             Dictionary mapping template name to query string
+
+        Examples:
+            >>> queries = analyzer.get_predefined_queries()
+            >>> full_scan_query = queries["full_scan"]
+            >>> print(full_scan_query)
+            SELECT COUNT(*) FROM {table}
         """
         return {
             "full_scan": "SELECT COUNT(*) FROM {table}",

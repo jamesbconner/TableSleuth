@@ -18,9 +18,9 @@ class TestGlueHiveIntegration:
         """Create CLI test runner."""
         return CliRunner()
 
-    @patch("tablesleuth.cli.TableSleuthApp")
+    @patch("tablesleuth.cli.parquet.TableSleuthApp")
     @patch("boto3.client")
-    @patch("tablesleuth.cli.IcebergAdapter")
+    @patch("tablesleuth.cli.parquet.IcebergAdapter")
     def test_glue_hive_table_success(
         self, mock_adapter, mock_boto3_client, mock_app, runner, tmp_path
     ):
@@ -60,9 +60,9 @@ class TestGlueHiveIntegration:
         assert "Found 1 Parquet files in Glue Hive table" in result.output
         mock_app.assert_called_once()
 
-    @patch("tablesleuth.cli.TableSleuthApp")
+    @patch("tablesleuth.cli.parquet.TableSleuthApp")
     @patch("boto3.client")
-    @patch("tablesleuth.cli.IcebergAdapter")
+    @patch("tablesleuth.cli.parquet.IcebergAdapter")
     def test_glue_iceberg_table_detection(self, mock_adapter, mock_boto3_client, mock_app, runner):
         """Test that Iceberg tables in Glue are detected and provide helpful error."""
         # Mock Iceberg adapter to fail (catalog not found)
@@ -90,9 +90,9 @@ class TestGlueHiveIntegration:
         assert "Iceberg table" in result.output
         assert ".pyiceberg.yaml" in result.output
 
-    @patch("tablesleuth.cli.TableSleuthApp")
+    @patch("tablesleuth.cli.parquet.TableSleuthApp")
     @patch("boto3.client")
-    @patch("tablesleuth.cli.IcebergAdapter")
+    @patch("tablesleuth.cli.parquet.IcebergAdapter")
     def test_glue_table_not_found(self, mock_adapter, mock_boto3_client, mock_app, runner):
         """Test error handling when Glue table not found."""
         from botocore.exceptions import ClientError
@@ -122,8 +122,8 @@ class TestGlueHiveIntegration:
         assert "Suggestions:" in result.output
         assert "--region flag" in result.output
 
-    @patch("tablesleuth.cli.TableSleuthApp")
-    @patch("tablesleuth.cli.IcebergAdapter")
+    @patch("tablesleuth.cli.parquet.TableSleuthApp")
+    @patch("tablesleuth.cli.parquet.IcebergAdapter")
     def test_region_flag_usage(self, mock_adapter, mock_app, runner, tmp_path, monkeypatch):
         """Test that --region flag is properly used."""
         # Set different env var to ensure flag takes precedence

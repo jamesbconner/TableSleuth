@@ -30,6 +30,23 @@ class TestSnapshotPerformanceAnalyzer:
         analyzer = SnapshotPerformanceAnalyzer(mock_profiler)
         assert analyzer._profiler == mock_profiler
 
+    def test_init_validates_profiler_interface(self):
+        """Test that initialization validates profiler has required methods."""
+        # Create profiler without execute_query_with_metrics
+        invalid_profiler = Mock(spec=[])
+
+        with pytest.raises(ValueError, match="must implement execute_query_with_metrics"):
+            SnapshotPerformanceAnalyzer(invalid_profiler)
+
+    def test_init_validates_method_is_callable(self):
+        """Test that initialization validates method is callable."""
+        # Create profiler with non-callable attribute
+        invalid_profiler = Mock()
+        invalid_profiler.execute_query_with_metrics = "not_callable"
+
+        with pytest.raises(ValueError, match="must be a callable method"):
+            SnapshotPerformanceAnalyzer(invalid_profiler)
+
     def test_run_query_test_with_placeholder(self, analyzer, mock_profiler):
         """Test running query with table placeholder."""
         # Setup mock
@@ -73,20 +90,6 @@ class TestSnapshotPerformanceAnalyzer:
         )
 
         assert result == expected_metrics
-
-    def test_run_query_test_fallback_without_metrics_method(self, mock_profiler):
-        """Test fallback when profiler doesn't have execute_query_with_metrics."""
-        # Remove the method
-        del mock_profiler.execute_query_with_metrics
-
-        analyzer = SnapshotPerformanceAnalyzer(mock_profiler)
-        result = analyzer.run_query_test("test_table", "SELECT * FROM {table}")
-
-        # Should return basic metrics
-        assert isinstance(result, QueryPerformanceMetrics)
-        assert result.execution_time_ms >= 0
-        assert result.files_scanned == 0
-        assert result.bytes_scanned == 0
 
     def test_run_query_test_error_handling(self, analyzer, mock_profiler):
         """Test error handling when query fails."""
@@ -140,7 +143,7 @@ class TestSnapshotPerformanceAnalyzer:
         """Test error handling when first query fails."""
         mock_profiler.execute_query_with_metrics.side_effect = Exception("Query failed")
 
-        with pytest.raises(RuntimeError, match="Query execution failed"):
+        with pytest.raises(RuntimeError, match="Query test failed"):
             analyzer.compare_query_performance("table_a", "table_b", "SELECT * FROM {table}")
 
     def test_compare_query_performance_error_on_second_query(self, analyzer, mock_profiler):
@@ -159,7 +162,7 @@ class TestSnapshotPerformanceAnalyzer:
             Exception("Second query failed"),
         ]
 
-        with pytest.raises(RuntimeError, match="Query execution failed"):
+        with pytest.raises(RuntimeError, match="Query test failed"):
             analyzer.compare_query_performance("table_a", "table_b", "SELECT * FROM {table}")
 
     def test_get_predefined_queries(self, analyzer):
@@ -196,32 +199,3 @@ class TestSnapshotPerformanceAnalyzer:
 
         assert "SELECT * FROM {table}" in query
         assert "LIMIT" in query
-
-    def test_run_query_direct(self, analyzer, mock_profiler):
-        """Test _run_query_direct method."""
-        expected_metrics = QueryPerformanceMetrics(
-            execution_time_ms=75.0,
-            files_scanned=3,
-            bytes_scanned=768,
-            rows_scanned=750,
-            rows_returned=75,
-            memory_peak_mb=7.5,
-        )
-        mock_profiler.execute_query_with_metrics.return_value = (None, expected_metrics)
-
-        result = analyzer._run_query_direct("SELECT * FROM actual_table")
-
-        assert result == expected_metrics
-        mock_profiler.execute_query_with_metrics.assert_called_once_with(
-            "SELECT * FROM actual_table"
-        )
-
-    def test_run_query_direct_fallback(self, mock_profiler):
-        """Test _run_query_direct fallback without metrics method."""
-        del mock_profiler.execute_query_with_metrics
-
-        analyzer = SnapshotPerformanceAnalyzer(mock_profiler)
-        result = analyzer._run_query_direct("SELECT * FROM table")
-
-        assert isinstance(result, QueryPerformanceMetrics)
-        assert result.execution_time_ms >= 0

@@ -1,6 +1,6 @@
 # Table Sleuth Developer Guide
 
-**Version**: 0.4.2
+**Version**: 0.5.3
 
 ## Overview
 
@@ -44,8 +44,10 @@ Table Sleuth follows a layered architecture with clear separation of concerns:
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    CLI Layer                                │
+│  - Modular structure with auto-loading (v0.5.3+)           │
 │  - parquet: Parquet file analysis                           │
 │  - iceberg: Snapshot analysis and comparison                │
+│  - delta: Delta Lake forensics and optimization             │
 └─────────────────────────────────────────────────────────────┘
                             │
                             ▼
@@ -62,6 +64,9 @@ Table Sleuth follows a layered architecture with clear separation of concerns:
 │  - ParquetService: Metadata extraction                      │
 │  - FileDiscoveryService: File and table discovery           │
 │  - FilesystemService: S3/local abstraction                  │
+│  - DeltaAdapter: Delta table management (v0.5.0+)           │
+│  - DeltaForensics: Delta analysis (v0.5.0+)                 │
+│  - DeltaLogFileSystem: Unified FS API (v0.5.3+)             │
 │  - IcebergAdapter: Catalog and table management             │
 │  - IcebergMetadataService: Snapshot loading                 │
 │  - MORService: Merge-on-read analysis                       │
@@ -170,9 +175,17 @@ async def on_file_selected(self, file_ref: FileRef) -> None:
 tablesleuth/
 ├── src/tablesleuth/
 │   ├── __init__.py
-│   ├── cli.py                          # CLI entry point (parquet, iceberg commands)
 │   ├── config.py                       # Configuration loading and validation
 │   ├── exceptions.py                   # Custom exceptions
+│   │
+│   ├── cli/                            # CLI commands (v0.5.3+)
+│   │   ├── __init__.py                 # Entry point with auto-loader
+│   │   ├── helpers.py                  # Shared utilities
+│   │   ├── init.py                     # Init command
+│   │   ├── config_check.py             # Config validation
+│   │   ├── parquet.py                  # Parquet inspection
+│   │   ├── iceberg.py                  # Iceberg analysis
+│   │   └── delta.py                    # Delta Lake inspection
 │   │
 │   ├── models/                         # Data models and types
 │   │   ├── __init__.py
@@ -189,6 +202,7 @@ tablesleuth/
 │   │   ├── parquet_service.py          # Parquet inspection service
 │   │   ├── file_discovery.py           # File discovery service
 │   │   ├── filesystem.py               # S3/local filesystem abstraction
+│   │   ├── delta_forensics.py          # Delta Lake forensics (v0.5.0+)
 │   │   ├── iceberg_metadata_service.py # Iceberg metadata loading
 │   │   ├── mor_service.py              # Merge-on-read analysis
 │   │   ├── snapshot_test_manager.py    # Snapshot registration for testing
@@ -196,11 +210,17 @@ tablesleuth/
 │   │   │
 │   │   ├── profiling/                  # Profiling backends
 │   │   │   ├── __init__.py
-│   │   │   ├── backend.py              # ProfilingBackend protocol
+│   │   │   ├── backend_base.py         # ProfilingBackend protocol
+│   │   │   ├── fake_backend.py         # Testing backend
 │   │   │   └── gizmo_duckdb.py         # GizmoSQL/DuckDB implementation
 │   │   │
 │   │   └── formats/                    # Table format adapters
 │   │       ├── __init__.py
+│   │       ├── base.py                 # Base adapter protocol
+│   │       ├── delta.py                # Delta adapter (v0.5.0+)
+│   │       ├── delta_filesystem.py     # Delta filesystem abstraction (v0.5.3+)
+│   │       ├── delta_log_parser.py     # Delta log parser (v0.5.0+)
+│   │       ├── delta_utils.py          # Delta utilities (v0.5.0+)
 │   │       └── iceberg.py              # Iceberg adapter (SQL, Glue, S3 Tables)
 │   │
 │   ├── tui/                            # Terminal UI layer
@@ -216,6 +236,7 @@ tablesleuth/
 │   │   │   ├── column_stats_view.py    # Column statistics
 │   │   │   ├── data_sample_view.py     # Data preview
 │   │   │   ├── profile_view.py         # Profiling results
+│   │   │   ├── delta_view.py           # Delta table view (v0.5.0+)
 │   │   │   ├── iceberg_view.py         # Iceberg snapshot browser
 │   │   │   ├── snapshot_detail_view.py # Snapshot details
 │   │   │   ├── snapshot_comparison_view.py  # Snapshot comparison
