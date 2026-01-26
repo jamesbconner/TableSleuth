@@ -8,7 +8,7 @@ import pytest
 from click.testing import CliRunner
 
 from tablesleuth.cli import main as cli
-from tablesleuth.cli import parquet
+from tablesleuth.cli.parquet import parquet
 from tablesleuth.models.file_ref import FileRef
 
 

@@ -407,17 +407,3 @@ class ParquetInspector:
             total_compressed_size=total_compressed_size,
             total_uncompressed_size=total_uncompressed_size,
         )
-
-
-# Backward compatibility function
-def inspect_parquet_file(path: str) -> ParquetFileInfo:
-    """Legacy function for backward compatibility.
-
-    Args:
-        path: Path to Parquet file
-
-    Returns:
-        ParquetFileInfo object
-    """
-    inspector = ParquetInspector()
-    return inspector.inspect_file(path)

@@ -9,17 +9,21 @@ from unittest.mock import MagicMock, patch
 import pytest
 from click.testing import CliRunner
 
-from tablesleuth.cli import (
-    _is_catalog_error,
-    _is_gizmosql_error,
-    _suggest_init_on_config_error,
-    config_check,
-    delta,
-    iceberg_viewer,
-    init_config,
-    main,
-    parquet,
+from tablesleuth.cli import main
+from tablesleuth.cli.config_check import config_check
+from tablesleuth.cli.delta import delta
+from tablesleuth.cli.helpers import (
+    is_catalog_error as _is_catalog_error,
 )
+from tablesleuth.cli.helpers import (
+    is_gizmosql_error as _is_gizmosql_error,
+)
+from tablesleuth.cli.helpers import (
+    suggest_init_on_config_error as _suggest_init_on_config_error,
+)
+from tablesleuth.cli.iceberg import iceberg as iceberg_viewer
+from tablesleuth.cli.init import init as init_config
+from tablesleuth.cli.parquet import parquet
 
 
 @pytest.fixture

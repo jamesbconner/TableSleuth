@@ -112,6 +112,7 @@ def delta(
     # Load configuration (optional for Delta tables)
     try:
         from tablesleuth.config import load_config
+
         config = load_config()
     except FileNotFoundError as e:
         click.echo(f"Warning: {e}", err=True)

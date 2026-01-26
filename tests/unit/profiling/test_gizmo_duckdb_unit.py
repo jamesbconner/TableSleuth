@@ -295,24 +295,6 @@ class TestRegisterIcebergTable:
             profiler.register_iceberg_table("db.table", "")
 
 
-class TestRegisterCatalog:
-    """Tests for register_catalog method (deprecated)."""
-
-    @pytest.fixture
-    def profiler(self):
-        """Create profiler instance."""
-        return GizmoDuckDbProfiler(
-            uri="grpc://localhost:31337",
-            username="test",
-            password="test",
-        )
-
-    def test_register_catalog_raises_error(self, profiler):
-        """Test register_catalog raises deprecation error."""
-        with pytest.raises(RuntimeError, match="register_catalog\\(\\) is deprecated"):
-            profiler.register_catalog("/path/to/catalog.db", "test_catalog")
-
-
 class TestReplaceIcebergTables:
     """Tests for _replace_iceberg_tables method."""
 

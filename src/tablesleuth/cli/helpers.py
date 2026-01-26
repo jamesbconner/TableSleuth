@@ -11,15 +11,14 @@ import sys
 
 import click
 
-from tablesleuth.config import load_config
-from tablesleuth.config import AppConfig
+from tablesleuth.config import AppConfig, load_config
 
 logger = logging.getLogger(__name__)
 
 
 def configure_logging(verbose: bool) -> None:
     """Configure logging based on verbosity flag.
-    
+
     Args:
         verbose: If True, set DEBUG level; otherwise INFO level
     """
@@ -27,7 +26,7 @@ def configure_logging(verbose: bool) -> None:
         logging.basicConfig(level=logging.DEBUG)
     else:
         logging.basicConfig(level=logging.INFO)
-    
+
     # Suppress noisy AWS SDK logs
     logging.getLogger("botocore").setLevel(logging.WARNING)
     logging.getLogger("boto3").setLevel(logging.WARNING)
@@ -36,10 +35,10 @@ def configure_logging(verbose: bool) -> None:
 
 def load_config_or_exit() -> AppConfig:
     """Load configuration with consistent error handling.
-    
+
     Returns:
         AppConfig instance
-        
+
     Exits:
         Exits with code 1 if TABLESLEUTH_CONFIG points to non-existent file
     """
@@ -59,10 +58,10 @@ def load_config_or_exit() -> AppConfig:
 
 def suggest_init_on_config_error(error_msg: str) -> str:
     """Add helpful suggestion to run init command for config-related errors.
-    
+
     Args:
         error_msg: Original error message
-        
+
     Returns:
         Enhanced error message with init suggestion
     """
@@ -77,10 +76,10 @@ def suggest_init_on_config_error(error_msg: str) -> str:
 
 def is_catalog_error(exception: Exception) -> bool:
     """Check if exception is related to catalog configuration.
-    
+
     Args:
         exception: Exception to check
-        
+
     Returns:
         True if error is catalog-related
     """
@@ -98,10 +97,10 @@ def is_catalog_error(exception: Exception) -> bool:
 
 def is_gizmosql_error(exception: Exception) -> bool:
     """Check if exception is related to GizmoSQL connection.
-    
+
     Args:
         exception: Exception to check
-        
+
     Returns:
         True if error is GizmoSQL-related
     """

@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 import pytest
 from click.testing import CliRunner
 
-from tablesleuth.cli import parquet
+from tablesleuth.cli.parquet import parquet
 
 
 class TestGlueHiveIntegration:

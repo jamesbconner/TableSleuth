@@ -8,7 +8,8 @@ from unittest.mock import Mock, patch
 import pytest
 from click.testing import CliRunner
 
-from tablesleuth.cli import config_check, init_config
+from tablesleuth.cli.config_check import config_check
+from tablesleuth.cli.init import init as init_config
 
 
 @pytest.fixture
@@ -305,7 +306,7 @@ class TestCLIConfigErrorHandling:
         self, cli_runner: CliRunner, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Test parquet command handles invalid TABLESLEUTH_CONFIG gracefully."""
-        from tablesleuth.cli import parquet
+        from tablesleuth.cli.parquet import parquet
 
         # Set TABLESLEUTH_CONFIG to non-existent file
         monkeypatch.setenv("TABLESLEUTH_CONFIG", "/nonexistent/config.toml")
@@ -322,7 +323,7 @@ class TestCLIConfigErrorHandling:
         self, cli_runner: CliRunner, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Test iceberg command handles invalid TABLESLEUTH_CONFIG gracefully."""
-        from tablesleuth.cli import iceberg_viewer
+        from tablesleuth.cli.iceberg import iceberg as iceberg_viewer
 
         # Set TABLESLEUTH_CONFIG to non-existent file
         monkeypatch.setenv("TABLESLEUTH_CONFIG", "/nonexistent/config.toml")

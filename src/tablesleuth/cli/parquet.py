@@ -154,13 +154,13 @@ def _handle_s3_tables_arn(
     region: str | None,
 ) -> tuple[list[FileRef], TableHandle]:
     """Handle S3 Tables ARN path.
-    
+
     Args:
         path: S3 Tables ARN
         catalog_name: Optional catalog name
         adapter: IcebergAdapter instance
         region: Optional AWS region
-        
+
     Returns:
         Tuple of (files, table_handle)
     """
@@ -171,7 +171,7 @@ def _handle_s3_tables_arn(
 
     # Discover files from table
     discovery = FileDiscoveryService(iceberg_adapter=adapter, region=region)
-    
+
     # Extract table identifier from ARN for discovery
     arn_info = adapter._parse_s3_tables_arn(path, catalog_name)
     if arn_info:
@@ -192,13 +192,13 @@ def _handle_catalog_table(
     region: str | None,
 ) -> tuple[list[FileRef], TableHandle]:
     """Handle catalog table identifier.
-    
+
     Args:
         path: Table identifier
         catalog_name: Catalog name
         adapter: IcebergAdapter instance
         region: Optional AWS region
-        
+
     Returns:
         Tuple of (files, table_handle)
     """
@@ -243,22 +243,20 @@ def _try_glue_fallback(
     iceberg_error: Exception,
 ) -> tuple[list[FileRef], TableHandle]:
     """Try Glue Hive table as fallback.
-    
+
     Args:
         path: Table identifier
         catalog_name: Catalog/database name
         discovery: FileDiscoveryService instance
         iceberg_error: Original Iceberg error
-        
+
     Returns:
         Tuple of (files, table_handle)
-        
+
     Raises:
         SystemExit: If both Iceberg and Glue attempts fail
     """
-    click.echo(
-        f"Catalog '{catalog_name}' not in .pyiceberg.yaml, trying Glue database..."
-    )
+    click.echo(f"Catalog '{catalog_name}' not in .pyiceberg.yaml, trying Glue database...")
 
     try:
         files = discovery.discover_from_glue_database(catalog_name, path)
@@ -297,11 +295,11 @@ def _handle_file_or_directory(
     region: str | None,
 ) -> tuple[list[FileRef], TableHandle]:
     """Handle file or directory path.
-    
+
     Args:
         path: File or directory path (local or S3)
         region: Optional AWS region
-        
+
     Returns:
         Tuple of (files, table_handle)
     """
