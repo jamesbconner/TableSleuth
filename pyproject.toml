@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tablesleuth"
-version = "0.5.3"
+version = "0.6.0"
 description = "TableSleuth - a Textual TUI for Open Table Format forensics (Iceberg, Delta Lake) with data profiling."
 readme = "README.md"
 requires-python = ">=3.13,<3.15"
@@ -77,8 +77,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+web = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "python-multipart>=0.0.12",
+]
+
 dev = [
     "pytest>=8.4.2,<9.0.0",
+    "httpx>=0.27.0",
     "pytest-asyncio>=0.26.0,<1.0.0",
     "pytest-cov>=6.0.0,<7.0.0",
     "hypothesis>=6.100.0,<7.0.0",
@@ -107,8 +114,8 @@ Changelog = "https://github.com/jamesbconner/TableSleuth/blob/main/CHANGELOG.md"
 [tool.hatch.build.targets.wheel]
 packages = ["src/tablesleuth"]
 
-# Hatchling configuration for src layout
-# Removed to let hatchling auto determine the package in src
+[tool.hatch.build.targets.wheel.force-include]
+"src/tablesleuth/web" = "tablesleuth/web"
 
 # -----------------------
 # Ruff configuration
@@ -188,6 +195,8 @@ module = [
     "pyarrow.*",
     "fsspec.*",
     "s3fs.*",
+    "fastapi.*",
+    "uvicorn.*",
 ]
 ignore_missing_imports = true
 

@@ -1,4 +1,4 @@
-.PHONY: help install install-dev sync clean test test-cov lint format type-check security pre-commit check build run zip
+.PHONY: help install install-dev sync clean test test-cov lint format type-check security pre-commit check build run zip dev-api dev-web build-web build-release start-web
 
 # Default target
 help:
@@ -20,6 +20,13 @@ help:
 	@echo ""
 	@echo "Quality (runs all checks):"
 	@echo "  make check            Run all quality checks"
+	@echo ""
+	@echo "Web UI Development:"
+	@echo "  make dev-api          Start FastAPI dev server (localhost:8000, hot-reload)"
+	@echo "  make dev-web          Start Next.js dev server (localhost:3000)"
+	@echo "  make build-web        Build Next.js static export"
+	@echo "  make build-release    Build frontend and bundle into Python package"
+	@echo "  make start-web        Build release and launch web UI"
 	@echo ""
 	@echo "Build & Run:"
 	@echo "  make build            Build distribution packages"
@@ -83,6 +90,23 @@ zip:
 	git archive --format=zip --prefix=tablesleuth/ -o $$ARCHIVE_NAME HEAD; \
 	echo "Created $$ARCHIVE_NAME (excludes .gitignore patterns)"
 
+# Web UI development
+dev-api:
+	uv run uvicorn tablesleuth.api.main:app --host localhost --port 8000 --reload
+
+dev-web:
+	cd web-ui && npm run dev
+
+build-web:
+	cd web-ui && npm run build
+
+build-release: build-web
+	rm -rf src/tablesleuth/web
+	cp -r web-ui/out src/tablesleuth/web
+
+start-web: build-release
+	uv run tablesleuth web
+
 # Cleanup
 clean:
 	rm -rf build/
@@ -94,5 +118,8 @@ clean:
 	rm -rf htmlcov/
 	rm -rf .coverage
 	rm -rf *.zip
+	rm -rf src/tablesleuth/web
+	rm -rf web-ui/out
+	rm -rf web-ui/.next
 	find . -type f -name "*.pyc" -delete
 	find . -type d -name __pycache__ -delete
