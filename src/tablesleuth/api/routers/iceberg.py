@@ -23,10 +23,13 @@ def _to_dict(obj: Any) -> Any:
     """Recursively convert dataclasses and nested objects to serializable dicts."""
     if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
         d = {}
-        for k, v in dataclasses.asdict(obj).items():
-            if k == "native_table":
+        for field in dataclasses.fields(obj):
+            if field.name == "native_table":
                 continue  # Skip non-serializable pyiceberg Table object
-            d[k] = _to_dict(v)
+            # Use getattr rather than dataclasses.asdict() — asdict() deep-copies
+            # all fields before we can skip native_table, causing a pickle error
+            # on the PyIceberg Table object which contains module references.
+            d[field.name] = _to_dict(getattr(obj, field.name))
         return d
     if isinstance(obj, list):
         return [_to_dict(i) for i in obj]

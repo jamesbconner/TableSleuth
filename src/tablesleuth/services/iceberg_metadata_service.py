@@ -66,7 +66,20 @@ class IcebergMetadataService:
                     raise TableLoadError(f"Metadata file not found: {metadata_path}")
 
                 try:
-                    table: Table = StaticTable.from_metadata(metadata_path)
+                    # PyIceberg parses the path as a URI. On Windows, a drive
+                    # letter like "D:" is mistaken for a URI scheme, causing
+                    # "Unrecognized filesystem type in URI: d". Convert any
+                    # absolute local path to a file:// URI first.
+                    path_obj = Path(metadata_path)
+                    if not path_obj.is_absolute():
+                        path_obj = path_obj.resolve()
+                    if not metadata_path.startswith(
+                        ("s3://", "gs://", "abfs://", "file://", "hdfs://")
+                    ):
+                        metadata_uri = path_obj.as_uri()
+                    else:
+                        metadata_uri = metadata_path
+                    table: Table = StaticTable.from_metadata(metadata_uri)
                     location = metadata_path
                 except Exception as e:
                     logger.exception(f"Failed to load table from metadata file: {metadata_path}")
