@@ -5,8 +5,8 @@ import type { IcebergSnapshotInfo } from "@/lib/types";
 
 interface SnapshotListProps {
   snapshots: IcebergSnapshotInfo[];
-  selectedId: number | null;
-  onSelect: (id: number) => void;
+  selectedId: string | null;
+  onSelect: (id: string) => void;
 }
 
 function operationBadge(op: string) {

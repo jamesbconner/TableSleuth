@@ -103,13 +103,13 @@ export const iceberg = {
       ref
     ),
 
-  snapshotDetails: (snapshot_id: number, ref: IcebergRef) =>
+  snapshotDetails: (snapshot_id: string, ref: IcebergRef) =>
     post<IcebergSnapshotDetails>(`/iceberg/snapshot/${snapshot_id}`, ref),
 
   compare: (
     ref: IcebergRef,
-    snapshot_a_id: number,
-    snapshot_b_id: number
+    snapshot_a_id: string,
+    snapshot_b_id: string
   ) =>
     post<SnapshotComparison>("/iceberg/compare", {
       ...ref,

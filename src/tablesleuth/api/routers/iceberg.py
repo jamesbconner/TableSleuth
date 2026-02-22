@@ -19,8 +19,16 @@ router = APIRouter(prefix="/iceberg", tags=["iceberg"])
 _service = IcebergMetadataService()
 
 
+_JS_MAX_SAFE_INT = (1 << 53) - 1  # 9007199254740991
+
+
 def _to_dict(obj: Any) -> Any:
-    """Recursively convert dataclasses and nested objects to serializable dicts."""
+    """Recursively convert dataclasses and nested objects to serializable dicts.
+
+    Integers that exceed JavaScript's MAX_SAFE_INTEGER (2^53 - 1) are serialized
+    as strings to prevent silent precision loss when parsed by the browser.
+    Iceberg snapshot IDs are Java long (int64) and routinely exceed this limit.
+    """
     if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
         d = {}
         for field in dataclasses.fields(obj):
@@ -35,6 +43,11 @@ def _to_dict(obj: Any) -> Any:
         return [_to_dict(i) for i in obj]
     if isinstance(obj, dict):
         return {k: _to_dict(v) for k, v in obj.items()}
+    # Serialize integers that exceed JS MAX_SAFE_INTEGER as strings to avoid
+    # silent float64 rounding in the browser (Iceberg snapshot IDs are int64).
+    if isinstance(obj, int) and not isinstance(obj, bool):
+        if obj > _JS_MAX_SAFE_INT or obj < -_JS_MAX_SAFE_INT:
+            return str(obj)
     return obj
 
 
@@ -52,8 +65,10 @@ class CompareRequest(BaseModel):
     metadata_path: str | None = None
     catalog_name: str | None = None
     table_identifier: str | None = None
-    snapshot_a_id: int
-    snapshot_b_id: int
+    # Accept str or int — the frontend sends strings for int64 IDs to avoid
+    # JavaScript float64 precision loss.
+    snapshot_a_id: str | int
+    snapshot_b_id: str | int
 
 
 @router.post("/load")
@@ -155,7 +170,7 @@ def compare_snapshots(req: CompareRequest) -> dict[str, Any]:
             catalog_name=req.catalog_name,
             table_identifier=req.table_identifier,
         )
-        comparison = _service.compare_snapshots(table, req.snapshot_a_id, req.snapshot_b_id)
+        comparison = _service.compare_snapshots(table, int(req.snapshot_a_id), int(req.snapshot_b_id))
         return _to_dict(comparison)
     except SnapshotNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

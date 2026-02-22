@@ -17,7 +17,7 @@ export default function IcebergPage() {
   const [tableRef, setTableRef] = useState<TableRef | null>(null);
   const [tableInfo, setTableInfo] = useState<IcebergTableInfo | null>(null);
   const [snapshots, setSnapshots] = useState<IcebergSnapshotInfo[]>([]);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [details, setDetails] = useState<IcebergSnapshotDetails | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingDetails, setLoadingDetails] = useState(false);
@@ -44,7 +44,7 @@ export default function IcebergPage() {
     }
   };
 
-  const handleSelectSnapshot = async (id: number) => {
+  const handleSelectSnapshot = async (id: string) => {
     if (!tableRef) return;
     setSelectedId(id);
     setDetails(null);

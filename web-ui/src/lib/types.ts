@@ -88,13 +88,15 @@ export interface IcebergTableInfo {
   format_version: number;
   table_uuid: string;
   location: string;
-  current_snapshot_id: number | null;
+  // Serialized as string by the API to avoid JS float64 precision loss (int64 > 2^53).
+  current_snapshot_id: string | null;
   properties: Record<string, string>;
 }
 
 export interface IcebergSnapshotInfo {
-  snapshot_id: number;
-  parent_snapshot_id: number | null;
+  // Serialized as strings by the API to avoid JS float64 precision loss (int64 > 2^53).
+  snapshot_id: string;
+  parent_snapshot_id: string | null;
   timestamp_ms: number;
   operation: string;
   summary: Record<string, string>;
