@@ -131,18 +131,11 @@ _web_dir = _resolve_web_dir()
 
 if _web_dir:
     logger.info("Serving web UI from: %s", _web_dir)
-
-    # SPA fallback: serve index.html for any unmatched route
-    @app.get("/{full_path:path}", include_in_schema=False)
-    async def spa_fallback(full_path: str, request: Request) -> Any:
-        """Serve index.html for any path not matched by API routes."""
-        index = _web_dir / "index.html"
-        if index.exists():
-            from fastapi.responses import FileResponse
-
-            return FileResponse(str(index))
-        return JSONResponse(status_code=404, content={"detail": "Web UI not found"})
-
+    # Next.js static export with trailingSlash:true generates a dedicated
+    # index.html per route (e.g. settings/index.html, parquet/index.html).
+    # StaticFiles(html=True) serves those automatically — no custom SPA
+    # fallback needed, and adding one would intercept /_next/static/* asset
+    # requests before they reach the file server.
     app.mount("/", StaticFiles(directory=str(_web_dir), html=True), name="static")
 else:
     logger.warning(
