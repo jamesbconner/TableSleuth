@@ -98,3 +98,4 @@ src/tablesleuth/web/*
 web-ui/.next/
 web-ui/out/
 web-ui/node_modules/
+web-ui/next-env.d.ts
