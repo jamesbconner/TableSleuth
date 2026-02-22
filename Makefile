@@ -85,11 +85,7 @@ run:
 
 # Create source archive (excludes .gitignore files and untracked files)
 zip:
-	@echo "Creating source code archive..."
-	@VERSION=$$(grep '^version = ' pyproject.toml | cut -d'"' -f2); \
-	ARCHIVE_NAME="tablesleuth-$$VERSION-src.zip"; \
-	git archive --format=zip --prefix=tablesleuth/ -o $$ARCHIVE_NAME HEAD; \
-	echo "Created $$ARCHIVE_NAME (excludes .gitignore patterns)"
+	uv run python -c "import subprocess, tomllib, pathlib; v=tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version']; n=f'tablesleuth-{v}-src.zip'; subprocess.run(['git','archive','--format=zip','--prefix=tablesleuth/','-o',n,'HEAD'],check=True); print(f'Created {n} (excludes .gitignore patterns)')"
 
 # Web UI development
 dev-api:
@@ -105,26 +101,12 @@ build-web:
 	cd web-ui && npm run build
 
 build-release: build-web
-	rm -rf src/tablesleuth/web
-	cp -r web-ui/out src/tablesleuth/web
+	uv run python -c "import shutil; shutil.rmtree('src/tablesleuth/web', ignore_errors=True); shutil.copytree('web-ui/out', 'src/tablesleuth/web')"
 
 start-web: build-release
 	uv run tablesleuth web
 
 # Cleanup
 clean:
-	rm -rf build/
-	rm -rf dist/
-	rm -rf *.egg-info
-	rm -rf .pytest_cache/
-	rm -rf .mypy_cache/
-	rm -rf .ruff_cache/
-	rm -rf htmlcov/
-	rm -rf .coverage
-	rm -rf *.zip
-	rm -rf src/tablesleuth/web
-	rm -rf web-ui/out
-	rm -rf web-ui/.next
-	git restore src/tablesleuth/web/index.html 2>/dev/null || true
-	find . -type f -name "*.pyc" -delete
-	find . -type d -name __pycache__ -delete
+	uv run python -c "import shutil, pathlib; [shutil.rmtree(d, ignore_errors=True) for d in ['build', 'dist', '.pytest_cache', '.mypy_cache', '.ruff_cache', 'htmlcov', 'src/tablesleuth/web', 'web-ui/out', 'web-ui/.next']]; [p.unlink(missing_ok=True) for p in [*pathlib.Path('.').glob('.coverage'), *pathlib.Path('.').glob('*.zip'), *pathlib.Path('src').glob('**/*.egg-info')]]; [p.unlink() for p in pathlib.Path('.').rglob('*.pyc')]; [shutil.rmtree(p, ignore_errors=True) for p in pathlib.Path('.').rglob('__pycache__')]"
+	-git restore src/tablesleuth/web/index.html
