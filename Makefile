@@ -1,4 +1,4 @@
-.PHONY: help install install-dev sync clean test test-cov lint format type-check security pre-commit check build run zip dev-api dev-web build-web build-release start-web
+.PHONY: help install install-dev sync clean test test-cov lint format type-check security pre-commit check build run zip dev-api dev-web dev-web-install-npm build-web build-release start-web
 
 # Default target
 help:
@@ -22,8 +22,9 @@ help:
 	@echo "  make check            Run all quality checks"
 	@echo ""
 	@echo "Web UI Development:"
-	@echo "  make dev-api          Start FastAPI dev server (localhost:8000, hot-reload)"
-	@echo "  make dev-web          Start Next.js dev server (localhost:3000)"
+	@echo "  make dev-api              Start FastAPI dev server (localhost:8000, hot-reload)"
+	@echo "  make dev-web-install-npm  Install Node.js dependencies (run once after checkout)"
+	@echo "  make dev-web              Start Next.js dev server (localhost:3000)"
 	@echo "  make build-web        Build Next.js static export"
 	@echo "  make build-release    Build frontend and bundle into Python package"
 	@echo "  make start-web        Build release and launch web UI"
@@ -93,6 +94,9 @@ zip:
 # Web UI development
 dev-api:
 	uv run uvicorn tablesleuth.api.main:app --host localhost --port 8000 --reload
+
+dev-web-install-npm:
+	cd web-ui && npm install
 
 dev-web:
 	cd web-ui && npm run dev
