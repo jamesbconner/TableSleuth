@@ -125,5 +125,6 @@ clean:
 	rm -rf src/tablesleuth/web
 	rm -rf web-ui/out
 	rm -rf web-ui/.next
+	git restore src/tablesleuth/web/index.html 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete
 	find . -type d -name __pycache__ -delete
