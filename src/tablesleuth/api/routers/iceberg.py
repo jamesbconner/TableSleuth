@@ -38,6 +38,11 @@ def _to_dict(obj: Any) -> Any:
             # all fields before we can skip native_table, causing a pickle error
             # on the PyIceberg Table object which contains module references.
             d[field.name] = _to_dict(getattr(obj, field.name))
+        # Also include @property values (dataclasses.fields() only returns declared
+        # fields, not computed properties like delete_ratio / read_amplification).
+        for name, val in vars(type(obj)).items():
+            if isinstance(val, property) and name not in d:
+                d[name] = _to_dict(getattr(obj, name))
         return d
     if isinstance(obj, list):
         return [_to_dict(i) for i in obj]
