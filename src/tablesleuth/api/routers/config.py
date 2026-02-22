@@ -137,6 +137,32 @@ def get_pyiceberg_config() -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+@router.post("/pyiceberg/upload")
+async def upload_pyiceberg_config(file: UploadFile) -> dict[str, Any]:
+    """Upload a .pyiceberg.yaml file.
+
+    Args:
+        file: Uploaded YAML file.
+
+    Returns:
+        Confirmation with path written.
+    """
+    try:
+        content = await file.read()
+        # Validate YAML before saving
+        parsed = yaml.safe_load(content.decode("utf-8"))
+        if parsed is None:
+            parsed = {}
+        _PYICEBERG_YAML.parent.mkdir(parents=True, exist_ok=True)
+        _PYICEBERG_YAML.write_bytes(content)
+        return {"saved": True, "path": str(_PYICEBERG_YAML), "config": parsed}
+    except yaml.YAMLError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid YAML: {exc}") from exc
+    except Exception as exc:
+        logger.exception("Error uploading .pyiceberg.yaml")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 @router.put("/pyiceberg")
 def save_pyiceberg_config(config: dict[str, Any]) -> dict[str, Any]:
     """Save updated .pyiceberg.yaml.

@@ -24,11 +24,12 @@ if sys.platform == "win32":
     try:
         from pyiceberg.io.pyarrow import PyArrowFileIO as _PAFIO
 
-        _orig_parse = staticmethod(_PAFIO.parse_location.__func__)  # type: ignore[attr-defined]
+        # Accessing a staticmethod via the class gives the raw function directly —
+        # no .__func__ needed.
+        _orig_parse = _PAFIO.parse_location
         _WIN_DRIVE_PATH = re.compile(r"^/([A-Za-z]:/.*)")
 
-        @staticmethod  # type: ignore[misc]
-        def _win_parse_location(location: str, properties: dict = {}) -> tuple:  # type: ignore[override]
+        def _win_parse_location(location: str, properties: dict = {}) -> tuple:
             scheme, netloc, path = _orig_parse(location, properties)
             if scheme == "file":
                 m = _WIN_DRIVE_PATH.match(path)
@@ -36,9 +37,13 @@ if sys.platform == "win32":
                     path = m.group(1)  # /D:/path → D:/path
             return scheme, netloc, path
 
-        _PAFIO.parse_location = _win_parse_location  # type: ignore[assignment]
-    except Exception:
-        pass  # Don't break if PyIceberg internals change
+        # Must re-wrap as staticmethod so self.parse_location(...) doesn't
+        # receive self as the first argument.
+        _PAFIO.parse_location = staticmethod(_win_parse_location)  # type: ignore[assignment]
+    except Exception as _patch_err:
+        logging.getLogger(__name__).warning(
+            "Failed to apply Windows PyArrowFileIO path patch: %s", _patch_err
+        )
 
 from tablesleuth.exceptions import (
     MetadataError,

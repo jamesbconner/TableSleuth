@@ -11,6 +11,8 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploadingPyiceberg, setUploadingPyiceberg] = useState(false);
+  const [pyicebergUploadStatus, setPyicebergUploadStatus] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([api.get(), api.status(), api.getPyiceberg()])
@@ -21,6 +23,23 @@ export default function SettingsPage() {
       })
       .catch((e) => setError(String(e)));
   }, []);
+
+  const handlePyicebergUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingPyiceberg(true);
+    setPyicebergUploadStatus(null);
+    try {
+      const result = await api.uploadPyiceberg(file);
+      setPyiceberg(result.config);
+      setPyicebergUploadStatus(`Saved to ${result.path}`);
+    } catch (err) {
+      setPyicebergUploadStatus(`Error: ${String(err)}`);
+    } finally {
+      setUploadingPyiceberg(false);
+      e.target.value = "";
+    }
+  };
 
   const handleSave = async () => {
     if (!cfg) return;
@@ -125,15 +144,43 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      {/* PyIceberg config (read-only preview) */}
-      {pyiceberg && Object.keys(pyiceberg).length > 0 && (
-        <section className="mb-6">
-          <h2 className="font-medium mb-3">PyIceberg Config (.pyiceberg.yaml)</h2>
-          <pre className="rounded border bg-muted/30 p-3 text-xs overflow-auto max-h-48">
+      {/* PyIceberg config */}
+      <section className="mb-6">
+        <h2 className="font-medium mb-3">PyIceberg Config (.pyiceberg.yaml)</h2>
+        <p className="text-xs text-muted-foreground mb-2">
+          {status?.pyiceberg_yaml_exists
+            ? `Active: ${status.pyiceberg_yaml_path}`
+            : `Not found at ${status?.pyiceberg_yaml_path ?? "~/.pyiceberg.yaml"} — upload a file to create it`}
+        </p>
+        {pyiceberg && Object.keys(pyiceberg).length > 0 && (
+          <pre className="rounded border bg-muted/30 p-3 text-xs overflow-auto max-h-48 mb-3">
             {JSON.stringify(pyiceberg, null, 2)}
           </pre>
-        </section>
-      )}
+        )}
+        <div className="flex items-center gap-3">
+          <label className="cursor-pointer rounded-md border border-input bg-background px-4 py-2 text-sm hover:bg-muted transition-colors">
+            {uploadingPyiceberg ? "Uploading..." : "Upload .pyiceberg.yaml"}
+            <input
+              type="file"
+              accept=".yaml,.yml"
+              className="hidden"
+              onChange={handlePyicebergUpload}
+              disabled={uploadingPyiceberg}
+            />
+          </label>
+          {pyicebergUploadStatus && (
+            <span
+              className={`text-xs ${
+                pyicebergUploadStatus.startsWith("Error")
+                  ? "text-destructive"
+                  : "text-green-600"
+              }`}
+            >
+              {pyicebergUploadStatus}
+            </span>
+          )}
+        </div>
+      </section>
 
       <button
         onClick={handleSave}
