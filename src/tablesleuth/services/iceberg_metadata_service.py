@@ -3,11 +3,42 @@
 from __future__ import annotations
 
 import logging
+import re
+import sys
 from pathlib import Path
 from typing import Any
 
 from pyiceberg.catalog import load_catalog
 from pyiceberg.table import StaticTable, Table
+
+# ---------------------------------------------------------------------------
+# Windows compatibility: fix PyIceberg's URI path parsing for local files.
+#
+# On Windows, urlparse("file:///D:/path/file.json").path == "/D:/path/file.json"
+# (leading slash before drive letter). PyArrow's LocalFileSystem rejects this
+# with WinError 123. Patch parse_location to strip the spurious slash so that
+# "file:///D:/path/file.json" resolves to "D:/path/file.json" for ALL file
+# operations (metadata read, manifest-list, manifest, data files).
+# ---------------------------------------------------------------------------
+if sys.platform == "win32":
+    try:
+        from pyiceberg.io.pyarrow import PyArrowFileIO as _PAFIO
+
+        _orig_parse = staticmethod(_PAFIO.parse_location.__func__)  # type: ignore[attr-defined]
+        _WIN_DRIVE_PATH = re.compile(r"^/([A-Za-z]:/.*)")
+
+        @staticmethod  # type: ignore[misc]
+        def _win_parse_location(location: str, properties: dict = {}) -> tuple:  # type: ignore[override]
+            scheme, netloc, path = _orig_parse(location, properties)
+            if scheme == "file":
+                m = _WIN_DRIVE_PATH.match(path)
+                if m:
+                    path = m.group(1)  # /D:/path → D:/path
+            return scheme, netloc, path
+
+        _PAFIO.parse_location = _win_parse_location  # type: ignore[assignment]
+    except Exception:
+        pass  # Don't break if PyIceberg internals change
 
 from tablesleuth.exceptions import (
     MetadataError,
