@@ -461,7 +461,7 @@ rm -rf aws awscliv2.zip
 
 echo "Installing GizmoSQL CLI..."
 cd /tmp
-wget https://github.com/gizmodata/gizmosql/releases/download/v1.12.13/gizmosql_cli_linux_amd64.zip
+wget https://github.com/gizmodata/gizmosql/releases/download/v1.18.4/gizmosql_cli_linux_amd64.zip
 unzip -o gizmosql_cli_linux_amd64.zip -d /usr/local/bin/
 chmod +x /usr/local/bin/gizmosql*
 
