@@ -22,8 +22,11 @@ class TestCleanFilePath:
 
     @pytest.mark.skipif(sys.platform != "win32", reason="Windows-specific path handling")
     def test_clean_file_uri_windows(self):
-        """Test removing file:// prefix from Windows path."""
-        assert _clean_file_path("file:///C:/path/to/file.parquet") == "/C:/path/to/file.parquet"
+        """Test removing file:// prefix from Windows path.
+
+        Path.from_uri() on Windows converts file:///C:/path to C:/path (no leading slash).
+        """
+        assert _clean_file_path("file:///C:/path/to/file.parquet") == "C:/path/to/file.parquet"
 
     def test_preserve_s3_path(self):
         """Test S3 paths are preserved."""

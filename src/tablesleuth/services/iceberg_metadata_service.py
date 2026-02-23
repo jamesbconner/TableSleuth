@@ -41,7 +41,7 @@ if sys.platform == "win32":
 
         # Must re-wrap as staticmethod so self.parse_location(...) doesn't
         # receive self as the first argument.
-        _PAFIO.parse_location = staticmethod(_win_parse_location)  # type: ignore[assignment]
+        _PAFIO.parse_location = staticmethod(_win_parse_location)  # type: ignore[method-assign]
     except Exception as _patch_err:
         logging.getLogger(__name__).warning(
             "Failed to apply Windows PyArrowFileIO path patch: %s", _patch_err
