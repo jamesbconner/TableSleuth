@@ -6,10 +6,11 @@ import { VersionHistory } from "@/components/delta/version-history";
 import { VersionDetail } from "@/components/delta/version-detail";
 import { ForensicsPanel } from "@/components/delta/forensics-panel";
 import { DataSample } from "@/components/shared/data-sample";
+import { ComparisonPanel } from "@/components/shared/comparison-panel";
 import { delta as api } from "@/lib/api";
 import type { DeltaForensicsResponse, DeltaLoadResponse, DeltaSchemaField, SnapshotInfo } from "@/lib/types";
 
-type RightTab = "details" | "forensics" | "sample";
+type RightTab = "details" | "forensics" | "sample" | "compare";
 
 export default function DeltaPage() {
   const [tablePath, setTablePath] = useState<string | null>(null);
@@ -119,7 +120,7 @@ export default function DeltaPage() {
           {selectedVersion ? (
             <>
               <div className="border-b px-4 flex gap-1 bg-card shrink-0">
-                {(["details", "forensics", "sample"] as RightTab[]).map((t) => (
+                {(["details", "forensics", "sample", "compare"] as RightTab[]).map((t) => (
                   <button
                     key={t}
                     onClick={() => setRightTab(t)}
@@ -129,7 +130,7 @@ export default function DeltaPage() {
                         : "border-transparent text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    {t === "details" ? "Details" : t === "forensics" ? "Forensics" : "Data Sample"}
+                    {t === "details" ? "Details" : t === "forensics" ? "Forensics" : t === "sample" ? "Data Sample" : "Compare"}
                   </button>
                 ))}
               </div>
@@ -161,6 +162,16 @@ export default function DeltaPage() {
                 )}
                 {rightTab === "sample" && (
                   <DataSample filePath={selectedVersion.data_files[0]?.path ?? null} />
+                )}
+                {rightTab === "compare" && tablePath && (
+                  <ComparisonPanel
+                    format="delta"
+                    items={[...versions].sort((a, b) => b.timestamp_ms - a.timestamp_ms).map((v) => ({
+                      id: String(v.snapshot_id),
+                      label: `v${v.snapshot_id} · ${v.operation} · ${new Date(v.timestamp_ms).toLocaleString()}`,
+                    }))}
+                    path={tablePath}
+                  />
                 )}
               </div>
             </>

@@ -5,6 +5,7 @@ import { IcebergTableLoader } from "@/components/iceberg/table-loader";
 import { SnapshotList } from "@/components/iceberg/snapshot-list";
 import { SnapshotDetail } from "@/components/iceberg/snapshot-detail";
 import { DataSample } from "@/components/shared/data-sample";
+import { ComparisonPanel } from "@/components/shared/comparison-panel";
 import { iceberg as api } from "@/lib/api";
 import type {
   IcebergSnapshotDetails,
@@ -20,7 +21,7 @@ interface TableRef {
   snapshot_id?: string;
 }
 
-type RightTab = "details" | "forensics" | "sample";
+type RightTab = "details" | "forensics" | "sample" | "compare";
 
 export default function IcebergPage() {
   const [tableRef, setTableRef] = useState<TableRef | null>(null);
@@ -138,7 +139,7 @@ export default function IcebergPage() {
           {selectedId ? (
             <>
               <div className="border-b px-4 flex gap-1 bg-card shrink-0">
-                {(["details", "forensics", "sample"] as RightTab[]).map((t) => (
+                {(["details", "forensics", "sample", "compare"] as RightTab[]).map((t) => (
                   <button
                     key={t}
                     onClick={() => handleRightTab(t)}
@@ -148,7 +149,7 @@ export default function IcebergPage() {
                         : "border-transparent text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    {t === "details" ? "Details" : t === "forensics" ? "Forensics" : "Data Sample"}
+                    {t === "details" ? "Details" : t === "forensics" ? "Forensics" : t === "sample" ? "Data Sample" : "Compare"}
                   </button>
                 ))}
               </div>
@@ -207,6 +208,18 @@ export default function IcebergPage() {
                 )}
                 {rightTab === "sample" && (
                   <DataSample filePath={sampleFilePath} />
+                )}
+                {rightTab === "compare" && (
+                  <ComparisonPanel
+                    format="iceberg"
+                    items={[...snapshots].sort((a, b) => b.timestamp_ms - a.timestamp_ms).map((s) => ({
+                      id: s.snapshot_id,
+                      label: `${s.snapshot_id.slice(-8)} · ${s.operation} · ${new Date(s.timestamp_ms).toLocaleString()}`,
+                    }))}
+                    metadata_path={tableRef?.metadata_path}
+                    catalog_name={tableRef?.catalog_name}
+                    table_identifier={tableRef?.table_identifier}
+                  />
                 )}
               </div>
             </>

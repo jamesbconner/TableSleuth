@@ -284,6 +284,27 @@ export interface ConfigStatus {
 // GizmoSQL
 // ---------------------------------------------------------------------------
 
+export interface QueryPerformanceMetrics {
+  execution_time_ms: number;
+  files_scanned: number;
+  bytes_scanned: number;
+  rows_scanned: number;
+  rows_returned: number;
+  memory_peak_mb: number;
+  scan_efficiency: number;
+}
+
+export interface PerformanceComparison {
+  query: string;
+  table_a_name: string;
+  table_b_name: string;
+  metrics_a: QueryPerformanceMetrics;
+  metrics_b: QueryPerformanceMetrics;
+  execution_time_delta_pct: number;
+  files_scanned_delta_pct: number;
+  analysis: string;
+}
+
 export interface GizmoStatus {
   connected: boolean;
   version?: string;

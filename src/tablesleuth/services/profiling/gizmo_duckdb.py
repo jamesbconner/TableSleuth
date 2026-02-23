@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Any, Optional
 
 from adbc_driver_flightsql import DatabaseOptions
@@ -110,16 +111,21 @@ def _validate_filter_expression(filters: str) -> None:
 
 
 def _clean_file_path(path: str) -> str:
-    """Remove file:// prefix from paths if present.
+    """Convert a file:// URI to a local path, or return path unchanged.
+
+    Uses Path.from_uri() (Python 3.13+) to correctly handle Windows drive
+    letters: file:///C:/path → C:/path (not /C:/path).
 
     Args:
-        path: File path that may include file:// prefix
+        path: File path or file:// URI
 
     Returns:
-        Cleaned path without file:// prefix
+        Local path with forward slashes (suitable for DuckDB on any platform)
     """
     if path.startswith("file://"):
-        return path[7:]
+        # as_posix() gives forward slashes on all platforms, including Windows
+        # where str(Path) would give backslashes.
+        return Path.from_uri(path).as_posix()
     return path
 
 
@@ -477,7 +483,9 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         import time
 
         try:
-            # Replace Iceberg table references with iceberg_scan() calls
+            # Replace Iceberg/Delta table references with scan function calls.
+            # Keep the original so we can later look up which file tables were used.
+            original_query = query
             modified_query = self._replace_iceberg_tables(query)
 
             with self._connect() as conn, conn.cursor() as cur:
@@ -502,60 +510,172 @@ class GizmoDuckDbProfiler(ProfilingBackend):
                 # Debug: Log the explain output to see what we're getting
                 logger.debug(f"EXPLAIN ANALYZE output: {explain_output}")
 
-                # Parse metrics from EXPLAIN ANALYZE output
+                # Parse metrics from EXPLAIN ANALYZE output, then fill in any
+                # zeros from the stats we captured at file-table registration time.
                 metrics = self._parse_explain_analyze(
                     explain_output, execution_time_ms, modified_query
                 )
+                metrics = self._supplement_metrics(metrics, original_query, results)
 
                 return results, metrics
 
         except Exception as e:
             raise RuntimeError(f"Query execution failed: {e}") from e
 
+    def register_delta_table_with_version(
+        self, table_identifier: str, path: str, version: int | None = None
+    ) -> None:
+        """Register a Delta table at a specific version for query rewriting.
+
+        Uses deltalake to resolve the active Parquet file URIs at the given version.
+        At query time, references to table_identifier are rewritten to
+        read_parquet([uri1, uri2, ...]) so GizmoSQL can scan the exact snapshot.
+
+        Args:
+            table_identifier: Alias to use in SQL queries (e.g. "ver_a")
+            path: Local or cloud path to the Delta table root
+            version: Optional version number to pin to; None means latest
+        """
+        if not table_identifier or not path:
+            raise ValueError("table_identifier and path are required")
+
+        from deltalake import DeltaTable
+
+        kwargs: dict[str, int] = {}
+        if version is not None:
+            kwargs["version"] = version
+
+        dt = DeltaTable(path, **kwargs)
+        file_uris = dt.file_uris()  # absolute URIs for all active files at this version
+
+        # Collect stats for metrics fallback (best-effort; ignore errors).
+        total_bytes = 0
+        total_rows = 0
+        try:
+            actions = dt.get_add_actions(flatten=True)
+            total_bytes = int(sum(v or 0 for v in actions.column("size_bytes").to_pylist()))
+            total_rows = int(sum(v or 0 for v in actions.column("num_records").to_pylist()))
+        except Exception as exc:
+            logger.debug(f"Could not read Delta add-actions stats: {exc}")
+
+        if not hasattr(self, "_delta_tables"):
+            self._delta_tables: dict[str, list[str]] = {}
+        if not hasattr(self, "_delta_table_stats"):
+            self._delta_table_stats: dict[str, tuple[int, int, int]] = {}
+
+        self._delta_tables[table_identifier] = file_uris
+        self._delta_table_stats[table_identifier] = (len(file_uris), total_bytes, total_rows)
+        logger.debug(
+            f"Registered Delta table {table_identifier} -> {len(file_uris)} files"
+            + (f" at version {version}" if version is not None else " at latest version")
+        )
+
+    def register_file_table(
+        self,
+        table_identifier: str,
+        file_paths: list[str],
+        total_bytes: int = 0,
+        total_rows: int = 0,
+    ) -> None:
+        """Register an explicit list of Parquet files as a virtual table.
+
+        At query time, references to table_identifier are rewritten to
+        read_parquet([path1, path2, ...]).  Use this when a scan function
+        (iceberg_scan, delta_scan) cannot be used — e.g. local Iceberg tables
+        where GizmoSQL would need to resolve relative manifest paths.
+
+        Args:
+            table_identifier: Alias to use in SQL queries (e.g. "snap_a")
+            file_paths: Absolute file paths or URIs of Parquet data files
+            total_bytes: Total size of all files in bytes (for metrics fallback)
+            total_rows: Total row count across all files (for metrics fallback)
+        """
+        if not table_identifier:
+            raise ValueError("table_identifier is required")
+
+        if not hasattr(self, "_file_tables"):
+            self._file_tables: dict[str, list[str]] = {}
+        if not hasattr(self, "_file_table_stats"):
+            self._file_table_stats: dict[str, tuple[int, int, int]] = {}
+
+        self._file_tables[table_identifier] = file_paths
+        self._file_table_stats[table_identifier] = (len(file_paths), total_bytes, total_rows)
+        logger.debug(
+            f"Registered file table {table_identifier} -> {len(file_paths)} files, "
+            f"{total_bytes} bytes, {total_rows} rows"
+        )
+
     def _replace_iceberg_tables(self, query: str) -> str:
-        """Replace Iceberg table references with iceberg_scan() calls.
+        """Replace table references with iceberg_scan() or read_parquet() calls.
 
         Args:
             query: Original SQL query
 
         Returns:
-            Modified query with iceberg_scan() calls
+            Modified query with scan function calls substituted
         """
-        if not hasattr(self, "_iceberg_tables") or not self._iceberg_tables:
-            return query
-
         modified_query = query
-        for table_id, table_info in self._iceberg_tables.items():
-            # Unpack table info tuple
-            metadata_loc, snapshot_id = table_info
 
-            # Escape single quotes in metadata location to prevent SQL injection
-            # SQL standard: escape single quotes by doubling them
-            escaped_metadata_loc = metadata_loc.replace("'", "''")
+        # --- Iceberg tables ---
+        if hasattr(self, "_iceberg_tables") and self._iceberg_tables:
+            for table_id, table_info in self._iceberg_tables.items():
+                metadata_loc, snapshot_id = table_info
+                escaped_metadata_loc = metadata_loc.replace("'", "''")
 
-            # Build iceberg_scan() call with optional snapshot parameter
-            # Validate snapshot_id is actually an integer to prevent SQL injection
-            if snapshot_id is not None:
-                if not isinstance(snapshot_id, int):
-                    raise ValueError(f"snapshot_id must be an integer, got {type(snapshot_id)}")
-                scan_call = f"iceberg_scan('{escaped_metadata_loc}', version => {snapshot_id})"
-            else:
-                scan_call = f"iceberg_scan('{escaped_metadata_loc}')"
+                if snapshot_id is not None:
+                    if not isinstance(snapshot_id, int):
+                        raise ValueError(f"snapshot_id must be an integer, got {type(snapshot_id)}")
+                    scan_call = f"iceberg_scan('{escaped_metadata_loc}', version => {snapshot_id})"
+                else:
+                    scan_call = f"iceberg_scan('{escaped_metadata_loc}')"
 
-            # Replace table references with iceberg_scan()
-            # Handle both quoted and unquoted table names
-            patterns = [
-                rf"\b{re.escape(table_id)}\b",  # Unquoted
-                rf'"{re.escape(table_id)}"',  # Double quoted
-                rf"'{re.escape(table_id)}'",  # Single quoted
-            ]
+                patterns = [
+                    rf"\b{re.escape(table_id)}\b",
+                    rf'"{re.escape(table_id)}"',
+                    rf"'{re.escape(table_id)}'",
+                ]
+                for pattern in patterns:
+                    modified_query = re.sub(pattern, lambda m, r=scan_call: r, modified_query, flags=re.IGNORECASE)
 
-            for pattern in patterns:
-                modified_query = re.sub(pattern, scan_call, modified_query, flags=re.IGNORECASE)
+        # --- Delta tables ---
+        # delta_scan() does not support version travel; instead we resolve the active
+        # Parquet file URIs at registration time and use read_parquet([...]) here.
+        if hasattr(self, "_delta_tables") and self._delta_tables:
+            for table_id, file_uris in self._delta_tables.items():
+                if not file_uris:
+                    continue
+
+                escaped_uris = ", ".join(f"'{u.replace(chr(39), chr(39) * 2)}'" for u in file_uris)
+                scan_call = f"read_parquet([{escaped_uris}])"
+
+                patterns = [
+                    rf"\b{re.escape(table_id)}\b",
+                    rf'"{re.escape(table_id)}"',
+                    rf"'{re.escape(table_id)}'",
+                ]
+                for pattern in patterns:
+                    modified_query = re.sub(pattern, lambda m, r=scan_call: r, modified_query, flags=re.IGNORECASE)
+
+        # --- Explicit file-list tables (local Iceberg, or any format needing read_parquet) ---
+        if hasattr(self, "_file_tables") and self._file_tables:
+            for table_id, file_paths in self._file_tables.items():
+                if not file_paths:
+                    continue
+
+                escaped_paths = ", ".join(f"'{p.replace(chr(39), chr(39) * 2)}'" for p in file_paths)
+                scan_call = f"read_parquet([{escaped_paths}])"
+
+                patterns = [
+                    rf"\b{re.escape(table_id)}\b",
+                    rf'"{re.escape(table_id)}"',
+                    rf"'{re.escape(table_id)}'",
+                ]
+                for pattern in patterns:
+                    modified_query = re.sub(pattern, lambda m, r=scan_call: r, modified_query, flags=re.IGNORECASE)
 
         if modified_query != query:
             logger.debug(
-                f"Replaced Iceberg tables in query:\nOriginal: {query}\nModified: {modified_query}"
+                f"Replaced table refs in query:\nOriginal: {query}\nModified: {modified_query}"
             )
 
         return modified_query
@@ -583,6 +703,77 @@ class GizmoDuckDbProfiler(ProfilingBackend):
 
         except Exception as e:
             raise RuntimeError(f"EXPLAIN ANALYZE failed: {e}") from e
+
+    def _supplement_metrics(
+        self,
+        metrics: QueryPerformanceMetrics,
+        original_query: str,
+        results: list,
+    ) -> QueryPerformanceMetrics:
+        """Fill zero-valued metrics using stats stored at file-table registration time.
+
+        EXPLAIN ANALYZE output format varies by DuckDB build / transport (Arrow Flight SQL
+        vs local).  When using read_parquet([...]) the plan text may not contain the
+        file/row counts in the expected format, leaving those metrics as 0.  Since we
+        already know the file list, total bytes, and row counts from file metadata, we
+        use those as authoritative values whenever EXPLAIN ANALYZE returns zeros.
+
+        rows_returned is derived from the actual query results when the parsed value is 0.
+
+        Args:
+            metrics: Partially-populated metrics from EXPLAIN ANALYZE parsing
+            original_query: Query before table-alias substitution (used to identify
+                            which registered file table was referenced)
+            results: Raw query results rows (to derive rows_returned for COUNT queries)
+
+        Returns:
+            Updated QueryPerformanceMetrics with zeros replaced by known values
+        """
+        import re as _re
+
+        files_scanned = metrics.files_scanned
+        bytes_scanned = metrics.bytes_scanned
+        rows_scanned = metrics.rows_scanned
+        rows_returned = metrics.rows_returned
+
+        # Collect stats for any registered file-list tables referenced in the query.
+        all_stat_dicts: list[dict[str, tuple[int, int, int]]] = []
+        if hasattr(self, "_file_table_stats"):
+            all_stat_dicts.append(self._file_table_stats)
+        if hasattr(self, "_delta_table_stats"):
+            all_stat_dicts.append(self._delta_table_stats)
+
+        for stat_dict in all_stat_dicts:
+            for table_id, (fc, tb, tr) in stat_dict.items():
+                if _re.search(rf"\b{_re.escape(table_id)}\b", original_query, _re.IGNORECASE):
+                    if files_scanned == 0:
+                        files_scanned = fc
+                    if bytes_scanned == 0:
+                        bytes_scanned = tb
+                    if rows_scanned == 0:
+                        rows_scanned = tr
+
+        # Derive rows_returned from actual results when the parser found nothing.
+        if rows_returned == 0 and results:
+            if len(results) == 1 and len(results[0]) == 1:
+                # Single scalar result — almost certainly a COUNT(*) or similar aggregate.
+                val = results[0][0]
+                rows_returned = int(val) if isinstance(val, (int, float)) else 1
+            else:
+                rows_returned = len(results)
+
+        # For a full-table scan with no predicate, rows_scanned ≈ rows_returned.
+        if rows_scanned == 0 and rows_returned > 0:
+            rows_scanned = rows_returned
+
+        return QueryPerformanceMetrics(
+            execution_time_ms=metrics.execution_time_ms,
+            files_scanned=files_scanned,
+            bytes_scanned=bytes_scanned,
+            rows_scanned=rows_scanned,
+            rows_returned=rows_returned,
+            memory_peak_mb=metrics.memory_peak_mb,
+        )
 
     def _parse_explain_analyze(
         self, explain_output: list, execution_time_ms: float, query: str

@@ -22,6 +22,7 @@ import type {
   IcebergSnapshotInfo,
   IcebergTableInfo,
   ParquetFileInfo,
+  PerformanceComparison,
   QueryResult,
   SampleResponse,
   SchemaInfo,
@@ -219,4 +220,16 @@ export const gizmosql = {
       metadata_location,
       snapshot_id,
     }),
+
+  compare: (req: {
+    format: "iceberg" | "delta";
+    metadata_path?: string;
+    catalog_name?: string;
+    table_identifier?: string;
+    path?: string;
+    storage_options?: Record<string, string>;
+    id_a: string;
+    id_b: string;
+    query: string;
+  }) => post<PerformanceComparison>("/gizmosql/compare", req),
 };
