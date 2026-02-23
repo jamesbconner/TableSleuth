@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+import os
+from pathlib import Path
 from typing import Any
 
+import yaml
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -185,6 +188,69 @@ def compare_snapshots(req: CompareRequest) -> dict[str, Any]:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("Error comparing Iceberg snapshots")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+_PYICEBERG_HOME = Path(os.getenv("PYICEBERG_HOME", str(Path.home())))
+_PYICEBERG_YAML = _PYICEBERG_HOME / ".pyiceberg.yaml"
+
+
+@router.get("/catalogs")
+def list_catalogs() -> dict[str, Any]:
+    """List catalog names defined in .pyiceberg.yaml.
+
+    Returns:
+        Dictionary with list of catalog names and the config file path.
+    """
+    try:
+        if not _PYICEBERG_YAML.exists():
+            return {"catalogs": [], "path": str(_PYICEBERG_YAML), "exists": False}
+        with _PYICEBERG_YAML.open() as f:
+            data = yaml.safe_load(f) or {}
+        catalogs = list((data.get("catalog") or {}).keys())
+        return {"catalogs": catalogs, "path": str(_PYICEBERG_YAML), "exists": True}
+    except Exception as exc:
+        logger.exception("Error reading catalog names from .pyiceberg.yaml")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+class CatalogTablesRequest(BaseModel):
+    """Request body for /iceberg/catalog-tables."""
+
+    catalog_name: str
+
+
+@router.post("/catalog-tables")
+def list_catalog_tables(req: CatalogTablesRequest) -> dict[str, Any]:
+    """List all tables available in a PyIceberg catalog.
+
+    Enumerates namespaces then tables within each namespace.
+
+    Args:
+        req: Request with catalog_name matching a .pyiceberg.yaml entry.
+
+    Returns:
+        Dictionary with list of fully-qualified table identifiers.
+    """
+    try:
+        from pyiceberg.catalog import load_catalog
+
+        catalog = load_catalog(req.catalog_name)
+        namespaces = catalog.list_namespaces()
+        tables: list[str] = []
+        for ns in namespaces:
+            ns_str = ".".join(ns) if isinstance(ns, (list, tuple)) else str(ns)
+            try:
+                for tbl in catalog.list_tables(ns):
+                    tables.append(".".join(tbl))
+            except Exception:
+                # Some catalogs may have namespaces that cannot be listed
+                pass
+        return {"tables": sorted(tables), "count": len(tables), "catalog": req.catalog_name}
+    except TableLoadError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Error listing tables in catalog %s", req.catalog_name)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 

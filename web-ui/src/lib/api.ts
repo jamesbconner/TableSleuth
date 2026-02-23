@@ -94,6 +94,15 @@ interface IcebergRef {
 }
 
 export const iceberg = {
+  catalogs: () =>
+    get<{ catalogs: string[]; path: string; exists: boolean }>("/iceberg/catalogs"),
+
+  catalogTables: (catalog_name: string) =>
+    post<{ tables: string[]; count: number; catalog: string }>(
+      "/iceberg/catalog-tables",
+      { catalog_name }
+    ),
+
   load: (ref: IcebergRef) =>
     post<IcebergTableInfo>("/iceberg/load", ref),
 
