@@ -17,6 +17,7 @@ interface TableRef {
   metadata_path?: string;
   catalog_name?: string;
   table_identifier?: string;
+  snapshot_id?: string;
 }
 
 type RightTab = "details" | "forensics" | "sample";
@@ -42,14 +43,25 @@ export default function IcebergPage() {
     setDetails(null);
     setSchemas([]);
     setRightTab("details");
+    const { snapshot_id, ...loadRef } = ref;
     try {
       const [info, snaps] = await Promise.all([
-        api.load(ref),
-        api.snapshots(ref),
+        api.load(loadRef),
+        api.snapshots(loadRef),
       ]);
       setTableInfo(info);
-      setTableRef(ref);
+      setTableRef(loadRef);
       setSnapshots(snaps.snapshots);
+      // Auto-select: snapshot_id if provided (and found), otherwise current snapshot
+      const targetId = snapshot_id ?? info.current_snapshot_id ?? null;
+      if (targetId && snaps.snapshots.some((s) => s.snapshot_id === targetId)) {
+        setSelectedId(targetId);
+        setLoadingDetails(true);
+        api.snapshotDetails(targetId, loadRef)
+          .then(setDetails)
+          .catch((e) => setError(String(e)))
+          .finally(() => setLoadingDetails(false));
+      }
     } catch (e) {
       setError(String(e));
     } finally {

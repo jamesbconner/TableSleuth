@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { iceberg as api } from "@/lib/api";
 
 interface TableLoaderProps {
-  onLoad: (ref: { metadata_path?: string; catalog_name?: string; table_identifier?: string }) => void;
+  onLoad: (ref: { metadata_path?: string; catalog_name?: string; table_identifier?: string; snapshot_id?: string }) => void;
   loading?: boolean;
 }
 
@@ -22,6 +22,9 @@ export function IcebergTableLoader({ onLoad, loading }: TableLoaderProps) {
 
   // Metadata mode state
   const [metadataPath, setMetadataPath] = useState("");
+
+  // Shared optional snapshot ID
+  const [snapshotId, setSnapshotId] = useState("");
 
   // Load catalog list on mount
   useEffect(() => {
@@ -54,10 +57,11 @@ export function IcebergTableLoader({ onLoad, loading }: TableLoaderProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const sid = snapshotId.trim() || undefined;
     if (mode === "catalog" && catalogName && tableIdentifier) {
-      onLoad({ catalog_name: catalogName, table_identifier: tableIdentifier });
+      onLoad({ catalog_name: catalogName, table_identifier: tableIdentifier, snapshot_id: sid });
     } else if (mode === "metadata" && metadataPath.trim()) {
-      onLoad({ metadata_path: metadataPath.trim() });
+      onLoad({ metadata_path: metadataPath.trim(), snapshot_id: sid });
     }
   };
 
@@ -125,7 +129,7 @@ export function IcebergTableLoader({ onLoad, loading }: TableLoaderProps) {
             <p className="text-xs text-destructive">{catalogError}</p>
           )}
 
-          {/* Table selector */}
+          {/* Table selector + snapshot ID + Load */}
           <div className="flex gap-2">
             {tables.length > 0 ? (
               <select
@@ -150,6 +154,13 @@ export function IcebergTableLoader({ onLoad, loading }: TableLoaderProps) {
                 className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
             )}
+            <input
+              type="text"
+              value={snapshotId}
+              onChange={(e) => setSnapshotId(e.target.value)}
+              placeholder="Snapshot ID (optional)"
+              className="w-44 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
             <button
               type="submit"
               disabled={!catalogName || !tableIdentifier || loading}
@@ -167,6 +178,13 @@ export function IcebergTableLoader({ onLoad, loading }: TableLoaderProps) {
             onChange={(e) => setMetadataPath(e.target.value)}
             placeholder="Path to metadata.json (local or s3://…)"
             className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+          />
+          <input
+            type="text"
+            value={snapshotId}
+            onChange={(e) => setSnapshotId(e.target.value)}
+            placeholder="Snapshot ID (optional)"
+            className="w-44 rounded-md border border-input bg-background px-3 py-2 text-sm"
           />
           <button
             type="submit"
