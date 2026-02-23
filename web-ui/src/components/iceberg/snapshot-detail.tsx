@@ -74,9 +74,11 @@ export function SnapshotDetail({ details }: SnapshotDetailProps) {
       </div>
 
       {/* Partition spec */}
-      {partition_spec.fields.length > 0 && (
-        <div>
-          <h4 className="font-medium mb-2">Partition Spec</h4>
+      <div>
+        <h4 className="font-medium mb-2">Partition Spec</h4>
+        {partition_spec.fields.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Unpartitioned</p>
+        ) : (
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="border-b bg-muted/50">
@@ -93,8 +95,8 @@ export function SnapshotDetail({ details }: SnapshotDetailProps) {
               ))}
             </tbody>
           </table>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Data files */}
       <div>

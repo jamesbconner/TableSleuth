@@ -5,10 +5,34 @@ import { gizmosql as api } from "@/lib/api";
 import { formatBytes, formatNumber } from "@/lib/utils";
 import type { PerformanceComparison } from "@/lib/types";
 
-const PREDEFINED_QUERIES: { label: string; query: string }[] = [
-  { label: "Full scan (COUNT)", query: "SELECT COUNT(*) FROM {table}" },
-  { label: "Row stats", query: "SELECT COUNT(*) as row_count FROM {table}" },
+/** Ready-to-run templates — no placeholders, execute immediately. */
+const PRESET_QUERIES: { label: string; query: string }[] = [
+  { label: "Full scan (COUNT)", query: "SELECT COUNT(*) as row_count FROM {table}" },
   { label: "Sample rows (1000)", query: "SELECT * FROM {table} LIMIT 1000" },
+];
+
+/**
+ * Starter templates — contain {col} / {val} placeholders that the user must
+ * replace before running.  Clicking one switches to custom-query mode with the
+ * textarea pre-filled so the user can edit in place.
+ */
+const STARTER_QUERIES: { label: string; query: string }[] = [
+  {
+    label: "Column min/max/avg",
+    query: "SELECT MIN({col}) as min_val, MAX({col}) as max_val, AVG({col}) as avg_val FROM {table}",
+  },
+  {
+    label: "Distinct count",
+    query: "SELECT COUNT(DISTINCT {col}) as distinct_count FROM {table}",
+  },
+  {
+    label: "Group by count",
+    query: "SELECT {col}, COUNT(*) as cnt FROM {table} GROUP BY {col} ORDER BY cnt DESC LIMIT 20",
+  },
+  {
+    label: "Partition filter",
+    query: "SELECT COUNT(*) as row_count FROM {table} WHERE {col} = '{val}'",
+  },
 ];
 
 interface ComparisonItem {
@@ -39,6 +63,10 @@ function DeltaPct({ value }: { value: number }) {
   return <span className={cls}>{formatted}</span>;
 }
 
+type MetricRow =
+  | { kind: "row"; label: string; a: string; b: string; delta?: number }
+  | { kind: "sub"; label: string; a: string; b: string };
+
 function MetricsGrid({
   labelA,
   labelB,
@@ -54,69 +82,124 @@ function MetricsGrid({
   timeDelta: number;
   filesDelta: number;
 }) {
-  const rows: { label: string; a: string; b: string; delta?: number }[] = [
+  const hasDeletesA = metricsA.delete_files_scanned > 0 || metricsA.delete_rows_scanned > 0;
+  const hasDeletesB = metricsB.delete_files_scanned > 0 || metricsB.delete_rows_scanned > 0;
+  const showBreakdown = hasDeletesA || hasDeletesB;
+
+  const rows: MetricRow[] = [
     {
+      kind: "row",
       label: "Execution time",
       a: `${metricsA.execution_time_ms.toFixed(1)} ms`,
       b: `${metricsB.execution_time_ms.toFixed(1)} ms`,
       delta: timeDelta,
     },
     {
+      kind: "row",
       label: "Files scanned",
-      a: String(metricsA.files_scanned),
-      b: String(metricsB.files_scanned),
+      a: formatNumber(metricsA.files_scanned),
+      b: formatNumber(metricsB.files_scanned),
       delta: filesDelta,
     },
+    ...(showBreakdown
+      ? ([
+          {
+            kind: "sub",
+            label: "↳ Data files",
+            a: formatNumber(metricsA.data_files_scanned),
+            b: formatNumber(metricsB.data_files_scanned),
+          },
+          {
+            kind: "sub",
+            label: "↳ Delete files",
+            a: formatNumber(metricsA.delete_files_scanned),
+            b: formatNumber(metricsB.delete_files_scanned),
+          },
+        ] as MetricRow[])
+      : []),
     {
+      kind: "row",
       label: "Bytes scanned",
       a: formatBytes(metricsA.bytes_scanned),
       b: formatBytes(metricsB.bytes_scanned),
     },
     {
+      kind: "row",
       label: "Rows scanned",
       a: formatNumber(metricsA.rows_scanned),
       b: formatNumber(metricsB.rows_scanned),
     },
+    ...(showBreakdown
+      ? ([
+          {
+            kind: "sub",
+            label: "↳ Data rows",
+            a: formatNumber(metricsA.data_rows_scanned),
+            b: formatNumber(metricsB.data_rows_scanned),
+          },
+          {
+            kind: "sub",
+            label: "↳ Delete rows",
+            a: formatNumber(metricsA.delete_rows_scanned),
+            b: formatNumber(metricsB.delete_rows_scanned),
+          },
+        ] as MetricRow[])
+      : []),
     {
+      kind: "row",
       label: "Rows returned",
       a: formatNumber(metricsA.rows_returned),
       b: formatNumber(metricsB.rows_returned),
     },
     {
+      kind: "row",
       label: "Scan efficiency",
       a: `${metricsA.scan_efficiency.toFixed(1)}%`,
       b: `${metricsB.scan_efficiency.toFixed(1)}%`,
     },
-    {
-      label: "Peak memory",
-      a: `${metricsA.memory_peak_mb.toFixed(1)} MB`,
-      b: `${metricsB.memory_peak_mb.toFixed(1)} MB`,
-    },
   ];
 
   return (
-    <table className="w-full text-sm border-collapse">
-      <thead>
-        <tr className="border-b bg-muted/50">
-          <th className="px-3 py-2 text-left text-xs text-muted-foreground">Metric</th>
-          <th className="px-3 py-2 text-right text-xs font-mono">{labelA}</th>
-          <th className="px-3 py-2 text-right text-xs font-mono">{labelB}</th>
-          <th className="px-3 py-2 text-right text-xs text-muted-foreground">Δ</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row) => (
-          <tr key={row.label} className="border-b hover:bg-muted/30">
-            <td className="px-3 py-1.5 text-muted-foreground">{row.label}</td>
-            <td className="px-3 py-1.5 text-right font-mono">{row.a}</td>
-            <td className="px-3 py-1.5 text-right font-mono">{row.b}</td>
-            <td className="px-3 py-1.5 text-right">
-              {row.delta !== undefined ? <DeltaPct value={row.delta} /> : "—"}
-            </td>
+    <div className="space-y-1">
+      <table className="w-full text-sm border-collapse">
+        <thead>
+          <tr className="border-b bg-muted/50">
+            <th className="px-3 py-2 text-left text-xs text-muted-foreground">Metric</th>
+            <th className="px-3 py-2 text-right text-xs font-mono">{labelA}</th>
+            <th className="px-3 py-2 text-right text-xs font-mono">{labelB}</th>
+            <th className="px-3 py-2 text-right text-xs text-muted-foreground">Δ</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {rows.map((row, i) =>
+            row.kind === "sub" ? (
+              <tr key={i} className="border-b bg-muted/10">
+                <td className="pl-6 pr-3 py-1 text-xs text-muted-foreground">{row.label}</td>
+                <td className="px-3 py-1 text-right text-xs font-mono text-muted-foreground">{row.a}</td>
+                <td className="px-3 py-1 text-right text-xs font-mono text-muted-foreground">{row.b}</td>
+                <td className="px-3 py-1" />
+              </tr>
+            ) : (
+              <tr key={i} className="border-b hover:bg-muted/30">
+                <td className="px-3 py-1.5 text-muted-foreground">{row.label}</td>
+                <td className="px-3 py-1.5 text-right font-mono">{row.a}</td>
+                <td className="px-3 py-1.5 text-right font-mono">{row.b}</td>
+                <td className="px-3 py-1.5 text-right">
+                  {row.delta !== undefined ? <DeltaPct value={row.delta} /> : "—"}
+                </td>
+              </tr>
+            )
+          )}
+        </tbody>
+      </table>
+      {showBreakdown && (
+        <p className="text-xs text-muted-foreground px-1">
+          * File and row scan counts are derived from snapshot metadata and reflect the
+          full snapshot. With partition-filtered queries, DuckDB will prune files at
+          runtime — only <em>Rows returned</em> reflects the actual query result.
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -138,7 +221,13 @@ export function ComparisonPanel({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const activeQuery = useCustom ? customQuery : PREDEFINED_QUERIES[queryIdx].query;
+  const activeQuery = useCustom ? customQuery : PRESET_QUERIES[queryIdx].query;
+
+  /** Load a starter template into the custom textarea and switch to custom mode. */
+  const handleStarterClick = (query: string) => {
+    setCustomQuery(query);
+    setUseCustom(true);
+  };
 
   const handleRun = async () => {
     if (!idA || !idB) return;
@@ -212,43 +301,70 @@ export function ComparisonPanel({
 
       {/* Query template */}
       <div className="space-y-2">
-        <div className="flex items-center gap-3">
-          <label className="text-xs text-muted-foreground">Query template</label>
-          <button
-            type="button"
-            onClick={() => setUseCustom(!useCustom)}
-            className="text-xs text-primary hover:underline"
-          >
-            {useCustom ? "Use preset" : "Custom query"}
-          </button>
+
+        {/* Preset buttons — ready to run immediately */}
+        <div className="flex gap-2 flex-wrap">
+          <span className="text-xs text-muted-foreground">Basic Query Templates:</span>
+          {PRESET_QUERIES.map((q, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => { setQueryIdx(i); setUseCustom(false); }}
+              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                !useCustom && queryIdx === i
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {q.label}
+            </button>
+          ))}
         </div>
+
+        {/* Starter templates — pre-fill the custom textarea, then edit placeholders */}
+        <div className="flex gap-2 flex-wrap items-center">
+          <span className="text-xs text-muted-foreground">Starter Query Templates:</span>
+          {STARTER_QUERIES.map((q, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => handleStarterClick(q.query)}
+              className="px-3 py-1.5 rounded text-xs font-medium border border-dashed border-muted-foreground/40 text-muted-foreground hover:text-foreground hover:border-muted-foreground transition-colors"
+              title="Opens in custom editor — replace {col} / {val} before running"
+            >
+              {q.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Custom query textarea */}
         {useCustom ? (
-          <textarea
-            value={customQuery}
-            onChange={(e) => setCustomQuery(e.target.value)}
-            placeholder="SELECT COUNT(*) FROM {table}"
-            rows={3}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
-          />
-        ) : (
-          <div className="flex gap-2 flex-wrap">
-            {PREDEFINED_QUERIES.map((q, i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => setQueryIdx(i)}
-                className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                  queryIdx === i
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {q.label}
-              </button>
-            ))}
+          <div className="space-y-1">
+            <textarea
+              value={customQuery}
+              onChange={(e) => setCustomQuery(e.target.value)}
+              placeholder="SELECT COUNT(*) as row_count FROM {table}"
+              rows={3}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
+            />
+            {(customQuery.includes("{col}") || customQuery.includes("{val}")) && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Replace <code className="font-mono">{"{col}"}</code>
+                {customQuery.includes("{val}") && <> and <code className="font-mono">{"{val}"}</code></>}
+                {" "}with actual column/value names before running.
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={() => setUseCustom(false)}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              ← Back to presets
+            </button>
           </div>
+        ) : (
+          <p className="text-xs text-muted-foreground font-mono">{activeQuery}</p>
         )}
-        <p className="text-xs text-muted-foreground font-mono">{activeQuery}</p>
       </div>
 
       {/* Run button */}

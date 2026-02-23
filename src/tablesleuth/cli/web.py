@@ -48,7 +48,9 @@ def _resolve_web_dir() -> Path | None:
 @click.command("web")
 @click.option("--host", default="localhost", show_default=True, help="Host to bind the server to.")
 @click.option("--port", default=8000, show_default=True, type=int, help="Port to listen on.")
-@click.option("--no-browser", is_flag=True, default=False, help="Do not open browser automatically.")
+@click.option(
+    "--no-browser", is_flag=True, default=False, help="Do not open browser automatically."
+)
 @click.option(
     "--log-level",
     default="warning",
@@ -71,13 +73,13 @@ def web(host: str, port: int, no_browser: bool, log_level: str) -> None:
     # Check uvicorn is importable
     try:
         import uvicorn  # noqa: F401
-    except ImportError:
+    except ImportError as err:
         raise click.ClickException(
             "uvicorn is not installed. Install web dependencies with:\n"
             "    pip install tablesleuth[web]\n"
             "or:\n"
             "    uv sync --extra web"
-        )
+        ) from err
 
     # Resolve web UI directory
     web_dir = _resolve_web_dir()

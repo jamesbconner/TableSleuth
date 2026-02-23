@@ -1,5 +1,6 @@
 """Unit tests for GizmoDuckDbProfiler (mocked, no server required)."""
 
+import sys
 from unittest.mock import Mock, patch
 
 import pytest
@@ -19,6 +20,7 @@ class TestCleanFilePath:
         """Test removing file:// prefix."""
         assert _clean_file_path("file:///path/to/file.parquet") == "/path/to/file.parquet"
 
+    @pytest.mark.skipif(sys.platform != "win32", reason="Windows-specific path handling")
     def test_clean_file_uri_windows(self):
         """Test removing file:// prefix from Windows path."""
         assert _clean_file_path("file:///C:/path/to/file.parquet") == "/C:/path/to/file.parquet"

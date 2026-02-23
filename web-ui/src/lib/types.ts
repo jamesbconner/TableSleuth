@@ -286,12 +286,19 @@ export interface ConfigStatus {
 
 export interface QueryPerformanceMetrics {
   execution_time_ms: number;
+  /** Total files scanned (data + delete). */
   files_scanned: number;
   bytes_scanned: number;
+  /** Total physical rows read (data-file records + delete records). */
   rows_scanned: number;
   rows_returned: number;
   memory_peak_mb: number;
   scan_efficiency: number;
+  // Per-type breakdowns (populated for Iceberg MOR snapshots; 0 otherwise)
+  data_files_scanned: number;
+  delete_files_scanned: number;
+  data_rows_scanned: number;
+  delete_rows_scanned: number;
 }
 
 export interface PerformanceComparison {

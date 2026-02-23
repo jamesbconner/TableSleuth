@@ -106,7 +106,12 @@ def execute_query(req: QueryRequest) -> dict[str, Any]:
         # Serialize rows (convert any non-JSON-safe types to str)
         serialized_rows = []
         for row in rows:
-            serialized_rows.append([str(v) if v is not None and not isinstance(v, (int, float, bool, str)) else v for v in row])
+            serialized_rows.append(
+                [
+                    str(v) if v is not None and not isinstance(v, int | float | bool | str) else v
+                    for v in row
+                ]
+            )
 
         return {
             "columns": columns,
@@ -184,6 +189,10 @@ def _serialize_metrics(m: QueryPerformanceMetrics) -> dict[str, Any]:
         "rows_returned": m.rows_returned,
         "memory_peak_mb": m.memory_peak_mb,
         "scan_efficiency": m.scan_efficiency,
+        "data_files_scanned": m.data_files_scanned,
+        "delete_files_scanned": m.delete_files_scanned,
+        "data_rows_scanned": m.data_rows_scanned,
+        "delete_rows_scanned": m.delete_rows_scanned,
     }
 
 
@@ -198,6 +207,78 @@ def _serialize_comparison(c: PerformanceComparison) -> dict[str, Any]:
         "files_scanned_delta_pct": c.files_scanned_delta_pct,
         "analysis": c.analysis,
     }
+
+
+def _iceberg_snapshot_scan_stats(native_table: Any, snapshot_id: int) -> dict[str, int]:
+    """Return scan statistics derived from a PyIceberg snapshot summary.
+
+    Keys returned:
+    - ``files_scanned``: data files + delete files
+    - ``bytes_scanned``: total file sizes from ``total-files-size``
+    - ``rows_scanned``: data-file records + delete records (physical rows DuckDB reads)
+    - ``data_files_scanned``, ``delete_files_scanned``: per-type file counts
+    - ``data_rows_scanned``, ``delete_rows_scanned``: per-type row counts
+
+    Returns a dict of zeros on any error so callers degrade gracefully.
+
+    Args:
+        native_table: PyIceberg ``Table`` instance.
+        snapshot_id: Iceberg snapshot ID to look up.
+
+    Returns:
+        Dict mapping stat name to integer value.
+    """
+    _zero: dict[str, int] = {
+        "files_scanned": 0,
+        "bytes_scanned": 0,
+        "rows_scanned": 0,
+        "data_files_scanned": 0,
+        "delete_files_scanned": 0,
+        "data_rows_scanned": 0,
+        "delete_rows_scanned": 0,
+    }
+    try:
+        snap = native_table.snapshot_by_id(snapshot_id)
+        if snap is None:
+            return _zero
+        summary = snap.summary
+
+        def _get_int(key: str) -> int:
+            try:
+                val = summary.get(key)
+            except (AttributeError, TypeError):
+                val = None
+            if val is None:
+                try:
+                    val = summary.additional_properties.get(key)
+                except AttributeError:
+                    pass
+            try:
+                return int(val or 0)
+            except (TypeError, ValueError):
+                return 0
+
+        data_files = _get_int("total-data-files")
+        delete_files = _get_int("total-delete-files")
+        total_records = _get_int("total-records")
+        pos_deletes = _get_int("total-position-deletes")
+        eq_deletes = _get_int("total-equality-deletes")
+        total_bytes = _get_int("total-files-size")
+
+        return {
+            "files_scanned": data_files + delete_files,
+            "bytes_scanned": total_bytes,
+            "rows_scanned": total_records + pos_deletes + eq_deletes,
+            "data_files_scanned": data_files,
+            "delete_files_scanned": delete_files,
+            "data_rows_scanned": total_records,
+            "delete_rows_scanned": pos_deletes + eq_deletes,
+        }
+    except Exception:
+        logger.debug(
+            "Could not get snapshot scan stats for snapshot %d", snapshot_id, exc_info=True
+        )
+        return _zero
 
 
 @router.post("/compare")
@@ -238,12 +319,18 @@ def compare_performance(req: CompareRequest) -> dict[str, Any]:
             # patched_iceberg_metadata() creates a lightweight local copy of the
             # metadata chain with that string lowercased, redirecting only the affected
             # delete manifests; all data files remain at their original S3/local paths.
+            # Derive file/row counts from snapshot summaries for metrics fallback.
+            stats_a = _iceberg_snapshot_scan_stats(native, id_a)
+            stats_b = _iceberg_snapshot_scan_stats(native, id_b)
+
             with (
                 patched_iceberg_metadata(native, id_a) as meta_a,
                 patched_iceberg_metadata(native, id_b) as meta_b,
             ):
                 profiler.register_iceberg_table_with_snapshot("snap_a", meta_a, id_a)
                 profiler.register_iceberg_table_with_snapshot("snap_b", meta_b, id_b)
+                profiler.register_iceberg_scan_stats("snap_a", **stats_a)
+                profiler.register_iceberg_scan_stats("snap_b", **stats_b)
 
                 analyzer = SnapshotPerformanceAnalyzer(profiler)
                 comparison = analyzer.compare_query_performance("snap_a", "snap_b", req.query)

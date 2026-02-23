@@ -541,11 +541,10 @@ class GizmoDuckDbProfiler(ProfilingBackend):
 
         from deltalake import DeltaTable
 
-        kwargs: dict[str, int] = {}
         if version is not None:
-            kwargs["version"] = version
-
-        dt = DeltaTable(path, **kwargs)
+            dt = DeltaTable(path, version=version)
+        else:
+            dt = DeltaTable(path)
         file_uris = dt.file_uris()  # absolute URIs for all active files at this version
 
         # Collect stats for metrics fallback (best-effort; ignore errors).
@@ -605,6 +604,56 @@ class GizmoDuckDbProfiler(ProfilingBackend):
             f"{total_bytes} bytes, {total_rows} rows"
         )
 
+    def register_iceberg_scan_stats(
+        self,
+        table_identifier: str,
+        files_scanned: int = 0,
+        rows_scanned: int = 0,
+        bytes_scanned: int = 0,
+        data_files_scanned: int = 0,
+        delete_files_scanned: int = 0,
+        data_rows_scanned: int = 0,
+        delete_rows_scanned: int = 0,
+    ) -> None:
+        """Register known scan statistics for an Iceberg snapshot.
+
+        Used to supplement metrics when EXPLAIN ANALYZE (via Arrow Flight SQL) does
+        not return reliable file or row counts.  Call this after
+        ``register_iceberg_table_with_snapshot`` with values derived from the
+        PyIceberg snapshot summary.
+
+        Args:
+            table_identifier: Alias used in SQL queries (e.g. ``"snap_a"``).
+            files_scanned: Total files (data + delete).
+            rows_scanned: Total physical rows (data-file records + delete records).
+            bytes_scanned: Total file size in bytes (from snapshot summary).
+            data_files_scanned: Data files only.
+            delete_files_scanned: Delete files only.
+            data_rows_scanned: Records in data files only.
+            delete_rows_scanned: Records in delete files only.
+        """
+        if not hasattr(self, "_iceberg_scan_stats"):
+            self._iceberg_scan_stats: dict[str, dict[str, int]] = {}
+        self._iceberg_scan_stats[table_identifier] = {
+            "files_scanned": files_scanned,
+            "bytes_scanned": bytes_scanned,
+            "rows_scanned": rows_scanned,
+            "data_files_scanned": data_files_scanned,
+            "delete_files_scanned": delete_files_scanned,
+            "data_rows_scanned": data_rows_scanned,
+            "delete_rows_scanned": delete_rows_scanned,
+        }
+        logger.debug(
+            "Registered Iceberg scan stats for %s: %d files (%d data + %d delete), "
+            "%d rows_scanned, %d bytes",
+            table_identifier,
+            files_scanned,
+            data_files_scanned,
+            delete_files_scanned,
+            rows_scanned,
+            bytes_scanned,
+        )
+
     def _replace_iceberg_tables(self, query: str) -> str:
         """Replace table references with iceberg_scan() or read_parquet() calls.
 
@@ -634,8 +683,17 @@ class GizmoDuckDbProfiler(ProfilingBackend):
                     rf'"{re.escape(table_id)}"',
                     rf"'{re.escape(table_id)}'",
                 ]
+
+                def make_replacer(replacement: str) -> Any:
+                    return lambda m: replacement
+
                 for pattern in patterns:
-                    modified_query = re.sub(pattern, lambda m, r=scan_call: r, modified_query, flags=re.IGNORECASE)
+                    modified_query = re.sub(
+                        pattern,
+                        make_replacer(scan_call),
+                        modified_query,
+                        flags=re.IGNORECASE,
+                    )
 
         # --- Delta tables ---
         # delta_scan() does not support version travel; instead we resolve the active
@@ -653,8 +711,17 @@ class GizmoDuckDbProfiler(ProfilingBackend):
                     rf'"{re.escape(table_id)}"',
                     rf"'{re.escape(table_id)}'",
                 ]
+
+                def make_replacer(replacement: str) -> Any:
+                    return lambda m: replacement
+
                 for pattern in patterns:
-                    modified_query = re.sub(pattern, lambda m, r=scan_call: r, modified_query, flags=re.IGNORECASE)
+                    modified_query = re.sub(
+                        pattern,
+                        make_replacer(scan_call),
+                        modified_query,
+                        flags=re.IGNORECASE,
+                    )
 
         # --- Explicit file-list tables (local Iceberg, or any format needing read_parquet) ---
         if hasattr(self, "_file_tables") and self._file_tables:
@@ -662,7 +729,9 @@ class GizmoDuckDbProfiler(ProfilingBackend):
                 if not file_paths:
                     continue
 
-                escaped_paths = ", ".join(f"'{p.replace(chr(39), chr(39) * 2)}'" for p in file_paths)
+                escaped_paths = ", ".join(
+                    f"'{p.replace(chr(39), chr(39) * 2)}'" for p in file_paths
+                )
                 scan_call = f"read_parquet([{escaped_paths}])"
 
                 patterns = [
@@ -670,8 +739,17 @@ class GizmoDuckDbProfiler(ProfilingBackend):
                     rf'"{re.escape(table_id)}"',
                     rf"'{re.escape(table_id)}'",
                 ]
+
+                def make_replacer(replacement: str) -> Any:
+                    return lambda m: replacement
+
                 for pattern in patterns:
-                    modified_query = re.sub(pattern, lambda m, r=scan_call: r, modified_query, flags=re.IGNORECASE)
+                    modified_query = re.sub(
+                        pattern,
+                        make_replacer(scan_call),
+                        modified_query,
+                        flags=re.IGNORECASE,
+                    )
 
         if modified_query != query:
             logger.debug(
@@ -735,8 +813,32 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         bytes_scanned = metrics.bytes_scanned
         rows_scanned = metrics.rows_scanned
         rows_returned = metrics.rows_returned
+        data_files_scanned = metrics.data_files_scanned
+        delete_files_scanned = metrics.delete_files_scanned
+        data_rows_scanned = metrics.data_rows_scanned
+        delete_rows_scanned = metrics.delete_rows_scanned
 
-        # Collect stats for any registered file-list tables referenced in the query.
+        # 1. Iceberg snapshot stats (files = data+delete; rows_scanned = data records
+        #    + delete records, i.e. physical rows read before applying deletes).
+        if hasattr(self, "_iceberg_scan_stats"):
+            for table_id, ic in self._iceberg_scan_stats.items():
+                if _re.search(rf"\b{_re.escape(table_id)}\b", original_query, _re.IGNORECASE):
+                    if files_scanned == 0 and ic.get("files_scanned", 0) > 0:
+                        files_scanned = ic["files_scanned"]
+                    if bytes_scanned == 0 and ic.get("bytes_scanned", 0) > 0:
+                        bytes_scanned = ic["bytes_scanned"]
+                    if rows_scanned == 0 and ic.get("rows_scanned", 0) > 0:
+                        rows_scanned = ic["rows_scanned"]
+                    if data_files_scanned == 0 and ic.get("data_files_scanned", 0) > 0:
+                        data_files_scanned = ic["data_files_scanned"]
+                    if delete_files_scanned == 0 and ic.get("delete_files_scanned", 0) > 0:
+                        delete_files_scanned = ic["delete_files_scanned"]
+                    if data_rows_scanned == 0 and ic.get("data_rows_scanned", 0) > 0:
+                        data_rows_scanned = ic["data_rows_scanned"]
+                    if delete_rows_scanned == 0 and ic.get("delete_rows_scanned", 0) > 0:
+                        delete_rows_scanned = ic["delete_rows_scanned"]
+
+        # 2. Collect stats for any registered file-list / Delta tables referenced.
         all_stat_dicts: list[dict[str, tuple[int, int, int]]] = []
         if hasattr(self, "_file_table_stats"):
             all_stat_dicts.append(self._file_table_stats)
@@ -753,16 +855,18 @@ class GizmoDuckDbProfiler(ProfilingBackend):
                     if rows_scanned == 0:
                         rows_scanned = tr
 
-        # Derive rows_returned from actual results when the parser found nothing.
+        # 3. Derive rows_returned from actual query results (most accurate for COUNT
+        #    queries, where the result already reflects any applied delete records).
         if rows_returned == 0 and results:
             if len(results) == 1 and len(results[0]) == 1:
                 # Single scalar result — almost certainly a COUNT(*) or similar aggregate.
                 val = results[0][0]
-                rows_returned = int(val) if isinstance(val, (int, float)) else 1
+                rows_returned = int(val) if isinstance(val, int | float) else 1
             else:
                 rows_returned = len(results)
 
-        # For a full-table scan with no predicate, rows_scanned ≈ rows_returned.
+        # 4. Last-resort fallback: if rows_scanned is still unknown, assume it equals
+        #    rows_returned (valid for tables with no delete files).
         if rows_scanned == 0 and rows_returned > 0:
             rows_scanned = rows_returned
 
@@ -773,6 +877,10 @@ class GizmoDuckDbProfiler(ProfilingBackend):
             rows_scanned=rows_scanned,
             rows_returned=rows_returned,
             memory_peak_mb=metrics.memory_peak_mb,
+            data_files_scanned=data_files_scanned,
+            delete_files_scanned=delete_files_scanned,
+            data_rows_scanned=data_rows_scanned,
+            delete_rows_scanned=delete_rows_scanned,
         )
 
     def _parse_explain_analyze(
@@ -941,11 +1049,12 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         if not manifest_list_path:
             return 0
 
-        # For now, return summary stats if available
+        # Return total files (data + delete) from snapshot summary when available.
         summary = snapshot.get("summary", {})
-        total_data_files = summary.get("total-data-files")
-        if total_data_files:
-            return int(total_data_files)
+        total_data_files = int(summary.get("total-data-files", 0) or 0)
+        total_delete_files = int(summary.get("total-delete-files", 0) or 0)
+        if total_data_files or total_delete_files:
+            return total_data_files + total_delete_files
 
         # If summary not available, would need to read manifest list
         # This is a simplified version - full implementation would parse manifests

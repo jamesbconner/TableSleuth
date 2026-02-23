@@ -12,7 +12,13 @@ import yaml
 from fastapi import APIRouter, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from tablesleuth.config import AppConfig, CatalogConfig, GizmoConfig, get_config_file_path, load_config
+from tablesleuth.config import (
+    AppConfig,
+    CatalogConfig,
+    GizmoConfig,
+    get_config_file_path,
+    load_config,
+)
 
 logger = logging.getLogger(__name__)
 

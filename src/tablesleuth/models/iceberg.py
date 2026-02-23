@@ -295,11 +295,16 @@ class QueryPerformanceMetrics:
 
     Attributes:
         execution_time_ms: Total query execution time in milliseconds
-        files_scanned: Number of files scanned
-        bytes_scanned: Total bytes scanned
-        rows_scanned: Total rows scanned (before filtering)
-        rows_returned: Rows returned (after filtering)
+        files_scanned: Total files scanned (data + delete files)
+        bytes_scanned: Total bytes scanned (sum of all scanned file sizes)
+        rows_scanned: Total rows scanned before delete application
+            (data-file records + delete records)
+        rows_returned: Rows returned after all filtering and delete application
         memory_peak_mb: Peak memory usage in megabytes
+        data_files_scanned: Data files only (subset of files_scanned)
+        delete_files_scanned: Delete files only (subset of files_scanned)
+        data_rows_scanned: Records in data files (subset of rows_scanned)
+        delete_rows_scanned: Records in delete files (subset of rows_scanned)
     """
 
     execution_time_ms: float
@@ -308,6 +313,10 @@ class QueryPerformanceMetrics:
     rows_scanned: int
     rows_returned: int
     memory_peak_mb: float
+    data_files_scanned: int = 0
+    delete_files_scanned: int = 0
+    data_rows_scanned: int = 0
+    delete_rows_scanned: int = 0
 
     @property
     def scan_efficiency(self) -> float:

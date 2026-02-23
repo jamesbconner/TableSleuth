@@ -51,6 +51,7 @@ def load_table(req: LoadRequest) -> dict[str, Any]:
         handle = adapter.open_table(req.path)
         snapshot = adapter.load_snapshot(handle, req.version)
         result = _to_dict(snapshot)
+        assert isinstance(result, dict)
         # Add native table version info
         result["current_version"] = handle.native.version()
         return result
@@ -156,8 +157,7 @@ def get_schema(req: LoadRequest) -> dict[str, Any]:
         dt = _DT(req.path, **kwargs)
         schema = dt.schema()
         fields = [
-            {"name": f.name, "type": str(f.type), "nullable": f.nullable}
-            for f in schema.fields
+            {"name": f.name, "type": str(f.type), "nullable": f.nullable} for f in schema.fields
         ]
         return {"fields": fields, "count": len(fields)}
     except FileNotFoundError as exc:

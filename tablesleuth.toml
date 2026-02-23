@@ -1,37 +1,8 @@
-# Table Sleuth Configuration
-
 [catalog]
-# Default catalog for Iceberg tables.
 default = "glue"
 
 [gizmosql]
-# GizmoSQL connection settings for column profiling and Iceberg performance testing
-#
-# IMPORTANT: These credentials should match those in resources/config.json
-# used for EC2 deployment. Update both files if you change the username or password.
-
 uri = "grpc+tls://localhost:31337"
 username = "gizmosql_username"
 password = "gizmosql_password"
 tls_skip_verify = true
-
-# Note: Do NOT configure local_data_path or docker_data_path
-# These are legacy settings for Docker deployments which are no longer recommended
-
-# To start GizmoSQL:
-# If using the AWS CDK deployment, GizmoSQL is installed automatically
-#   and an alias is created that allows for a single command to startup the server with
-#   the correct params.
-#
-# $ gizmosvr
-#
-# Alternatively, the gizmosql_server can be started manually after installation:
-# $ gizmosql_server -P gizmosql_password -Q -T ~/.certs/cert0.pem ~/.certs/cert0.key
-# (Default port is 31337, -Q enables query printing, -T enables TLS with self-signed certs)
-#
-# Installation (can use more recent versions):
-# macOS (ARM64): curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.10/gizmosql_cli_macos_arm64.zip | sudo unzip -o -d /usr/local/bin -
-# macOS (Intel):  curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.10/gizmosql_cli_macos_amd64.zip | sudo unzip -o -d /usr/local/bin -
-# Linux:          curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.10/gizmosql_cli_linux_amd64.zip | sudo unzip -o -d /usr/local/bin -
-#
-# See docs/gizmosql-deployment.md for detailed setup instructions

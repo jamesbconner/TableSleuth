@@ -97,7 +97,9 @@ def get_file_info(req: FileInfoRequest) -> dict[str, Any]:
     try:
         inspector = ParquetInspector(region=req.region)
         info = inspector.inspect_file(Path(req.path))
-        return _to_dict(info)
+        result = _to_dict(info)
+        assert isinstance(result, dict)
+        return result
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:

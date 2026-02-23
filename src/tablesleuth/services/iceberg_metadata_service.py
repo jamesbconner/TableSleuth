@@ -29,7 +29,9 @@ if sys.platform == "win32":
         _orig_parse = _PAFIO.parse_location
         _WIN_DRIVE_PATH = re.compile(r"^/([A-Za-z]:/.*)")
 
-        def _win_parse_location(location: str, properties: dict = {}) -> tuple:
+        def _win_parse_location(location: str, properties: dict | None = None) -> tuple:
+            if properties is None:
+                properties = {}
             scheme, netloc, path = _orig_parse(location, properties)
             if scheme == "file":
                 m = _WIN_DRIVE_PATH.match(path)

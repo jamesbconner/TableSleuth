@@ -95,7 +95,9 @@ def load_table(req: LoadRequest) -> dict[str, Any]:
             catalog_name=req.catalog_name,
             table_identifier=req.table_identifier,
         )
-        return _to_dict(table)
+        result = _to_dict(table)
+        assert isinstance(result, dict)
+        return result
     except TableLoadError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
@@ -150,7 +152,9 @@ def get_snapshot_details(snapshot_id: int, req: LoadRequest) -> dict[str, Any]:
             table_identifier=req.table_identifier,
         )
         details = _service.get_snapshot_details(table, snapshot_id)
-        return _to_dict(details)
+        result = _to_dict(details)
+        assert isinstance(result, dict)
+        return result
     except SnapshotNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except MetadataError as exc:
@@ -178,8 +182,12 @@ def compare_snapshots(req: CompareRequest) -> dict[str, Any]:
             catalog_name=req.catalog_name,
             table_identifier=req.table_identifier,
         )
-        comparison = _service.compare_snapshots(table, int(req.snapshot_a_id), int(req.snapshot_b_id))
-        return _to_dict(comparison)
+        comparison = _service.compare_snapshots(
+            table, int(req.snapshot_a_id), int(req.snapshot_b_id)
+        )
+        result = _to_dict(comparison)
+        assert isinstance(result, dict)
+        return result
     except SnapshotNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except TableLoadError as exc:
@@ -239,13 +247,14 @@ def list_catalog_tables(req: CatalogTablesRequest) -> dict[str, Any]:
         namespaces = catalog.list_namespaces()
         tables: list[str] = []
         for ns in namespaces:
-            ns_str = ".".join(ns) if isinstance(ns, (list, tuple)) else str(ns)
+            ns_str = ".".join(ns) if isinstance(ns, list | tuple) else str(ns)
             try:
                 for tbl in catalog.list_tables(ns):
                     tables.append(".".join(tbl))
-            except Exception:
+            except Exception as exc:
                 # Some catalogs may have namespaces that cannot be listed
-                pass
+                logger.debug("Failed to list tables in namespace %s: %s", ns_str, exc)
+                continue
         return {"tables": sorted(tables), "count": len(tables), "catalog": req.catalog_name}
     except TableLoadError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

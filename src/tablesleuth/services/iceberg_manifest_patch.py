@@ -37,17 +37,20 @@ logger = logging.getLogger(__name__)
 # Low-level helpers
 # ---------------------------------------------------------------------------
 
+
 def _read_bytes(uri: str) -> bytes:
     """Read raw bytes from a local path, file:// URI, or s3:// URI."""
     if uri.startswith(("s3://", "s3a://")):
-        import boto3  # already a project dependency via pyiceberg
         from urllib.parse import urlparse
+
+        import boto3  # already a project dependency via pyiceberg
 
         parsed = urlparse(uri)
         bucket = parsed.netloc
         key = parsed.path.lstrip("/")
         s3 = boto3.client("s3")
-        return s3.get_object(Bucket=bucket, Key=key)["Body"].read()
+        body = s3.get_object(Bucket=bucket, Key=key)["Body"].read()
+        return bytes(body)
 
     # file:// URI or plain local path
     if uri.startswith("file://"):
@@ -122,10 +125,15 @@ def _patch_delete_manifest(content: bytes) -> bytes:
         out = io.BytesIO()
         fastavro.writer(out, fastavro.parse_schema(schema), records)
         patched = out.getvalue()
-        logger.warning("Patched delete manifest: lowercased %d file_format field(s)", sum(
-            1 for r in records
-            if isinstance(r.get("data_file"), dict) and r["data_file"].get("file_format") == "parquet"
-        ))
+        logger.warning(
+            "Patched delete manifest: lowercased %d file_format field(s)",
+            sum(
+                1
+                for r in records
+                if isinstance(r.get("data_file"), dict)
+                and r["data_file"].get("file_format") == "parquet"
+            ),
+        )
         return patched
 
     except Exception as exc:
@@ -147,11 +155,11 @@ def _rewrite_manifest_list(content: bytes, path_map: dict[str, str]) -> bytes:
     schema = reader.writer_schema
     records: list[dict] = []
     for record in reader:
-        orig = record.get("manifest_path", "")
+        orig = record.get("manifest_path", "")  # type: ignore[union-attr]
         if orig in path_map:
-            record = dict(record)
+            record = dict(record)  # type: ignore[arg-type]
             record["manifest_path"] = path_map[orig]
-        records.append(record)
+        records.append(record)  # type: ignore[arg-type]
 
     out = io.BytesIO()
     fastavro.writer(out, fastavro.parse_schema(schema), records)
@@ -162,30 +170,44 @@ def _rewrite_manifest_list(content: bytes, path_map: dict[str, str]) -> bytes:
 # Public context manager
 # ---------------------------------------------------------------------------
 
+
 @contextmanager
 def patched_iceberg_metadata(
-    native_table,  # pyiceberg.table.Table
+    native_table: Any,  # pyiceberg.table.Table
     snapshot_id: int,
-) -> Generator[str, None, None]:
+) -> Generator[str, None, None]:  # noqa: UP043
     """Yield a ``file://`` URI for a locally-patched copy of Iceberg snapshot metadata.
 
-    The patched metadata chain resolves the DuckDB iceberg_scan() failure caused by
-    delete-file manifests that store ``file_format = 'PARQUET'`` (uppercase).
+    Two problems are corrected:
 
-    If the snapshot has no delete files, or if none of its delete manifests contain
-    uppercase PARQUET strings, the original metadata URI is yielded unchanged (no temp
-    files are created).
+    1. **DuckDB delete-file format bug** — DuckDB's ``iceberg_scan()`` rejects delete
+       manifests whose ``file_format`` is ``'PARQUET'`` (uppercase).  Affected avro
+       files are re-encoded with the value lowercased.
+
+    2. **Stale current-snapshot-id** — DuckDB applies delete files based on the
+       table's ``current-snapshot-id`` rather than the ``version =>`` argument.
+       When comparing an older snapshot against a newer one that introduced deletes,
+       the older snapshot would incorrectly inherit those deletes.  The patched
+       metadata sets ``current-snapshot-id`` to the target snapshot so DuckDB only
+       sees the delete files that belong to that particular snapshot.
+
+    A temporary local ``metadata.json`` is always written (even when no avro
+    re-encoding is needed) to carry the corrected ``current-snapshot-id``.
 
     Args:
         native_table: PyIceberg ``Table`` instance (from ``IcebergTableInfo.native_table``).
         snapshot_id:  Snapshot ID to patch.
 
     Yields:
-        A ``file://`` URI (or the original URI if no patching was needed) suitable
+        A ``file://`` URI pointing to the patched local ``metadata.json``, suitable
         for passing to ``iceberg_scan(uri, version => snapshot_id)``.
     """
     metadata_location: str = native_table.metadata_location
-    logger.warning("patched_iceberg_metadata: metadata_location=%r snapshot_id=%s", metadata_location, snapshot_id)
+    logger.debug(
+        "patched_iceberg_metadata: metadata_location=%r snapshot_id=%s",
+        metadata_location,
+        snapshot_id,
+    )
 
     # Read the metadata JSON (always local-accessible since IcebergMetadataService
     # already resolved it; for S3 tables PyIceberg caches/fetches it).
@@ -211,7 +233,7 @@ def patched_iceberg_metadata(
         return
 
     manifest_list_uri: str = target_snap["manifest-list"]
-    logger.warning("patched_iceberg_metadata: manifest_list_uri=%r", manifest_list_uri)
+    logger.debug("patched_iceberg_metadata: manifest_list_uri=%r", manifest_list_uri)
 
     # Read the manifest-list avro to discover which manifests are DELETE manifests.
     try:
@@ -224,26 +246,26 @@ def patched_iceberg_metadata(
     import fastavro
 
     ml_reader = fastavro.reader(io.BytesIO(ml_bytes))
-    ml_records: list[dict] = list(ml_reader)
+    ml_records: list[dict] = list(ml_reader)  # type: ignore[arg-type]
 
     # Identify DELETE manifests (content == 1 in the manifest-list schema).
-    delete_manifest_uris = [
-        r["manifest_path"]
-        for r in ml_records
-        if r.get("content", 0) == 1
-    ]
+    delete_manifest_uris = [r["manifest_path"] for r in ml_records if r.get("content", 0) == 1]
 
-    logger.warning("patched_iceberg_metadata: found %d delete manifest(s): %r", len(delete_manifest_uris), delete_manifest_uris)
+    logger.debug(
+        "patched_iceberg_metadata: found %d delete manifest(s): %r",
+        len(delete_manifest_uris),
+        delete_manifest_uris,
+    )
 
-    if not delete_manifest_uris:
-        # No delete manifests — iceberg_scan() won't hit the format bug.
-        logger.warning("patched_iceberg_metadata: no delete manifests, using original URI")
-        yield metadata_location
-        return
-
+    # Always create a patched metadata copy even when no delete manifests need format
+    # fixing.  DuckDB's iceberg_scan() applies delete files based on the table's
+    # *current-snapshot-id* rather than on the version specified via ``version =>``.
+    # Setting current-snapshot-id to the target snapshot in a local copy ensures
+    # DuckDB only sees delete files that belong to that snapshot, preventing older
+    # snapshots from inheriting delete records added by a newer current snapshot.
     with tempfile.TemporaryDirectory(prefix="tablesleuth_iceberg_patch_") as tmpdir:
         tmp = Path(tmpdir)
-        path_map: dict[str, str] = {}  # original URI → local file:// URI
+        path_map: dict[str, str] = {}  # original URI → local posix path
 
         for idx, del_uri in enumerate(delete_manifest_uris):
             try:
@@ -254,8 +276,10 @@ def patched_iceberg_metadata(
 
             patched = _patch_delete_manifest(raw)
             if patched is raw:
-                # No uppercase PARQUET found — no patch needed for this manifest.
-                logger.warning("patched_iceberg_metadata: delete manifest %r needed no patching", del_uri)
+                # No uppercase PARQUET found — no format patch needed for this manifest.
+                logger.debug(
+                    "patched_iceberg_metadata: delete manifest %r needed no patching", del_uri
+                )
                 continue
 
             local_name = f"delete_manifest_{idx}.avro"
@@ -266,34 +290,41 @@ def patched_iceberg_metadata(
             # (file:// stripped → /C:/... which is invalid on Windows).
             local_posix = local_path.as_posix()
             path_map[del_uri] = local_posix
-            logger.warning("patched_iceberg_metadata: patched %r → %s", del_uri, local_posix)
+            logger.debug(
+                "patched_iceberg_metadata: patched delete manifest %r → %s", del_uri, local_posix
+            )
 
-        if not path_map:
-            # All delete manifests were already lowercase — no patch needed.
-            logger.warning(
-                "patched_iceberg_metadata: %d delete manifest(s) found but none needed patching "
-                "(all file_format fields were already lowercase) — using original URI",
+        # Rewrite the manifest-list only when some delete manifests were re-encoded.
+        new_ml_posix: str | None = None
+        if path_map:
+            patched_ml = _rewrite_manifest_list(ml_bytes, path_map)
+            ml_path = tmp / "manifest_list.avro"
+            ml_path.write_bytes(patched_ml)
+            new_ml_posix = ml_path.as_posix()
+            logger.debug("patched_iceberg_metadata: rewrote manifest-list → %s", new_ml_posix)
+        else:
+            logger.debug(
+                "patched_iceberg_metadata: %d delete manifest(s) found; none needed format patching",
                 len(delete_manifest_uris),
             )
-            yield metadata_location
-            return
 
-        # Rewrite the manifest-list to redirect patched delete manifests.
-        patched_ml = _rewrite_manifest_list(ml_bytes, path_map)
-        ml_path = tmp / "manifest_list.avro"
-        ml_path.write_bytes(patched_ml)
-
-        # Rewrite the metadata JSON to redirect this snapshot's manifest-list.
-        # Use posix path (no file:// prefix) inside the JSON so DuckDB can open
-        # the manifest-list without URI stripping issues on Windows.
+        # Always rewrite the metadata JSON so that:
+        #   1. current-snapshot-id points to the target snapshot (not the table's
+        #      current HEAD), preventing DuckDB from applying newer delete files.
+        #   2. If delete manifests were re-encoded, the manifest-list path is updated.
         patched_meta = json.loads(json.dumps(metadata))  # deep copy
-        for snap in patched_meta.get("snapshots", []):
-            if snap.get("snapshot-id") == snapshot_id:
-                snap["manifest-list"] = ml_path.as_posix()
-                break
+        patched_meta["current-snapshot-id"] = snapshot_id
+
+        if new_ml_posix is not None:
+            for snap in patched_meta.get("snapshots", []):
+                if snap.get("snapshot-id") == snapshot_id:
+                    snap["manifest-list"] = new_ml_posix
+                    break
 
         meta_path = tmp / "metadata.json"
         meta_path.write_text(json.dumps(patched_meta), encoding="utf-8")
-        logger.warning("patched_iceberg_metadata: yielding patched metadata URI: %s", meta_path.as_uri())
+        logger.debug(
+            "patched_iceberg_metadata: yielding patched metadata URI: %s", meta_path.as_uri()
+        )
 
         yield meta_path.as_uri()
