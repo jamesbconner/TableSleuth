@@ -1,10 +1,10 @@
 """Tests for TOML escaping in config router."""
 
+import tomllib
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import pytest
-import tomllib
 
 from tablesleuth.api.routers.config import _write_toml
 from tablesleuth.config import AppConfig, CatalogConfig, GizmoConfig
