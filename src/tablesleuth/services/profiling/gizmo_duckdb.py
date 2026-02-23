@@ -113,8 +113,8 @@ def _validate_filter_expression(filters: str) -> None:
 def _clean_file_path(path: str) -> str:
     """Convert a file:// URI to a local path, or return path unchanged.
 
-    Uses Path.from_uri() (Python 3.13+) to correctly handle Windows drive
-    letters: file:///C:/path → C:/path (not /C:/path).
+    Handles both Windows (file:///C:/path) and Unix (file:///path) style URIs.
+    Falls back to manual parsing if Path.from_uri() fails.
 
     Args:
         path: File path or file:// URI
@@ -123,9 +123,15 @@ def _clean_file_path(path: str) -> str:
         Local path with forward slashes (suitable for DuckDB on any platform)
     """
     if path.startswith("file://"):
-        # as_posix() gives forward slashes on all platforms, including Windows
-        # where str(Path) would give backslashes.
-        return Path.from_uri(path).as_posix()
+        try:
+            # Try Path.from_uri() first (Python 3.13+)
+            # Works for proper absolute URIs like file:///C:/path on Windows
+            return Path.from_uri(path).as_posix()
+        except ValueError:
+            # Fallback for URIs that aren't considered absolute on this platform
+            # (e.g., file:///path/to/file on Windows)
+            # Simply strip the file:// prefix
+            return path[7:]  # Remove "file://"
     return path
 
 
