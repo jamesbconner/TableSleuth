@@ -135,6 +135,40 @@ def get_forensics(req: LoadRequest) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+@router.post("/schema")
+def get_schema(req: LoadRequest) -> dict[str, Any]:
+    """Get schema for a Delta table at a specific version.
+
+    Args:
+        req: Request with table path and optional version.
+
+    Returns:
+        Dictionary with list of schema fields.
+    """
+    try:
+        from deltalake import DeltaTable as _DT
+
+        kwargs: dict[str, Any] = {}
+        if req.version is not None:
+            kwargs["version"] = req.version
+        if req.storage_options:
+            kwargs["storage_options"] = req.storage_options
+        dt = _DT(req.path, **kwargs)
+        schema = dt.schema()
+        fields = [
+            {"name": f.name, "type": str(f.type), "nullable": f.nullable}
+            for f in schema.fields
+        ]
+        return {"fields": fields, "count": len(fields)}
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Error getting Delta schema: %s", req.path)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 @router.post("/schema-evolution")
 def get_schema_evolution(req: LoadRequest) -> dict[str, Any]:
     """Get schema evolution history for a Delta table.

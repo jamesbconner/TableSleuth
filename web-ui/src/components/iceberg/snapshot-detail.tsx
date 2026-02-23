@@ -35,6 +35,21 @@ export function SnapshotDetail({ details }: SnapshotDetailProps) {
         </div>
       </div>
 
+      {/* Commit Summary */}
+      {Object.keys(snap.summary).length > 0 && (
+        <div>
+          <h4 className="font-medium mb-2">Commit Summary</h4>
+          <div className="rounded border bg-muted/30 p-3 text-xs space-y-1 font-mono">
+            {Object.entries(snap.summary).map(([k, v]) => (
+              <div key={k} className="flex gap-2">
+                <span className="text-muted-foreground shrink-0">{k}:</span>
+                <span className="break-all">{v}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Schema */}
       <div>
         <h4 className="font-medium mb-2">Schema</h4>

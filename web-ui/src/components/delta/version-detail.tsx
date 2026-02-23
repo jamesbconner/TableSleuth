@@ -1,13 +1,15 @@
 "use client";
 
 import { formatBytes, formatNumber, formatTimestamp } from "@/lib/utils";
-import type { SnapshotInfo } from "@/lib/types";
+import type { DeltaSchemaField, SnapshotInfo } from "@/lib/types";
 
 interface VersionDetailProps {
   version: SnapshotInfo;
+  schema?: DeltaSchemaField[] | null;
+  loadingSchema?: boolean;
 }
 
-export function VersionDetail({ version }: VersionDetailProps) {
+export function VersionDetail({ version, schema, loadingSchema }: VersionDetailProps) {
   const totalSize = version.data_files.reduce((s, f) => s + f.file_size_bytes, 0);
   const totalRecords = version.data_files.reduce(
     (s, f) => s + (f.record_count ?? 0),
@@ -50,6 +52,35 @@ export function VersionDetail({ version }: VersionDetailProps) {
           </div>
         </div>
       )}
+
+      {/* Schema */}
+      <div>
+        <h4 className="font-medium mb-2">Schema</h4>
+        {loadingSchema ? (
+          <p className="text-sm text-muted-foreground">Loading schema…</p>
+        ) : schema && schema.length > 0 ? (
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="border-b bg-muted/50">
+                <th className="px-3 py-2 text-left">Field</th>
+                <th className="px-3 py-2 text-left">Type</th>
+                <th className="px-3 py-2 text-left">Nullable</th>
+              </tr>
+            </thead>
+            <tbody>
+              {schema.map((f) => (
+                <tr key={f.name} className="border-b hover:bg-muted/30">
+                  <td className="px-3 py-1.5 font-mono">{f.name}</td>
+                  <td className="px-3 py-1.5 text-muted-foreground">{f.type}</td>
+                  <td className="px-3 py-1.5">{f.nullable ? "Yes" : "No"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="text-sm text-muted-foreground">No schema available.</p>
+        )}
+      </div>
 
       {/* Data files */}
       <div>

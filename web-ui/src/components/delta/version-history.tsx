@@ -29,6 +29,8 @@ export function VersionHistory({ versions, selectedId, onSelect }: VersionHistor
           <p className="text-xs text-muted-foreground">{formatTimestamp(v.timestamp_ms)}</p>
           <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
             <span>{formatNumber(v.data_files.length)} files</span>
+            <span>{formatBytes(v.data_files.reduce((s, f) => s + f.file_size_bytes, 0))}</span>
+            <span>{formatNumber(v.data_files.reduce((s, f) => s + (f.record_count ?? 0), 0))} rows</span>
           </div>
         </button>
       ))}

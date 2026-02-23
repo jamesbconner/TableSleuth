@@ -189,6 +189,17 @@ export interface SnapshotComparison {
 // Delta
 // ---------------------------------------------------------------------------
 
+export interface DeltaSchemaField {
+  name: string;
+  type: string;
+  nullable: boolean;
+}
+
+export interface DeltaSchemaResponse {
+  fields: DeltaSchemaField[];
+  count: number;
+}
+
 export interface DeltaLoadResponse extends SnapshotInfo {
   current_version: number;
 }

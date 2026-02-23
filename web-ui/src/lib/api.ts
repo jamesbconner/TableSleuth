@@ -13,6 +13,7 @@ import type {
   ConfigStatus,
   DeltaForensicsResponse,
   DeltaLoadResponse,
+  DeltaSchemaResponse,
   DeltaVersionsResponse,
   FileSizeAnalysis,
   GizmoStatus,
@@ -152,6 +153,9 @@ export const delta = {
 
   forensics: (ref: DeltaRef) =>
     post<DeltaForensicsResponse>("/delta/forensics", ref),
+
+  schema: (ref: DeltaRef) =>
+    post<DeltaSchemaResponse>("/delta/schema", ref),
 
   schemaEvolution: (ref: DeltaRef) =>
     post<{ evolution: unknown[]; count: number }>(
