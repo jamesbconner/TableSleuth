@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import dataclasses
 import logging
 from pathlib import Path
 from typing import Any
@@ -10,6 +9,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from tablesleuth.api.serialization import to_dict
 from tablesleuth.services.file_discovery import FileDiscoveryService
 from tablesleuth.services.formats.iceberg import IcebergAdapter
 from tablesleuth.services.parquet_service import ParquetInspector
@@ -42,17 +42,6 @@ class SampleRequest(BaseModel):
     region: str | None = None
 
 
-def _to_dict(obj: Any) -> Any:
-    """Recursively convert dataclasses and nested objects to dicts."""
-    if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
-        return {k: _to_dict(v) for k, v in dataclasses.asdict(obj).items()}
-    if isinstance(obj, list):
-        return [_to_dict(i) for i in obj]
-    if isinstance(obj, dict):
-        return {k: _to_dict(v) for k, v in obj.items()}
-    return obj
-
-
 @router.post("/analyze")
 def analyze_parquet(req: AnalyzeRequest) -> dict[str, Any]:
     """Discover and inspect Parquet files at the given path.
@@ -74,7 +63,7 @@ def analyze_parquet(req: AnalyzeRequest) -> dict[str, Any]:
         else:
             file_refs = discovery.discover_from_path(req.path)
 
-        return {"files": [_to_dict(f) for f in file_refs], "count": len(file_refs)}
+        return {"files": [to_dict(f) for f in file_refs], "count": len(file_refs)}
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
@@ -97,7 +86,7 @@ def get_file_info(req: FileInfoRequest) -> dict[str, Any]:
     try:
         inspector = ParquetInspector(region=req.region)
         info = inspector.inspect_file(Path(req.path))
-        result = _to_dict(info)
+        result = to_dict(info)
         assert isinstance(result, dict)
         return result
     except FileNotFoundError as exc:

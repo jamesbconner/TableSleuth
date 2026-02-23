@@ -2,30 +2,19 @@
 
 from __future__ import annotations
 
-import dataclasses
 import logging
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from tablesleuth.api.serialization import to_dict
 from tablesleuth.services.delta_forensics import DeltaForensics
 from tablesleuth.services.formats.delta import DeltaAdapter
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/delta", tags=["delta"])
-
-
-def _to_dict(obj: Any) -> Any:
-    """Recursively convert dataclasses and nested objects to serializable dicts."""
-    if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
-        return {k: _to_dict(v) for k, v in dataclasses.asdict(obj).items()}
-    if isinstance(obj, list):
-        return [_to_dict(i) for i in obj]
-    if isinstance(obj, dict):
-        return {k: _to_dict(v) for k, v in obj.items()}
-    return obj
 
 
 class LoadRequest(BaseModel):
@@ -50,7 +39,7 @@ def load_table(req: LoadRequest) -> dict[str, Any]:
         adapter = DeltaAdapter(storage_options=req.storage_options)
         handle = adapter.open_table(req.path)
         snapshot = adapter.load_snapshot(handle, req.version)
-        result = _to_dict(snapshot)
+        result = to_dict(snapshot)
         assert isinstance(result, dict)
         # Add native table version info
         result["current_version"] = handle.native.version()
@@ -79,7 +68,7 @@ def list_versions(req: LoadRequest) -> dict[str, Any]:
         handle = adapter.open_table(req.path)
         snapshots = adapter.list_snapshots(handle)
         return {
-            "versions": [_to_dict(s) for s in snapshots],
+            "versions": [to_dict(s) for s in snapshots],
             "count": len(snapshots),
             "current_version": handle.native.version(),
         }

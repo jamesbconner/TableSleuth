@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import dataclasses
 import logging
 import os
 from pathlib import Path
@@ -12,6 +11,7 @@ import yaml
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from tablesleuth.api.serialization import JS_MAX_SAFE_INT, to_dict
 from tablesleuth.exceptions import MetadataError, SnapshotNotFoundError, TableLoadError
 from tablesleuth.services.iceberg_metadata_service import IcebergMetadataService
 
@@ -22,41 +22,19 @@ router = APIRouter(prefix="/iceberg", tags=["iceberg"])
 _service = IcebergMetadataService()
 
 
-_JS_MAX_SAFE_INT = (1 << 53) - 1  # 9007199254740991
-
-
-def _to_dict(obj: Any) -> Any:
-    """Recursively convert dataclasses and nested objects to serializable dicts.
-
-    Integers that exceed JavaScript's MAX_SAFE_INTEGER (2^53 - 1) are serialized
-    as strings to prevent silent precision loss when parsed by the browser.
-    Iceberg snapshot IDs are Java long (int64) and routinely exceed this limit.
+def _to_dict_iceberg(obj: Any) -> Any:
+    """Convert Iceberg objects to dicts with special handling.
+    
+    - Skips native_table field (non-serializable PyIceberg Table object)
+    - Includes @property values (computed metrics like delete_ratio)
+    - Converts large integers to strings for JavaScript safety
     """
-    if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
-        d = {}
-        for field in dataclasses.fields(obj):
-            if field.name == "native_table":
-                continue  # Skip non-serializable pyiceberg Table object
-            # Use getattr rather than dataclasses.asdict() — asdict() deep-copies
-            # all fields before we can skip native_table, causing a pickle error
-            # on the PyIceberg Table object which contains module references.
-            d[field.name] = _to_dict(getattr(obj, field.name))
-        # Also include @property values (dataclasses.fields() only returns declared
-        # fields, not computed properties like delete_ratio / read_amplification).
-        for name, val in vars(type(obj)).items():
-            if isinstance(val, property) and name not in d:
-                d[name] = _to_dict(getattr(obj, name))
-        return d
-    if isinstance(obj, list):
-        return [_to_dict(i) for i in obj]
-    if isinstance(obj, dict):
-        return {k: _to_dict(v) for k, v in obj.items()}
-    # Serialize integers that exceed JS MAX_SAFE_INTEGER as strings to avoid
-    # silent float64 rounding in the browser (Iceberg snapshot IDs are int64).
-    if isinstance(obj, int) and not isinstance(obj, bool):
-        if obj > _JS_MAX_SAFE_INT or obj < -_JS_MAX_SAFE_INT:
-            return str(obj)
-    return obj
+    return to_dict(
+        obj,
+        skip_fields={"native_table"},
+        include_properties=True,
+        safe_int_threshold=JS_MAX_SAFE_INT,
+    )
 
 
 class LoadRequest(BaseModel):
@@ -95,7 +73,7 @@ def load_table(req: LoadRequest) -> dict[str, Any]:
             catalog_name=req.catalog_name,
             table_identifier=req.table_identifier,
         )
-        result = _to_dict(table)
+        result = _to_dict_iceberg(table)
         assert isinstance(result, dict)
         return result
     except TableLoadError as exc:
@@ -124,7 +102,7 @@ def list_snapshots(req: LoadRequest) -> dict[str, Any]:
             table_identifier=req.table_identifier,
         )
         snapshots = _service.list_snapshots(table)
-        return {"snapshots": [_to_dict(s) for s in snapshots], "count": len(snapshots)}
+        return {"snapshots": [_to_dict_iceberg(s) for s in snapshots], "count": len(snapshots)}
     except TableLoadError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
@@ -152,7 +130,7 @@ def get_snapshot_details(snapshot_id: int, req: LoadRequest) -> dict[str, Any]:
             table_identifier=req.table_identifier,
         )
         details = _service.get_snapshot_details(table, snapshot_id)
-        result = _to_dict(details)
+        result = _to_dict_iceberg(details)
         assert isinstance(result, dict)
         return result
     except SnapshotNotFoundError as exc:
@@ -185,7 +163,7 @@ def compare_snapshots(req: CompareRequest) -> dict[str, Any]:
         comparison = _service.compare_snapshots(
             table, int(req.snapshot_a_id), int(req.snapshot_b_id)
         )
-        result = _to_dict(comparison)
+        result = _to_dict_iceberg(comparison)
         assert isinstance(result, dict)
         return result
     except SnapshotNotFoundError as exc:
@@ -280,7 +258,7 @@ def get_schema_evolution(req: LoadRequest) -> dict[str, Any]:
             table_identifier=req.table_identifier,
         )
         schemas = _service.get_schema_evolution(table)
-        return {"schemas": [_to_dict(s) for s in schemas], "count": len(schemas)}
+        return {"schemas": [_to_dict_iceberg(s) for s in schemas], "count": len(schemas)}
     except TableLoadError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
