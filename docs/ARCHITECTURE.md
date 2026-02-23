@@ -1,10 +1,10 @@
-# Table Sleuth Architecture
+# TableSleuth Architecture
 
 ## Overview
 
-Table Sleuth is a Python-based Parquet file forensics and Iceberg table analysis tool built with a layered architecture that separates concerns between presentation, business logic, and data access. The system provides comprehensive inspection of Parquet files and Iceberg tables with support for multiple catalog types (local SQL, AWS Glue, AWS S3 Tables), column profiling via GizmoSQL/DuckDB, and performance testing across Iceberg snapshots.
+TableSleuth is a Python-based tool for forensic analysis of Parquet files, Apache Iceberg tables, and Delta Lake tables. It exposes two interfaces — a Textual terminal TUI and a FastAPI + Next.js browser-based web UI (v0.6.0+) — built on a shared layered architecture that separates concerns between presentation, business logic, and data access. The system supports multiple catalog types (local SQL, AWS Glue, AWS S3 Tables), column profiling via GizmoSQL/DuckDB, and performance testing across Iceberg snapshots.
 
-**Current Version**: 0.5.3
+**Current Version**: 0.6.0
 
 This document provides a comprehensive overview of the system architecture, design patterns, and key technical decisions.
 
@@ -21,15 +21,37 @@ This document provides a comprehensive overview of the system architecture, desi
 │  │ - Directories    │  │ - Comparison     │  │ - Forensics      │       │
 │  │ - Iceberg tables │  │ - Performance    │  │ - Optimization   │       │
 │  └──────────────────┘  └──────────────────┘  └──────────────────┘       │
+│  ┌──────────────────┐                                                   │
+│  │  web command     │  (v0.6.0+)                                        │
+│  │  - FastAPI server│                                                   │
+│  │  - Next.js UI    │                                                   │
+│  └──────────────────┘                                                   │
 │                                                                         │
 │  Modular CLI Structure (v0.5.3+):                                       │
 │  ┌──────────────────────────────────────────────────────────────┐       │
 │  │ cli/__init__.py - Auto-loading command discovery             │       │
 │  │ cli/helpers.py - Shared utilities                            │       │
-│  │ cli/init.py, config_check.py, parquet.py, iceberg.py, delta.py│     │
+│  │ cli/init.py, config_check.py, parquet.py, iceberg.py,        │       │
+│  │ delta.py, web.py                                             │       │
 │  └──────────────────────────────────────────────────────────────┘       │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
+                          ┌─────────┴─────────┐
+                          │                   │
+                          ▼                   ▼
+┌──────────────────────────────┐  ┌───────────────────────────────────────┐
+│  Presentation Layer (TUI)    │  │  Web API Layer (v0.6.0+)              │
+│  Textual terminal interface  │  │  FastAPI + uvicorn                    │
+│                              │  │  ┌─────────────────────────────────┐  │
+│                              │  │  │ api/routers/                    │  │
+│                              │  │  │  parquet.py, iceberg.py,        │  │
+│                              │  │  │  delta.py, config.py,           │  │
+│                              │  │  │  gizmosql.py                    │  │
+│                              │  │  └─────────────────────────────────┘  │
+│                              │  │  Serves Next.js static export at /    │
+└──────────────────────────────┘  └───────────────────────────────────────┘
+                          │                   │
+                          └─────────┬─────────┘
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                       Presentation Layer (Textual TUI)                  │
@@ -104,6 +126,13 @@ This document provides a comprehensive overview of the system architecture, desi
 │  │ - File discovery │  │ - Metadata parse │  │ - Overhead calc  │       │
 │  │ - S3 Tables ARN  │  │ - Table info     │  │                  │       │
 │  └──────────────────┘  └──────────────────┘  └──────────────────┘       │
+│  ┌──────────────────┐                                                   │
+│  │ iceberg_manifest │  (v0.6.0+)                                        │
+│  │ _patch           │                                                   │
+│  │ - DuckDB compat  │                                                   │
+│  │ - Snapshot patch │                                                   │
+│  │ - Format fix     │                                                   │
+│  └──────────────────┘                                                   │
 │                                                                         │
 │  Performance Testing:                                                   │
 │  ┌──────────────────┐  ┌──────────────────┐                             │
@@ -179,7 +208,7 @@ This document provides a comprehensive overview of the system architecture, desi
 
 ## CLI Commands
 
-Table Sleuth provides a **modular CLI architecture** (v0.5.3+) with auto-loading command discovery. Each command is in its own focused module, following a format-oriented design pattern.
+TableSleuth provides a **modular CLI architecture** (v0.5.3+) with auto-loading command discovery. Each command is in its own focused module, following a format-oriented design pattern.
 
 ### CLI Architecture (v0.5.3+)
 
@@ -192,7 +221,8 @@ src/tablesleuth/cli/
 ├── config_check.py      # Config validation
 ├── parquet.py           # Parquet inspection
 ├── iceberg.py           # Iceberg analysis
-└── delta.py             # Delta Lake inspection
+├── delta.py             # Delta Lake inspection
+└── web.py               # Web UI server (v0.6.0+)
 ```
 
 **Auto-Loading Pattern**:
@@ -260,6 +290,28 @@ tablesleuth iceberg --catalog ratebeer --table ratebeer.reviews -v
 - Snapshot comparison (file/record changes)
 - Query performance testing between snapshots
 - Predefined query templates
+
+### 4. `web` Command (v0.6.0+)
+
+**Purpose**: Launch browser-based web UI (requires `tablesleuth[web]`)
+
+**Usage**:
+```bash
+# Start on default host/port (localhost:8000)
+tablesleuth web
+
+# Custom host and port
+tablesleuth web --host 0.0.0.0 --port 9000
+
+# Suppress auto-opening the browser
+tablesleuth web --no-browser
+```
+
+**Features**:
+- Serves pre-built Next.js static export from the installed package
+- Provides REST API for all analysis features (Parquet, Iceberg, Delta, GizmoSQL)
+- CORS configured for development (`http://localhost:3000` by default)
+- Environment variable overrides: `TABLESLEUTH_WEB_UI_DIR`, `TABLESLEUTH_CORS_ORIGINS`
 
 ### 3. `delta` Command
 
@@ -1243,7 +1295,7 @@ tests/
 3. Add CLI option
 4. Add tests
 
-## Current Features (v0.4.2)
+## Current Features (v0.6.0)
 
 ### Parquet Inspection
 - **File Discovery**:
@@ -1307,6 +1359,14 @@ tests/
   - Custom SQL query support
   - Metrics collection and visualization
 
+### Web UI (v0.6.0+)
+
+- **Browser Interface**:
+  - `tablesleuth web` launches FastAPI + Next.js at `localhost:8000`
+  - Full Parquet, Iceberg, Delta Lake, and GizmoSQL analysis
+  - Pre-built static export bundled in the wheel (`pip install tablesleuth[web]`)
+  - Developers: `make dev-api` + `make dev-web` for hot-reload
+
 ### Deployment Options
 
 - **Local Development**:
@@ -1315,8 +1375,8 @@ tests/
   - Local or S3-based data
 
 - **AWS EC2 Production**:
-  - Automated EC2 setup script
-  - Python 3.13.9 pre-installed
+  - AWS CDK stack (`resources/aws-cdk/`)
+  - Python 3.13+ pre-installed
   - GizmoSQL with TLS certificates
   - S3 and S3 Tables access
   - IAM role-based authentication
@@ -1338,7 +1398,18 @@ tablesleuth/
 │   │   ├── config_check.py             # Config validation
 │   │   ├── parquet.py                  # Parquet inspection
 │   │   ├── iceberg.py                  # Iceberg analysis
-│   │   └── delta.py                    # Delta Lake inspection
+│   │   ├── delta.py                    # Delta Lake inspection
+│   │   └── web.py                      # Web UI server (v0.6.0+)
+│   │
+│   ├── api/                            # FastAPI web backend (v0.6.0+)
+│   │   ├── __init__.py
+│   │   ├── main.py                     # FastAPI app, CORS, static mount
+│   │   └── routers/
+│   │       ├── parquet.py              # Parquet REST endpoints
+│   │       ├── iceberg.py              # Iceberg REST endpoints
+│   │       ├── delta.py                # Delta REST endpoints
+│   │       ├── config.py               # Config REST endpoints
+│   │       └── gizmosql.py             # GizmoSQL/comparison endpoints
 │   │
 │   ├── models/                         # Data models
 │   │   ├── __init__.py
@@ -1355,6 +1426,7 @@ tablesleuth/
 │   │   ├── delta_forensics.py          # Delta Lake forensics (v0.5.0+)
 │   │   ├── file_discovery.py           # File discovery service
 │   │   ├── filesystem.py               # Filesystem abstraction (S3/local)
+│   │   ├── iceberg_manifest_patch.py   # DuckDB compat patch (v0.6.0+)
 │   │   ├── iceberg_metadata_service.py # Iceberg metadata loading
 │   │   ├── mor_service.py              # Merge-on-read analysis
 │   │   ├── parquet_service.py          # Parquet inspection
@@ -1405,8 +1477,23 @@ tablesleuth/
 │   └── utils/                          # Utility functions
 │       └── __init__.py
 │
+├── web-ui/                             # Next.js 15 source (developers only)
+│   ├── src/
+│   │   ├── app/                        # Next.js app router pages
+│   │   ├── components/                 # React components
+│   │   └── lib/                        # TypeScript types and API client
+│   ├── package.json
+│   └── next.config.ts
+│
 ├── tests/                              # Test suite
 │   ├── conftest.py                     # Shared fixtures
+│   ├── api/                            # API smoke tests (v0.6.0+)
+│   │   ├── test_main.py
+│   │   ├── test_parquet_router.py
+│   │   ├── test_iceberg_router.py
+│   │   ├── test_delta_router.py
+│   │   ├── test_config_router.py
+│   │   └── test_gizmosql_router.py
 │   ├── test_parquet_service.py
 │   ├── test_file_discovery.py
 │   ├── test_profiling_backend.py
@@ -1456,7 +1543,7 @@ tablesleuth/
 
 ### Core Dependencies
 
-- **Python 3.13+**: Latest Python features and performance
+- **Python 3.13–3.14**: Latest Python features and performance
 - **Textual**: Terminal UI framework
 - **PyArrow**: Parquet file access and Arrow data structures
 - **PyIceberg**: Iceberg catalog and table API
@@ -1464,16 +1551,23 @@ tablesleuth/
 - **boto3**: AWS SDK for S3 and Glue access
 - **fsspec/s3fs**: Unified filesystem interface
 - **click**: CLI framework
-- **tomli**: TOML configuration parsing
+- **pydantic**: Data validation for API models
+
+### Optional Dependencies (`tablesleuth[web]`, v0.6.0+)
+
+- **FastAPI**: REST API framework
+- **uvicorn**: ASGI server
+- **fastavro**: Avro serialization for Iceberg manifest patching
 
 ### Development Dependencies
 
-- **pytest**: Testing framework
+- **pytest / pytest-asyncio**: Testing framework
 - **pytest-cov**: Code coverage
 - **mypy**: Static type checking
 - **ruff**: Linting and formatting
 - **pre-commit**: Git hooks for code quality
 - **uv**: Fast dependency management
+- **Node.js 20+ / npm**: Required to rebuild the Next.js frontend (developers only)
 
 ### External Systems
 
@@ -1489,37 +1583,24 @@ tablesleuth/
 1. **Advanced Snapshot Analysis**
    - Schema evolution visualization
    - Partition evolution tracking
-   - Automated compaction recommendations
    - Historical performance trends
 
-2. **Performance Optimization**
-   - Query result caching
-   - Batch performance testing
-   - Historical performance tracking
-   - Benchmark suite
-
-3. **Export Capabilities**
+2. **Export Capabilities**
    - JSON export for metadata
    - Markdown reports
-   - HTML reports with charts
-   - Performance dashboards
    - CSV export for statistics
 
-4. **Advanced Filtering**
+3. **Advanced Filtering**
    - Partition-aware filtering
-   - Time-travel queries
    - Custom query builder UI
    - Saved query templates
 
-5. **Additional Table Formats**
-   - Delta Lake support
+4. **Additional Table Formats**
    - Apache Hudi support
-   - Unified table format interface
 
-6. **Enhanced Profiling**
+5. **Enhanced Profiling**
    - PySpark profiling backend
    - Trino profiling backend
-   - Custom profiling queries
    - Profile comparison across snapshots
 
 ## References

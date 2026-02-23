@@ -1,31 +1,50 @@
-# Table Sleuth User Guide
+# TableSleuth User Guide
 
 ## Overview
 
-Table Sleuth is a comprehensive tool for analyzing Parquet files, Apache Iceberg tables, and Delta Lake tables with a powerful terminal user interface (TUI). It provides:
+TableSleuth is a comprehensive tool for analyzing Parquet files, Apache Iceberg tables, and Delta Lake tables. It provides two interfaces:
+
+- **Terminal TUI** — keyboard-driven Textual interface (`tablesleuth parquet`, `tablesleuth iceberg`, `tablesleuth delta`)
+- **Browser Web UI** — FastAPI + Next.js interface (`tablesleuth web`, v0.6.0+)
+
+Feature highlights:
 
 - **Parquet Inspection**: Deep metadata analysis, schema viewing, row group inspection
 - **Column Profiling**: Statistical analysis via local GizmoSQL
 - **Iceberg Support**: Table browsing, snapshot navigation, and comparison
 - **Delta Lake Support**: Version history, forensic analysis, and optimization recommendations
 - **Performance Testing**: Measure merge-on-read overhead across snapshots
+- **Snapshot Comparison API**: Side-by-side GizmoSQL query metrics with MOR breakdown (v0.6.0+)
 
 ## Installation
 
 ### Prerequisites
 
-- Python 3.12 or higher
+- Python 3.13 or higher
 - uv for dependency management (recommended)
+
+### Install from PyPI
+
+```bash
+# TUI only
+pip install tablesleuth
+
+# TUI + browser web UI (v0.6.0+)
+pip install tablesleuth[web]
+```
 
 ### Install from Source
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/jamesbconner/TableSleuth.git
 cd TableSleuth
 
-# Install dependencies with uv
+# Install TUI dependencies
 uv sync
+
+# Install with web UI support
+uv sync --extra web
 
 # Activate virtual environment
 source .venv/bin/activate  # On macOS/Linux
@@ -42,11 +61,11 @@ tablesleuth --version
 
 ### Configuration File
 
-Create a `tablesleuth.toml` file in your project directory or `~/.config/tablesleuth.toml`:
+Create a `tablesleuth.toml` file in your project directory or `~/.tablesleuth.toml`:
 
 ```toml
 [catalog]
-default = "local"
+default = "glue"   # change to your catalog name
 
 [gizmosql]
 uri = "grpc+tls://localhost:31337"
@@ -64,6 +83,10 @@ export TABLESLEUTH_CATALOG_NAME="local"
 export TABLESLEUTH_GIZMO_URI="grpc+tls://localhost:31337"
 export TABLESLEUTH_GIZMO_USERNAME="gizmosql_username"
 export TABLESLEUTH_GIZMO_PASSWORD="gizmosql_password"
+
+# Web UI (v0.6.0+)
+export TABLESLEUTH_WEB_UI_DIR="/path/to/custom/web"  # override static files
+export TABLESLEUTH_CORS_ORIGINS="http://localhost:3000,http://myhost:8080"
 ```
 
 ### PyIceberg Configuration (Required for Iceberg Features)
@@ -91,6 +114,10 @@ tablesleuth parquet --help
 
 # Show version
 tablesleuth --version
+
+# Launch browser web UI (requires tablesleuth[web])
+tablesleuth web
+tablesleuth web --host 0.0.0.0 --port 9000
 ```
 
 ### Inspect a Single File
@@ -287,23 +314,25 @@ tablesleuth parquet data/file.parquet --verbose
 
 GizmoSQL is a DuckDB instance exposed via Arrow Flight SQL that enables fast column profiling and Iceberg performance testing. It runs as a local process with direct filesystem access.
 
+See [GIZMOSQL_DEPLOYMENT_GUIDE.md](GIZMOSQL_DEPLOYMENT_GUIDE.md) for full installation and configuration.
+
 ### Installation
 
 **macOS (ARM64):**
 ```bash
-curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.10/gizmosql_cli_macos_arm64.zip \
+curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.13/gizmosql_cli_macos_arm64.zip \
   | sudo unzip -o -d /usr/local/bin -
 ```
 
 **macOS (Intel):**
 ```bash
-curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.10/gizmosql_cli_macos_amd64.zip \
+curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.13/gizmosql_cli_macos_amd64.zip \
   | sudo unzip -o -d /usr/local/bin -
 ```
 
 **Linux:**
 ```bash
-curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.10/gizmosql_cli_linux_amd64.zip \
+curl -L https://github.com/gizmodata/gizmosql/releases/download/v1.12.13/gizmosql_cli_linux_amd64.zip \
   | sudo unzip -o -d /usr/local/bin -
 ```
 
@@ -659,8 +688,8 @@ Delta Lake forensics provides deep insights into table health:
 ## Current Limitations
 
 - **Read-only**: No write operations (safe for production)
-- **No data preview**: Metadata analysis only (no actual data displayed)
-- **Profiling requires GizmoSQL**: Column profiling needs local GizmoSQL server
+- **Profiling requires GizmoSQL**: Column profiling needs a running GizmoSQL server
+- **Web UI scan stats**: File/row/byte counts in snapshot comparison reflect the full snapshot (not partition-pruned). Only `rows_returned` is accurate when predicates prune at runtime.
 - **Iceberg features**:
   - ✅ Snapshot navigation and comparison
   - ✅ Performance testing across snapshots
@@ -933,8 +962,8 @@ if info.file_size_bytes > 1_000_000_000:
 ## Next Steps
 
 - See [QUICKSTART.md](../QUICKSTART.md) for quick examples
+- See [TABLESLEUTH_SETUP.md](../TABLESLEUTH_SETUP.md) for full setup including GizmoSQL and AWS
 - See [PERFORMANCE_PROFILING.md](PERFORMANCE_PROFILING.md) for performance analysis
 - See [CHANGELOG.md](../CHANGELOG.md) for version history
 - See [ARCHITECTURE.md](ARCHITECTURE.md) for system architecture and design
 - See [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md) for developer documentation
-- See `.kiro/specs/` for detailed feature specifications

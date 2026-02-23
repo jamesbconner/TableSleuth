@@ -1,12 +1,14 @@
-# Table Sleuth Setup Guide
+# TableSleuth Setup Guide
 
-Complete setup guide for Table Sleuth with different catalog configurations and deployment options.
+Complete setup guide for TableSleuth with different catalog configurations and deployment options.
 
 ## Table of Contents
 - [Prerequisites](#prerequisites)
+- [Installation](#installation)
 - [Local Development Setup](#local-development-setup)
 - [Catalog Configuration](#catalog-configuration)
 - [GizmoSQL Setup](#gizmosql-setup)
+- [Web UI Setup](#web-ui-setup)
 - [AWS EC2 Production Setup](#aws-ec2-production-setup)
 - [Verification](#verification)
 - [Troubleshooting](#troubleshooting)
@@ -28,6 +30,33 @@ Complete setup guide for Table Sleuth with different catalog configurations and 
 - Access to S3 buckets containing Iceberg data
 - Glue catalog access (for Glue-based catalogs)
 - S3 Tables access (if using managed Iceberg)
+
+---
+
+## Installation
+
+### From PyPI
+
+```bash
+# TUI only (terminal interface)
+pip install tablesleuth
+
+# TUI + Web UI (browser interface, v0.6.0+)
+pip install tablesleuth[web]
+```
+
+### From Source
+
+```bash
+git clone https://github.com/jamesbconner/TableSleuth.git
+cd TableSleuth
+
+# TUI only
+uv sync
+
+# TUI + Web UI
+uv sync --extra web
+```
 
 ---
 
@@ -270,6 +299,44 @@ gizmosql_client --command Execute --use-tls --tls-skip-verify --username gizmosq
 
 ---
 
+## Web UI Setup
+
+The browser-based web UI (v0.6.0+) is an optional feature that launches a FastAPI server serving a Next.js frontend.
+
+### Install Web Dependencies
+
+```bash
+# From PyPI
+pip install tablesleuth[web]
+
+# From source
+uv sync --extra web
+```
+
+### Launch the Web UI
+
+```bash
+# Start at http://localhost:8000 (opens browser automatically)
+tablesleuth web
+
+# Custom host and port
+tablesleuth web --host 0.0.0.0 --port 9000
+
+# Suppress auto-open
+tablesleuth web --no-browser
+```
+
+### Configuration
+
+The web UI reads the same `tablesleuth.toml` and `.pyiceberg.yaml` as the TUI. Additional environment variables:
+
+| Variable | Default | Description |
+|---|---|---|
+| `TABLESLEUTH_WEB_UI_DIR` | built-in `web/` | Override path to static Next.js export |
+| `TABLESLEUTH_CORS_ORIGINS` | `http://localhost:3000` | Comma-separated CORS origins |
+
+---
+
 ## AWS EC2 Production Setup
 
 For production deployments with large datasets, use the automated EC2 setup.
@@ -493,7 +560,7 @@ After setup:
 1. **Read the [QUICKSTART.md](QUICKSTART.md)** for usage examples
 2. **Review [USER_GUIDE.md](docs/USER_GUIDE.md)** for detailed features
 3. **Check [ARCHITECTURE.md](docs/ARCHITECTURE.md)** for system design
-4. **See [gizmosql-deployment.md](docs/gizmosql-deployment.md)** for advanced GizmoSQL setup
+4. **See [GIZMOSQL_DEPLOYMENT_GUIDE.md](docs/GIZMOSQL_DEPLOYMENT_GUIDE.md)** for advanced GizmoSQL setup
 
 ---
 
