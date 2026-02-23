@@ -164,6 +164,7 @@ def test_to_dict_safe_int_threshold_within_range() -> None:
 
 def test_to_dict_safe_int_threshold_boolean() -> None:
     """Test that booleans are not converted to strings."""
+
     # Booleans are instances of int in Python, but should not be converted
     @dataclass
     class BoolDataclass:

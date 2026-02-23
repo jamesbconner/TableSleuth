@@ -24,7 +24,7 @@ _service = IcebergMetadataService()
 
 def _to_dict_iceberg(obj: Any) -> Any:
     """Convert Iceberg objects to dicts with special handling.
-    
+
     - Skips native_table field (non-serializable PyIceberg Table object)
     - Includes @property values (computed metrics like delete_ratio)
     - Converts large integers to strings for JavaScript safety
