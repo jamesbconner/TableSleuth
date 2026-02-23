@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { DeltaTableLoader } from "@/components/delta/table-loader";
 import { VersionHistory } from "@/components/delta/version-history";
+import { VersionDetail } from "@/components/delta/version-detail";
 import { ForensicsPanel } from "@/components/delta/forensics-panel";
 import { delta as api } from "@/lib/api";
 import type { DeltaForensicsResponse, DeltaLoadResponse, SnapshotInfo } from "@/lib/types";
@@ -114,8 +115,14 @@ export default function DeltaPage() {
                 />
               </div>
             )}
-            <div className="flex-1 flex items-center justify-center text-muted-foreground">
-              {versions.length > 0 ? "Select a version to inspect" : "Enter a Delta table path above"}
+            <div className="flex-1 overflow-auto">
+              {selectedId != null && versions.find((v) => v.snapshot_id === selectedId) ? (
+                <VersionDetail version={versions.find((v) => v.snapshot_id === selectedId)!} />
+              ) : (
+                <div className="flex items-center justify-center h-full text-muted-foreground">
+                  {versions.length > 0 ? "Select a version to inspect" : "Enter a Delta table path above"}
+                </div>
+              )}
             </div>
           </>
         )}
