@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 
 from tablesleuth import __version__
 from tablesleuth.api.routers import config, delta, gizmosql, iceberg, parquet
+from tablesleuth.utils.web_utils import resolve_web_dir
 
 logger = logging.getLogger(__name__)
 
@@ -95,39 +96,7 @@ def health() -> dict[str, Any]:
 # Static file serving (Next.js static export) — mounted LAST
 # ---------------------------------------------------------------------------
 
-
-def _resolve_web_dir() -> Path | None:
-    """Resolve the web UI directory in priority order.
-
-    Priority:
-    1. TABLESLEUTH_WEB_UI_DIR env var
-    2. Installed package: <package_root>/web
-    3. Dev build: <repo_root>/web-ui/out
-
-    Returns:
-        Path to web directory if found, else None.
-    """
-    # 1. Env var override
-    env_dir = os.getenv("TABLESLEUTH_WEB_UI_DIR")
-    if env_dir:
-        p = Path(env_dir)
-        if p.is_dir():
-            return p
-
-    # 2. Installed package location
-    pkg_web = Path(__file__).parent.parent / "web"
-    if pkg_web.is_dir() and (pkg_web / "index.html").exists():
-        return pkg_web
-
-    # 3. Dev build output (repo checkout)
-    dev_web = Path(__file__).parent.parent.parent.parent / "web-ui" / "out"
-    if dev_web.is_dir() and (dev_web / "index.html").exists():
-        return dev_web
-
-    return None
-
-
-_web_dir = _resolve_web_dir()
+_web_dir = resolve_web_dir()
 
 if _web_dir:
     logger.info("Serving web UI from: %s", _web_dir)

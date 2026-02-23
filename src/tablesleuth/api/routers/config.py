@@ -227,14 +227,26 @@ def _write_toml(path: Path, cfg: AppConfig) -> None:
         path: Destination path.
         cfg: AppConfig to serialize.
     """
+    def _escape_toml_string(value: str) -> str:
+        """Escape special characters for TOML basic strings.
+        
+        Args:
+            value: String to escape.
+            
+        Returns:
+            Escaped string safe for TOML basic (double-quoted) strings.
+        """
+        # Escape backslash first, then double quote
+        return value.replace("\\", "\\\\").replace('"', '\\"')
+    
     lines = [
         "[catalog]",
-        f'default = "{cfg.catalog.default}"' if cfg.catalog.default else "# default = ",
+        f'default = "{_escape_toml_string(cfg.catalog.default)}"' if cfg.catalog.default else "# default = ",
         "",
         "[gizmosql]",
-        f'uri = "{cfg.gizmosql.uri}"',
-        f'username = "{cfg.gizmosql.username}"',
-        f'password = "{cfg.gizmosql.password}"',
+        f'uri = "{_escape_toml_string(cfg.gizmosql.uri)}"',
+        f'username = "{_escape_toml_string(cfg.gizmosql.username)}"',
+        f'password = "{_escape_toml_string(cfg.gizmosql.password)}"',
         f"tls_skip_verify = {str(cfg.gizmosql.tls_skip_verify).lower()}",
     ]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")

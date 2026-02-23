@@ -3,46 +3,15 @@
 from __future__ import annotations
 
 import logging
-import os
 import threading
 import time
 import webbrowser
-from pathlib import Path
 
 import click
 
+from tablesleuth.utils.web_utils import resolve_web_dir
+
 logger = logging.getLogger(__name__)
-
-
-def _resolve_web_dir() -> Path | None:
-    """Resolve the web UI directory in priority order.
-
-    Priority:
-    1. TABLESLEUTH_WEB_UI_DIR env var
-    2. Installed package: <package_root>/web
-    3. Dev build: <repo_root>/web-ui/out
-
-    Returns:
-        Path to web directory if it exists, else None.
-    """
-    # 1. Env var override
-    env_dir = os.getenv("TABLESLEUTH_WEB_UI_DIR")
-    if env_dir:
-        p = Path(env_dir)
-        if p.is_dir():
-            return p
-
-    # 2. Installed package location (bundled in wheel)
-    pkg_web = Path(__file__).parent.parent / "web"
-    if pkg_web.is_dir() and (pkg_web / "index.html").exists():
-        return pkg_web
-
-    # 3. Dev build output (repo checkout)
-    dev_web = Path(__file__).parent.parent.parent.parent / "web-ui" / "out"
-    if dev_web.is_dir() and (dev_web / "index.html").exists():
-        return dev_web
-
-    return None
 
 
 @click.command("web")
@@ -82,7 +51,7 @@ def web(host: str, port: int, no_browser: bool, log_level: str) -> None:
         ) from err
 
     # Resolve web UI directory
-    web_dir = _resolve_web_dir()
+    web_dir = resolve_web_dir()
     if web_dir is None:
         click.echo(
             "Warning: Web UI static files not found. The API will start but no UI will be served.\n"

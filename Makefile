@@ -108,5 +108,5 @@ start-web: build-release
 
 # Cleanup
 clean:
-	uv run python -c "import shutil, pathlib; [shutil.rmtree(d, ignore_errors=True) for d in ['build', 'dist', '.pytest_cache', '.mypy_cache', '.ruff_cache', 'htmlcov', 'src/tablesleuth/web', 'web-ui/out', 'web-ui/.next']]; [p.unlink(missing_ok=True) for p in [*pathlib.Path('.').glob('.coverage'), *pathlib.Path('.').glob('*.zip'), *pathlib.Path('src').glob('**/*.egg-info')]]; [p.unlink() for p in pathlib.Path('.').rglob('*.pyc')]; [shutil.rmtree(p, ignore_errors=True) for p in pathlib.Path('.').rglob('__pycache__')]"
+	uv run python -c "import shutil, pathlib; [shutil.rmtree(d, ignore_errors=True) for d in ['build', 'dist', '.pytest_cache', '.mypy_cache', '.ruff_cache', 'htmlcov', 'src/tablesleuth/web', 'web-ui/out', 'web-ui/.next']]; [p.unlink(missing_ok=True) for p in [*pathlib.Path('.').glob('.coverage'), *pathlib.Path('.').glob('*.zip')]]; [shutil.rmtree(p, ignore_errors=True) for p in pathlib.Path('src').glob('**/*.egg-info')]; [p.unlink() for p in pathlib.Path('.').rglob('*.pyc')]; [shutil.rmtree(p, ignore_errors=True) for p in pathlib.Path('.').rglob('__pycache__')]"
 	-git restore src/tablesleuth/web/index.html

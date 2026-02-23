@@ -135,8 +135,9 @@ def get_sample(req: SampleRequest) -> dict[str, Any]:
         else:
             pf = pq.ParquetFile(path)
 
-        # Read first batch limited to num_rows
-        table = pf.read().slice(0, req.num_rows)
+        # Read only the first batch to avoid loading entire file into memory
+        batch_reader = pf.iter_batches(batch_size=req.num_rows, use_threads=False)
+        table = next(batch_reader)
         columns = table.schema.names
         rows = table.to_pydict()
         rows_as_lists = [[rows[c][i] for c in columns] for i in range(len(table))]
