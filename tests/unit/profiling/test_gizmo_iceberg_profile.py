@@ -200,6 +200,6 @@ def test_profile_columns_uses_iceberg_registration(profiler):
     # Verify iceberg_scan was used in profiling queries (INSTALL/LOAD run first per block)
     calls = mock_cursor.execute.call_args_list
     iceberg_queries = [call[0][0] for call in calls if "iceberg_scan" in call[0][0]]
-    assert (
-        len(iceberg_queries) >= 3
-    ), f"Expected at least 3 iceberg_scan queries, got {len(iceberg_queries)}"
+    assert len(iceberg_queries) >= 3, (
+        f"Expected at least 3 iceberg_scan queries, got {len(iceberg_queries)}"
+    )
