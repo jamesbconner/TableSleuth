@@ -53,9 +53,7 @@ def test_sample_parquet_with_binary_columns() -> None:
     with TemporaryDirectory() as tmpdir:
         # Create a Parquet file with binary column
         schema = pa.schema([("id", pa.int64()), ("data", pa.binary())])
-        table = pa.Table.from_pydict(
-            {"id": [1, 2], "data": [b"hello", b"world"]}, schema=schema
-        )
+        table = pa.Table.from_pydict({"id": [1, 2], "data": [b"hello", b"world"]}, schema=schema)
 
         file_path = Path(tmpdir) / "binary_data.parquet"
         pq.write_table(table, file_path)
