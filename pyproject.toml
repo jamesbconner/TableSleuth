@@ -114,13 +114,13 @@ Changelog = "https://github.com/jamesbconner/TableSleuth/blob/main/CHANGELOG.md"
 # Hatchling configuration for src layout
 [tool.hatch.build.targets.wheel]
 packages = ["src/tablesleuth"]
-# Exclude web/ from VCS-based discovery so force-include is the sole
-# mechanism that adds it.  This prevents duplicate entries for files
-# (e.g. index.html) that are both git-tracked and listed in force-include.
-exclude = ["src/tablesleuth/web/**"]
+exclude = ["src/tablesleuth/web/.gitkeep"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "src/tablesleuth/web" = "tablesleuth/web"
+
+[tool.hatch.build.targets.sdist.force-include]
+"src/tablesleuth/web" = "src/tablesleuth/web"
 
 # -----------------------
 # Ruff configuration
