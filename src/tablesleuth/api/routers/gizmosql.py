@@ -350,14 +350,12 @@ def compare_performance(req: CompareRequest) -> dict[str, Any]:
             profiler.register_delta_table_with_version(
                 "ver_b", req.path, int(req.id_b), storage_options=req.storage_options
             )
-            label_a, label_b = "ver_a", "ver_b"
+            analyzer = SnapshotPerformanceAnalyzer(profiler)
+            comparison = analyzer.compare_query_performance("ver_a", "ver_b", req.query)
+            return _serialize_comparison(comparison)
 
         else:
             raise ValueError(f"Unsupported format: {req.format}")
-
-        analyzer = SnapshotPerformanceAnalyzer(profiler)
-        comparison = analyzer.compare_query_performance(label_a, label_b, req.query)
-        return _serialize_comparison(comparison)
 
     except HTTPException:
         raise
