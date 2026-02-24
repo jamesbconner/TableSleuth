@@ -23,7 +23,7 @@ class TestReplaceTableRef:
             query, "my_table", "iceberg_scan('s3://bucket/metadata.json')"
         )
         # Quoted identifiers are replaced with the scan call wrapped in the same quotes
-        assert result == 'SELECT * FROM "iceberg_scan(\'s3://bucket/metadata.json\')" WHERE id = 1'
+        assert result == "SELECT * FROM \"iceberg_scan('s3://bucket/metadata.json')\" WHERE id = 1"
 
     def test_replace_single_quoted_identifier(self) -> None:
         """Test replacing single-quoted table identifier."""
@@ -75,7 +75,9 @@ class TestReplaceTableRef:
         """Test replacing with read_parquet function."""
         query = "SELECT * FROM delta_table WHERE id = 1"
         result = GizmoDuckDbProfiler._replace_table_ref(
-            query, "delta_table", "read_parquet(['s3://bucket/file1.parquet', 's3://bucket/file2.parquet'])"
+            query,
+            "delta_table",
+            "read_parquet(['s3://bucket/file1.parquet', 's3://bucket/file2.parquet'])",
         )
         assert (
             result
@@ -88,7 +90,10 @@ class TestReplaceTableRef:
         result = GizmoDuckDbProfiler._replace_table_ref(
             query, "snapshot_a", "iceberg_scan('s3://bucket/metadata.json', version => 123)"
         )
-        assert result == "SELECT COUNT(*) FROM iceberg_scan('s3://bucket/metadata.json', version => 123)"
+        assert (
+            result
+            == "SELECT COUNT(*) FROM iceberg_scan('s3://bucket/metadata.json', version => 123)"
+        )
 
     def test_replace_in_complex_query(self) -> None:
         """Test replacement in a complex query with multiple clauses."""
