@@ -51,14 +51,13 @@ def test_profile_single_column_uses_iceberg_registration(profiler):
     with patch.object(profiler, "_connect", return_value=mock_conn):
         result = profiler.profile_single_column(table_id, "my_column")
 
-    # Verify that iceberg_scan was used in the SQL queries
+    # Verify that iceberg_scan was used in the SQL queries (type check, stats, mode).
+    # INSTALL/LOAD iceberg run first per connection block, so filter to profiling queries only.
     calls = mock_cursor.execute.call_args_list
-    assert len(calls) == 3  # Type check, stats, mode
+    iceberg_queries = [call[0][0] for call in calls if "iceberg_scan" in call[0][0]]
+    assert len(iceberg_queries) == 3, f"Expected 3 iceberg_scan queries, got {len(iceberg_queries)}"
 
-    # Check that all queries use iceberg_scan
-    for call in calls:
-        sql = call[0][0]
-        assert "iceberg_scan" in sql
+    for sql in iceberg_queries:
         assert metadata_loc.replace("'", "''") in sql
         assert f"version => {snapshot_id}" in sql
 
@@ -70,8 +69,6 @@ def test_profile_single_column_uses_delta_registration(profiler):
     file_uris = ["/path/to/file1.parquet", "/path/to/file2.parquet"]
 
     # Manually set up Delta table registration (since we don't have the full method here)
-    if not hasattr(profiler, "_delta_tables"):
-        profiler._delta_tables = {}
     profiler._delta_tables[table_id] = file_uris
 
     # Mock the connection
@@ -200,8 +197,9 @@ def test_profile_columns_uses_iceberg_registration(profiler):
     assert "col1" in results
     assert "col2" in results
 
-    # Verify iceberg_scan was used
+    # Verify iceberg_scan was used in profiling queries (INSTALL/LOAD run first per block)
     calls = mock_cursor.execute.call_args_list
-    for call in calls:
-        sql = call[0][0]
-        assert "iceberg_scan" in sql
+    iceberg_queries = [call[0][0] for call in calls if "iceberg_scan" in call[0][0]]
+    assert (
+        len(iceberg_queries) >= 3
+    ), f"Expected at least 3 iceberg_scan queries, got {len(iceberg_queries)}"
