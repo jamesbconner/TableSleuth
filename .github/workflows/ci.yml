@@ -26,7 +26,7 @@ jobs:
       run: pip install uv
 
     - name: Install dependencies
-      run: uv sync --extra dev
+      run: uv sync --extra dev --extra web
 
     - name: Run linter
       run: uv run ruff check .
@@ -62,10 +62,28 @@ jobs:
       with:
         python-version: '3.13'
 
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: web-ui/package-lock.json
+
     - name: Install uv
       run: pip install uv
 
-    - name: Build package
+    - name: Install Node.js dependencies
+      run: cd web-ui && npm ci
+
+    - name: Build frontend
+      run: cd web-ui && npm run build
+
+    - name: Bundle frontend into package
+      run: |
+        rm -rf src/tablesleuth/web
+        cp -r web-ui/out src/tablesleuth/web
+
+    - name: Build Python package
       run: uv build
 
     - name: Check package

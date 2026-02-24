@@ -1,6 +1,6 @@
-# Table Sleuth Developer Guide
+# TableSleuth Developer Guide
 
-**Version**: 0.5.3
+**Version**: 0.6.0
 
 ## Overview
 
@@ -39,7 +39,7 @@ See [DEVELOPMENT_SETUP.md](../DEVELOPMENT_SETUP.md) for complete setup instructi
 
 ## Architecture Overview
 
-Table Sleuth follows a layered architecture with clear separation of concerns:
+TableSleuth follows a layered architecture with clear separation of concerns:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -48,16 +48,21 @@ Table Sleuth follows a layered architecture with clear separation of concerns:
 │  - parquet: Parquet file analysis                           │
 │  - iceberg: Snapshot analysis and comparison                │
 │  - delta: Delta Lake forensics and optimization             │
+│  - web: Browser-based UI server (v0.6.0+)                  │
 └─────────────────────────────────────────────────────────────┘
                             │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    Presentation Layer (TUI)                 │
-│  - Views: File list, schema, row groups, snapshots          │
-│  - Widgets: Notifications, loading indicators, modals       │
-│  - Event handling and user interactions                     │
-└─────────────────────────────────────────────────────────────┘
-                            │
+                 ┌──────────┴──────────┐
+                 │                     │
+                 ▼                     ▼
+┌────────────────────────┐  ┌──────────────────────────────────┐
+│  Presentation (TUI)    │  │  Web API Layer (v0.6.0+)         │
+│  - Views, Widgets      │  │  - FastAPI routers               │
+│  - Event handling      │  │  - parquet, iceberg, delta,      │
+│                        │  │    config, gizmosql endpoints    │
+│                        │  │  - Next.js static frontend       │
+└────────────────────────┘  └──────────────────────────────────┘
+                 │                     │
+                 └──────────┬──────────┘
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                     Service Layer                           │
@@ -69,6 +74,7 @@ Table Sleuth follows a layered architecture with clear separation of concerns:
 │  - DeltaLogFileSystem: Unified FS API (v0.5.3+)             │
 │  - IcebergAdapter: Catalog and table management             │
 │  - IcebergMetadataService: Snapshot loading                 │
+│  - iceberg_manifest_patch: DuckDB compat patch (v0.6.0+)   │
 │  - MORService: Merge-on-read analysis                       │
 │  - ProfilingBackend: Abstract profiling interface           │
 │  - SnapshotTestManager: Performance test setup              │
@@ -185,7 +191,19 @@ tablesleuth/
 │   │   ├── config_check.py             # Config validation
 │   │   ├── parquet.py                  # Parquet inspection
 │   │   ├── iceberg.py                  # Iceberg analysis
-│   │   └── delta.py                    # Delta Lake inspection
+│   │   ├── delta.py                    # Delta Lake inspection
+│   │   └── web.py                      # Web UI server (v0.6.0+)
+│   │
+│   ├── api/                            # FastAPI REST backend (v0.6.0+)
+│   │   ├── __init__.py
+│   │   ├── main.py                     # FastAPI app, CORS, static file mount
+│   │   └── routers/
+│   │       ├── __init__.py
+│   │       ├── parquet.py              # Parquet endpoints
+│   │       ├── iceberg.py              # Iceberg endpoints
+│   │       ├── delta.py                # Delta endpoints
+│   │       ├── config.py               # Config endpoints
+│   │       └── gizmosql.py             # GizmoSQL + comparison endpoints
 │   │
 │   ├── models/                         # Data models and types
 │   │   ├── __init__.py
@@ -203,6 +221,7 @@ tablesleuth/
 │   │   ├── file_discovery.py           # File discovery service
 │   │   ├── filesystem.py               # S3/local filesystem abstraction
 │   │   ├── delta_forensics.py          # Delta Lake forensics (v0.5.0+)
+│   │   ├── iceberg_manifest_patch.py   # DuckDB compat context manager (v0.6.0+)
 │   │   ├── iceberg_metadata_service.py # Iceberg metadata loading
 │   │   ├── mor_service.py              # Merge-on-read analysis
 │   │   ├── snapshot_test_manager.py    # Snapshot registration for testing
@@ -253,9 +272,23 @@ tablesleuth/
 │       ├── __init__.py
 │       └── formatting.py               # Display formatting helpers
 │
+├── web-ui/                             # Next.js 15 source (developers only)
+│   ├── src/
+│   │   ├── app/                        # Next.js app router pages
+│   │   ├── components/                 # React components per format
+│   │   └── lib/                        # TypeScript types + API client
+│   └── package.json
+│
 ├── tests/                              # Test suite
 │   ├── __init__.py
 │   ├── conftest.py                     # Pytest fixtures
+│   ├── api/                            # FastAPI smoke tests (v0.6.0+)
+│   │   ├── test_main.py
+│   │   ├── test_parquet_router.py
+│   │   ├── test_iceberg_router.py
+│   │   ├── test_delta_router.py
+│   │   ├── test_config_router.py
+│   │   └── test_gizmosql_router.py
 │   ├── test_parquet_service.py
 │   ├── test_file_discovery.py
 │   ├── test_profiling_backend.py
@@ -1174,7 +1207,7 @@ Fixes #456
 - [ ] Performance impact considered
 - [ ] Security implications reviewed
 
-## Current Status (v0.4.2)
+## Current Status (v0.6.0)
 
 ### Completed Features
 
@@ -1193,16 +1226,31 @@ Fixes #456
    - Snapshot comparison
    - Multiple catalog types (SQL, Glue, S3 Tables)
    - S3 Tables ARN support
+   - DuckDB metadata patching for correct snapshot scans
 
-3. **Performance Testing** ✅
+3. **Delta Lake Support** ✅
+   - Version history navigation and time travel
+   - File size analysis
+   - Storage waste tracking
+   - DML forensics
+   - Z-Order effectiveness monitoring
+   - Checkpoint health assessment
+   - Optimization recommendations
+
+4. **Performance Testing** ✅
    - Query performance analysis across snapshots
    - Predefined query templates
    - Custom SQL query support
-   - Metrics collection (time, files, bytes)
+   - Metadata-based scan stats (MOR breakdown)
 
-4. **Deployment** ✅
+5. **Web UI** ✅ (v0.6.0+)
+   - Browser-based interface via `tablesleuth web`
+   - Full Parquet, Iceberg, Delta, and GizmoSQL analysis
+   - GizmoSQL snapshot comparison with MOR metrics
+
+6. **Deployment** ✅
    - Local development setup
-   - Automated EC2 deployment
+   - AWS CDK EC2 deployment
    - GizmoSQL integration
    - S3 and S3 Tables access
 
@@ -1211,34 +1259,26 @@ Fixes #456
 1. **Advanced Snapshot Analysis**
    - Schema evolution visualization
    - Partition evolution tracking
-   - Automated compaction recommendations
    - Historical performance trends
 
 2. **Export Capabilities**
    - JSON export for metadata
-   - Markdown reports
-   - HTML reports with charts
+   - Markdown/HTML reports
    - CSV export for statistics
-   - Performance dashboards
 
-3. **Advanced Filtering**
-   - Partition-aware filtering
-   - Time-travel queries
-   - Custom query builder UI
-   - Saved query templates
-
-4. **Query History**
-   - Save profiling queries
-   - Bookmark files and tables
-   - Recent files list
-   - Query performance history
-
-5. **Additional Table Formats**
-   - Delta Lake support
+3. **Additional Table Formats**
    - Apache Hudi support
-   - Unified table format interface
 
 ### Extension Points
+
+**New CLI Commands**:
+1. Create `src/tablesleuth/cli/<command>.py` with a function matching the filename
+2. The auto-loader registers it automatically — no manual registration
+
+**New API Endpoints**:
+1. Create a router in `src/tablesleuth/api/routers/`
+2. Mount it in `src/tablesleuth/api/main.py`
+3. Add corresponding smoke tests in `tests/api/`
 
 **New Table Formats**:
 1. Create adapter class (similar to `IcebergAdapter`)
@@ -1257,12 +1297,6 @@ Fixes #456
 2. Update `IcebergAdapter` to support new type
 3. Add authentication handling
 4. Test with real catalog
-
-**New Export Formats**:
-1. Create exporter class
-2. Implement export method
-3. Add CLI option
-4. Add tests
 
 ## Resources
 

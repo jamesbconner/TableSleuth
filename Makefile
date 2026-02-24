@@ -1,4 +1,4 @@
-.PHONY: help install install-dev sync clean test test-cov lint format type-check security pre-commit check build run zip
+.PHONY: help install install-dev sync clean test test-cov lint format type-check security pre-commit check build run zip dev-api dev-web dev-web-install-npm build-web build-release start-web
 
 # Default target
 help:
@@ -20,6 +20,14 @@ help:
 	@echo ""
 	@echo "Quality (runs all checks):"
 	@echo "  make check            Run all quality checks"
+	@echo ""
+	@echo "Web UI Development:"
+	@echo "  make dev-api              Start FastAPI dev server (localhost:8000, hot-reload)"
+	@echo "  make dev-web-install-npm  Install Node.js dependencies (run once after checkout)"
+	@echo "  make dev-web              Start Next.js dev server (localhost:3000)"
+	@echo "  make build-web        Build Next.js static export"
+	@echo "  make build-release    Build frontend and bundle into Python package"
+	@echo "  make start-web        Build release and launch web UI"
 	@echo ""
 	@echo "Build & Run:"
 	@echo "  make build            Build distribution packages"
@@ -77,22 +85,28 @@ run:
 
 # Create source archive (excludes .gitignore files and untracked files)
 zip:
-	@echo "Creating source code archive..."
-	@VERSION=$$(grep '^version = ' pyproject.toml | cut -d'"' -f2); \
-	ARCHIVE_NAME="tablesleuth-$$VERSION-src.zip"; \
-	git archive --format=zip --prefix=tablesleuth/ -o $$ARCHIVE_NAME HEAD; \
-	echo "Created $$ARCHIVE_NAME (excludes .gitignore patterns)"
+	uv run python -c "import subprocess, tomllib, pathlib; v=tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version']; n=f'tablesleuth-{v}-src.zip'; subprocess.run(['git','archive','--format=zip','--prefix=tablesleuth/','-o',n,'HEAD'],check=True); print(f'Created {n} (excludes .gitignore patterns)')"
+
+# Web UI development
+dev-api:
+	uv run uvicorn tablesleuth.api.main:app --host localhost --port 8000 --reload
+
+dev-web-install-npm:
+	cd web-ui && npm install
+
+dev-web:
+	cd web-ui && npm run dev
+
+build-web:
+	cd web-ui && npm run build
+
+build-release: build-web
+	uv run python -c "import shutil; shutil.rmtree('src/tablesleuth/web', ignore_errors=True); shutil.copytree('web-ui/out', 'src/tablesleuth/web')"
+
+start-web: build-release
+	uv run tablesleuth web
 
 # Cleanup
 clean:
-	rm -rf build/
-	rm -rf dist/
-	rm -rf *.egg-info
-	rm -rf .pytest_cache/
-	rm -rf .mypy_cache/
-	rm -rf .ruff_cache/
-	rm -rf htmlcov/
-	rm -rf .coverage
-	rm -rf *.zip
-	find . -type f -name "*.pyc" -delete
-	find . -type d -name __pycache__ -delete
+	uv run python -c "import shutil, pathlib; [shutil.rmtree(d, ignore_errors=True) for d in ['build', 'dist', '.pytest_cache', '.mypy_cache', '.ruff_cache', 'htmlcov', 'src/tablesleuth/web', 'web-ui/out', 'web-ui/.next']]; [p.unlink(missing_ok=True) for p in [*pathlib.Path('.').glob('.coverage'), *pathlib.Path('.').glob('*.zip')]]; [shutil.rmtree(p, ignore_errors=True) for p in pathlib.Path('src').glob('**/*.egg-info')]; [p.unlink() for p in pathlib.Path('.').rglob('*.pyc')]; [shutil.rmtree(p, ignore_errors=True) for p in pathlib.Path('.').rglob('__pycache__')]"
+	-git restore src/tablesleuth/web/index.html

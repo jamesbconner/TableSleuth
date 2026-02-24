@@ -1,9 +1,10 @@
-# Table Sleuth Quick Start Guide
+# TableSleuth Quick Start Guide
 
-Get up and running with Table Sleuth for Parquet forensics and Iceberg snapshot analysis.
+Get up and running with TableSleuth for Parquet forensics, Iceberg snapshot analysis, and Delta Lake inspection.
 
 ## Table of Contents
 - [Local Installation](#local-installation)
+- [Web UI Quick Start](#web-ui-quick-start)
 - [AWS EC2 Deployment](#aws-ec2-deployment)
 - [Basic Usage](#basic-usage)
 - [Iceberg Snapshot Analysis](#iceberg-snapshot-analysis)
@@ -25,7 +26,7 @@ Get up and running with Table Sleuth for Parquet forensics and Iceberg snapshot 
 git clone https://github.com/jamesbconner/TableSleuth.git
 cd TableSleuth
 
-# Install dependencies
+# Install TUI dependencies (+ web UI and dev extras)
 uv sync --all-extras
 
 # Activate virtual environment
@@ -36,6 +37,13 @@ tablesleuth init
 
 # Verify configuration
 tablesleuth config-check
+```
+
+Or install directly from PyPI:
+
+```bash
+pip install tablesleuth           # TUI only
+pip install tablesleuth[web]      # TUI + browser web UI (v0.6.0+)
 ```
 
 ### Configure AWS Credentials (if using S3)
@@ -75,6 +83,46 @@ catalog:
 ```
 
 **Tip:** Run `tablesleuth config-check` to verify your configuration.
+
+---
+
+## Web UI Quick Start
+
+The browser-based web UI (v0.6.0+) provides the same analysis features as the TUI in a browser.
+
+### Install and Launch
+
+```bash
+# Install with web extras
+pip install tablesleuth[web]
+# or from source:
+uv sync --extra web
+
+# Launch (opens http://localhost:8000 automatically)
+tablesleuth web
+```
+
+### What You Can Do
+
+| Page | Features |
+|---|---|
+| **Parquet** | Browse files, inspect schema, row groups, data sample, column profiling |
+| **Iceberg** | Browse snapshots, view files/schema/deletes, compare two snapshots |
+| **Delta** | Browse versions, forensics, recommendations |
+| **GizmoSQL** | Run queries, compare snapshot performance with MOR breakdown |
+| **Settings** | View and validate configuration |
+
+### Development Mode
+
+If you have Node.js 20+ installed and cloned the repo:
+
+```bash
+# Terminal 1: FastAPI hot-reload
+make dev-api      # http://localhost:8000/api/...
+
+# Terminal 2: Next.js hot-reload
+make dev-web      # http://localhost:3000
+```
 
 ---
 
@@ -479,9 +527,9 @@ tmux source-file ~/.tmux.conf
 
 This is normal for older snapshots that don't record operation type. TableSleuth infers the operation from file changes.
 
-### Files Scanned Shows 0
+### Files Scanned Shows 0 or Doesn't Match Expectations
 
-This can happen if DuckDB's EXPLAIN ANALYZE doesn't expose file counts. The fallback reads from Iceberg metadata, but may not always be available.
+File/row/byte counts in snapshot comparison are sourced from Iceberg snapshot metadata summary fields, not from DuckDB's query plan (which is not reliably parseable over Arrow Flight SQL). Counts reflect the **full snapshot**, not partition-pruned results. Only `rows_returned` is accurate when predicates prune at runtime.
 
 ---
 
@@ -489,14 +537,14 @@ This can happen if DuckDB's EXPLAIN ANALYZE doesn't expose file counts. The fall
 
 - Read [USER_GUIDE.md](docs/USER_GUIDE.md) for detailed features
 - See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for system design
-- Check [gizmosql-deployment.md](docs/gizmosql-deployment.md) for GizmoSQL setup
-- Review [s3_tables_guide.md](docs/s3_tables_guide.md) for S3 Tables configuration
+- Check [GIZMOSQL_DEPLOYMENT_GUIDE.md](docs/GIZMOSQL_DEPLOYMENT_GUIDE.md) for GizmoSQL setup
+- See [TABLESLEUTH_SETUP.md](TABLESLEUTH_SETUP.md) for full setup including catalog and AWS config
 
 ---
 
 ## Quick Reference
 
-### Keyboard Shortcuts
+### Keyboard Shortcuts (TUI)
 
 | Key | Action |
 |-----|--------|
@@ -504,7 +552,7 @@ This can happen if DuckDB's EXPLAIN ANALYZE doesn't expose file counts. The fall
 | Tab | Switch tabs |
 | Enter | Select |
 | q | Quit |
-| r | Refresh (Iceberg view) |
+| r | Refresh |
 | c | Toggle Compare mode |
 | t | Run performance test |
 | x | Cleanup test tables |
@@ -523,6 +571,12 @@ tablesleuth iceberg --catalog my_catalog --table my_database.my_table
 
 # Iceberg table (S3 Tables)
 tablesleuth iceberg --catalog my_s3tables --table my_database.my_table
+
+# Delta Lake table
+tablesleuth delta path/to/delta/table
+
+# Web UI (v0.6.0+)
+tablesleuth web
 
 # Verbose logging
 tablesleuth iceberg --catalog my_catalog --table my_database.my_table -v

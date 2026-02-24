@@ -2,6 +2,80 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0] - 2026-02-23
+
+### Added
+
+- **Browser-Based Web UI** - New `tablesleuth web` command launches a FastAPI + Next.js interface
+  - Full Parquet, Iceberg, Delta Lake, and GizmoSQL analysis in the browser
+  - Optional install: `pip install tablesleuth[web]`; requires `fastapi`, `uvicorn[standard]`, `python-multipart`, `fastavro`
+  - Pre-built Next.js static export bundled in the wheel via Hatchling force-include (no Node.js needed for end users)
+  - Configurable host/port and optional auto-browser-open; CORS origins configurable via `TABLESLEUTH_CORS_ORIGINS`
+  - `TABLESLEUTH_WEB_UI_DIR` env var overrides static file path for custom deployments
+
+- **FastAPI REST Backend** (`src/tablesleuth/api/`)
+  - `main.py` — FastAPI app with CORS, exception handlers, health endpoint (`/api/health`), and static file mount
+  - `routers/parquet.py` — Parquet file inspection endpoints
+  - `routers/iceberg.py` — Iceberg snapshot browsing and comparison endpoints; snapshot IDs serialized as strings to prevent JavaScript integer precision loss
+  - `routers/delta.py` — Delta Lake version history and forensics endpoints
+  - `routers/config.py` — Configuration read and validation endpoints; includes `.pyiceberg.yaml` upload support
+  - `routers/gizmosql.py` — Column profiling and `/gizmosql/compare` snapshot comparison endpoint
+
+- **GizmoSQL Snapshot Comparison** (`/gizmosql/compare`)
+  - Side-by-side Iceberg snapshot or Delta version query performance comparison
+  - Metadata-based scan stats sourced directly from Iceberg snapshot summary fields (`total-data-files`, `total-delete-files`, `total-records`, `total-position-deletes`, `total-equality-deletes`, `total-files-size`) via `_iceberg_snapshot_scan_stats()` — DuckDB's `EXPLAIN ANALYZE` is not reliably parseable over Arrow Flight SQL
+  - MOR breakdown fields on `QueryPerformanceMetrics`: `data_files_scanned`, `delete_files_scanned`, `data_rows_scanned`, `delete_rows_scanned`
+  - `rows_scanned` definition: `total-records + total-position-deletes + total-equality-deletes` (physical reads before merge apply)
+  - Web UI shows MOR sub-rows only when at least one snapshot has delete files
+  - Scan stats registered with `profiler.register_iceberg_scan_stats()` before query execution
+
+- **Iceberg Metadata Patching** (`src/tablesleuth/services/iceberg_manifest_patch.py`)
+  - `patched_iceberg_metadata(native_table, snapshot_id)` context manager — always writes a temporary local `metadata.json` before passing a table to DuckDB
+  - Fixes DuckDB `current-snapshot-id` delete-file bleed: DuckDB's `iceberg_scan()` applies delete files based on the metadata's `current-snapshot-id` field, not the `version =>` argument; the patch overwrites it with the target snapshot ID
+  - Fixes DuckDB rejection of uppercase `"PARQUET"` format strings in delete manifest entries; re-encodes affected manifests via fastavro with lowercased value
+  - Handles local, S3, and `file://` URIs transparently; never yields the original path
+
+- **API Test Suite** (`tests/api/`)
+  - Smoke tests for all five routers using `fastapi.testclient.TestClient`
+  - `test_main.py`, `test_parquet_router.py`, `test_iceberg_router.py`, `test_delta_router.py`, `test_config_router.py`, `test_gizmosql_router.py`
+  - Requires `--extra web` / `uv sync --extra web`
+
+- **New Makefile Targets**
+  - `dev-web-install-npm` — installs Node.js dependencies in `web-ui/` (run once after checkout)
+  - `dev-api` — starts FastAPI with hot-reload at `localhost:8000`
+  - `dev-web` — starts Next.js dev server at `localhost:3000`
+  - `build-web` — runs `npm run build` in `web-ui/`
+  - `build-release` — runs `build-web` then copies `web-ui/out/` into `src/tablesleuth/web/`
+  - `start-web` — runs `build-release` then launches `tablesleuth web`
+
+### Changed
+
+- **Dependency Upgrades** — all core libraries updated to latest versions
+  - `pyiceberg` → 0.11.0+
+  - `deltalake` → 1.4.2+
+  - `textual` → 0.86.2+
+  - `pyarrow` → 23.0.0+
+  - `pandas` → 3.0.1+
+  - `ruff` → 0.14.4+
+  - `mypy` → 1.18.2+
+  - `pytest` → 8.4.2+
+- **Python version range** — now `>=3.13,<3.15` (added 3.14 upper bound)
+- **Default catalog** — `tablesleuth.toml` default changed from `"local"` to `"glue"` to reflect typical production usage
+- **Makefile** — replaced POSIX-only shell commands with Python equivalents for cross-platform (Windows) compatibility
+
+### Fixed
+
+- **Windows path handling** — `iceberg_manifest_patch.py` and `api/routers/iceberg.py` now correctly normalize Windows paths before passing to PyIceberg and DuckDB
+- **Iceberg catalog serialization** — fixed `api/routers/iceberg.py` errors when serializing catalog objects with non-JSON-serializable fields
+- **SPA fallback route** — removed FastAPI catch-all route that was intercepting `_next/static/*` asset requests and returning 404 for frontend JS/CSS bundles
+- **Snapshot ID JavaScript precision** — Iceberg snapshot IDs (int64) are now serialized as strings in API responses to prevent silent precision loss in JavaScript (`Number.MAX_SAFE_INTEGER` is 2⁵³−1)
+- **PyIceberg Windows path patch** — fixed path normalization for Windows-style absolute paths in the metadata patch context manager
+- **npm ReDoS vulnerability** — resolved `minimatch` ReDoS security advisory in `web-ui/` dependencies; added `autoprefixer` for CSS compatibility
+
+### Dependencies
+
+- **New optional group `[web]`**: `fastapi>=0.131.0`, `uvicorn[standard]>=0.32.0`, `python-multipart>=0.0.12`, `fastavro>=1.9.0`
+
 ## [0.5.3] - 2026-01-25
 
 ### Changed

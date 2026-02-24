@@ -3,11 +3,49 @@
 from __future__ import annotations
 
 import logging
+import re
+import sys
 from pathlib import Path
 from typing import Any
 
 from pyiceberg.catalog import load_catalog
 from pyiceberg.table import StaticTable, Table
+
+# ---------------------------------------------------------------------------
+# Windows compatibility: fix PyIceberg's URI path parsing for local files.
+#
+# On Windows, urlparse("file:///D:/path/file.json").path == "/D:/path/file.json"
+# (leading slash before drive letter). PyArrow's LocalFileSystem rejects this
+# with WinError 123. Patch parse_location to strip the spurious slash so that
+# "file:///D:/path/file.json" resolves to "D:/path/file.json" for ALL file
+# operations (metadata read, manifest-list, manifest, data files).
+# ---------------------------------------------------------------------------
+if sys.platform == "win32":
+    try:
+        from pyiceberg.io.pyarrow import PyArrowFileIO as _PAFIO
+
+        # Accessing a staticmethod via the class gives the raw function directly —
+        # no .__func__ needed.
+        _orig_parse = _PAFIO.parse_location
+        _WIN_DRIVE_PATH = re.compile(r"^/([A-Za-z]:/.*)")
+
+        def _win_parse_location(location: str, properties: dict | None = None) -> tuple:
+            if properties is None:
+                properties = {}
+            scheme, netloc, path = _orig_parse(location, properties)
+            if scheme == "file":
+                m = _WIN_DRIVE_PATH.match(path)
+                if m:
+                    path = m.group(1)  # /D:/path → D:/path
+            return scheme, netloc, path
+
+        # Must re-wrap as staticmethod so self.parse_location(...) doesn't
+        # receive self as the first argument.
+        _PAFIO.parse_location = staticmethod(_win_parse_location)  # type: ignore[method-assign]
+    except Exception as _patch_err:
+        logging.getLogger(__name__).warning(
+            "Failed to apply Windows PyArrowFileIO path patch: %s", _patch_err
+        )
 
 from tablesleuth.exceptions import (
     MetadataError,
@@ -66,7 +104,20 @@ class IcebergMetadataService:
                     raise TableLoadError(f"Metadata file not found: {metadata_path}")
 
                 try:
-                    table: Table = StaticTable.from_metadata(metadata_path)
+                    # PyIceberg parses the path as a URI. On Windows, a drive
+                    # letter like "D:" is mistaken for a URI scheme, causing
+                    # "Unrecognized filesystem type in URI: d". Convert any
+                    # absolute local path to a file:// URI first.
+                    path_obj = Path(metadata_path)
+                    if not path_obj.is_absolute():
+                        path_obj = path_obj.resolve()
+                    if not metadata_path.startswith(
+                        ("s3://", "gs://", "abfs://", "file://", "hdfs://")
+                    ):
+                        metadata_uri = path_obj.as_uri()
+                    else:
+                        metadata_uri = metadata_path
+                    table: Table = StaticTable.from_metadata(metadata_uri)
                     location = metadata_path
                 except Exception as e:
                     logger.exception(f"Failed to load table from metadata file: {metadata_path}")

@@ -1,6 +1,6 @@
 # Performance Profiling and Snapshot Comparison
 
-**Version**: 0.4.2
+**Version**: 0.6.0
 
 ## Overview
 
@@ -62,13 +62,23 @@ Captures metrics for a single query execution:
 ```python
 @dataclass
 class QueryPerformanceMetrics:
-    query: str                      # The SQL query executed
-    execution_time_seconds: float   # Total execution time in seconds
-    files_scanned: int              # Number of data files scanned
-    bytes_read: int                 # Total bytes read from storage
-    rows_returned: int              # Rows returned by query
-    snapshot_id: int | None         # Snapshot ID queried
+    query: str                        # The SQL query executed
+    execution_time_seconds: float     # Total execution time in seconds
+    rows_scanned: int                 # Physical rows read (data + delete rows for MOR)
+    rows_returned: int                # Net rows returned by the query
+    bytes_scanned: int                # Total bytes read from storage
+    files_scanned: int                # Total files read (data + delete files)
+    snapshot_id: int | None           # Snapshot ID queried
+    # MOR breakdown (v0.6.0+) — populated when delete files exist
+    data_files_scanned: int           # Data files only
+    delete_files_scanned: int         # Delete files only
+    data_rows_scanned: int            # Rows from data files
+    delete_rows_scanned: int          # Delete rows (position + equality deletes)
 ```
+
+**MOR `rows_scanned` definition**: For MOR snapshots, `rows_scanned = total-records + total-position-deletes + total-equality-deletes` (physical I/O before apply). `rows_returned` is the net count after merging deletes.
+
+**Metadata-based scan stats**: File counts, row counts, and bytes scanned are sourced directly from Iceberg snapshot summary fields (`total-data-files`, `total-delete-files`, `total-records`, `total-files-size`, etc.) because DuckDB's `EXPLAIN ANALYZE` output is not reliably parseable over Arrow Flight SQL. As a result, scan stats reflect the **full snapshot** and do not account for partition pruning. Only `rows_returned` is accurate when predicates prune at runtime.
 
 #### PerformanceComparison
 
@@ -100,6 +110,22 @@ class PerformanceComparison:
     def faster_snapshot(self) -> str:
         """Which snapshot was faster ('A', 'B', or 'Equal')"""
 ```
+
+## Usage via Web UI (v0.6.0+)
+
+The web UI exposes snapshot comparison through the GizmoSQL page at `/gizmosql`.
+
+1. Navigate to the **GizmoSQL** page
+2. Select an Iceberg table and two snapshots (A and B)
+3. Enter a SQL query (use `{table}` placeholder)
+4. Click **Compare** — the API calls `/gizmosql/compare`
+5. View side-by-side results:
+   - Execution time for each snapshot
+   - Files scanned (data vs. delete, if MOR)
+   - Rows scanned vs. rows returned
+   - Bytes scanned
+
+The MOR breakdown sub-rows appear automatically when at least one snapshot has delete files.
 
 ## Usage via TUI
 
@@ -295,12 +321,13 @@ SELECT COUNT(*) FROM snapshot_tests.table_name_snapshot_a;
 
 ### Metrics Collection
 
-Metrics are collected from DuckDB's query execution:
+Metrics are collected as follows:
 
 - **Execution Time**: Measured using Python's `time.perf_counter()`
-- **Files Scanned**: Extracted from DuckDB query plan or metadata
-- **Bytes Read**: Calculated from file sizes in snapshot manifest
-- **Rows Returned**: Result of query execution
+- **Files Scanned / Bytes Scanned / Rows Scanned**: Read directly from Iceberg snapshot summary fields before the query runs, then registered with `profiler.register_iceberg_scan_stats()`. DuckDB's `EXPLAIN ANALYZE` is not used because its output is not reliably parseable over Arrow Flight SQL transport.
+- **Rows Returned**: Result count from the actual `SELECT` query execution (accurate; reflects predicate/partition pruning)
+
+**Important limitation**: Because scan stats come from snapshot metadata, they represent the full snapshot and do not reflect partition pruning. A query with a highly selective predicate may return far fewer `rows_returned` than `rows_scanned`.
 
 ### Catalog Requirements
 
@@ -574,7 +601,8 @@ Potential improvements for future versions:
 - [ARCHITECTURE.md](ARCHITECTURE.md) - System architecture and design
 - [USER_GUIDE.md](USER_GUIDE.md) - Complete user documentation
 - [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md) - Developer guide and API reference
-- [EC2_DEPLOYMENT_GUIDE.md](EC2_DEPLOYMENT_GUIDE.md) - AWS EC2 deployment
+- [GIZMOSQL_DEPLOYMENT_GUIDE.md](GIZMOSQL_DEPLOYMENT_GUIDE.md) - GizmoSQL server setup
 - [Snapshot Performance Analyzer](../src/tablesleuth/services/snapshot_performance_analyzer.py) - Source code
 - [Snapshot Test Manager](../src/tablesleuth/services/snapshot_test_manager.py) - Source code
 - [Performance Models](../src/tablesleuth/models/performance.py) - Data models
+- [GizmoSQL Router](../src/tablesleuth/api/routers/gizmosql.py) - Web API comparison endpoint (v0.6.0+)

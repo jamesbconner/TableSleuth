@@ -14,8 +14,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -88,3 +88,14 @@ docker-compose.override.yml
 *.tar.gz
 backups/
 ssl/
+
+# Web UI built artifacts (built by make build-release; placeholder index.html is committed)
+# Ignore everything in web/ EXCEPT the placeholder index.html
+src/tablesleuth/web/*
+!src/tablesleuth/web/index.html
+
+# Next.js dev artifacts (web-ui/ source is committed, build output is not)
+web-ui/.next/
+web-ui/out/
+web-ui/node_modules/
+web-ui/next-env.d.ts

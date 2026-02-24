@@ -8,7 +8,7 @@
 [![Publish to PyPI](https://github.com/jamesbconner/TableSleuth/actions/workflows/publish.yml/badge.svg)](https://github.com/jamesbconner/TableSleuth/actions/workflows/publish.yml)
 [![codecov](https://codecov.io/gh/jamesbconner/TableSleuth/graph/badge.svg?token=SXREVJC93E)](https://codecov.io/gh/jamesbconner/TableSleuth)
 
-A powerful terminal-based tool for deep inspection of Parquet files, Apache Iceberg tables, and Delta Lake tables. Analyze file structure, metadata, row groups, column statistics, and table evolution with an intuitive TUI interface.
+A powerful forensic analysis tool for Parquet files, Apache Iceberg tables, and Delta Lake tables. Available as both a terminal TUI and a browser-based web interface — inspect file structure, metadata, row groups, column statistics, and table evolution.
 
 ## Key Features
 
@@ -41,6 +41,7 @@ A powerful terminal-based tool for deep inspection of Parquet files, Apache Iceb
 
 ### Interface
 - **Interactive TUI** - Keyboard-driven navigation with rich visualizations
+- **Browser-Based Web UI** - FastAPI + Next.js interface launched with `tablesleuth web` (v0.6.0+)
 - **Multi-Source Support** - Local files, S3, Iceberg catalogs, and Delta tables
 - **Performance Optimized** - Async operations, caching, and lazy loading
 
@@ -118,14 +119,18 @@ A powerful terminal-based tool for deep inspection of Parquet files, Apache Iceb
 # Install with uv (recommended)
 uv sync
 
-# Inspect a Parquet file
+# Inspect a Parquet file (TUI)
 tablesleuth parquet data/file.parquet
 
 # Inspect a directory (recursive)
 tablesleuth parquet data/warehouse/
 
-# Inspect an Iceberg table
+# Inspect an Iceberg table (TUI)
 tablesleuth iceberg --catalog local --table db.table
+
+# Launch the browser-based web UI (v0.6.0+)
+pip install tablesleuth[web]
+tablesleuth web  # opens http://localhost:8000
 
 # Inspect AWS S3 Tables (using ARN with parquet command)
 tablesleuth parquet "arn:aws:s3tables:us-east-2:123456789012:bucket/my-bucket/table/db.table"
@@ -141,13 +146,17 @@ tablesleuth parquet "arn:aws:s3tables:us-east-2:123456789012:bucket/my-bucket/ta
 **Requirements:** Python 3.13+ and [uv](https://docs.astral.sh/uv/)
 
 ```bash
-# Install from PyPI
+# Install from PyPI (TUI only)
 pip install tablesleuth
+
+# Install with web UI support (v0.6.0+)
+pip install tablesleuth[web]
 
 # Or install from source
 git clone https://github.com/jamesbconner/TableSleuth
 cd TableSleuth
-uv sync
+uv sync                    # TUI only
+uv sync --extra web        # include web UI dependencies
 
 # Verify installation
 tablesleuth --version
@@ -236,6 +245,10 @@ tablesleuth init --force            # Overwrite existing config files
 tablesleuth config-check            # Validate configuration
 tablesleuth config-check -v         # Detailed validation
 tablesleuth config-check --with-gizmosql  # Include GizmoSQL connection test
+
+# Web UI (v0.6.0+, requires tablesleuth[web])
+tablesleuth web                     # Launch browser UI at localhost:8000
+tablesleuth web --host 0.0.0.0 --port 9000  # Custom host/port
 
 # Inspect Parquet files
 tablesleuth parquet file.parquet
@@ -336,7 +349,9 @@ See [GizmoSQL Deployment Guide](docs/GIZMOSQL_DEPLOYMENT_GUIDE.md) for complete 
 
 TableSleuth uses a layered architecture:
 
+- **CLI Layer** - Click-based commands with auto-discovery; includes `tablesleuth web` (v0.6.0+)
 - **TUI Layer** - Textual-based terminal interface with rich visualizations
+- **Web API Layer** - FastAPI REST backend serving a Next.js static frontend (v0.6.0+)
 - **Service Layer** - Business logic for file inspection, profiling, and discovery
 - **Integration Layer** - PyArrow for Parquet, PyIceberg for tables, GizmoSQL for profiling
 
@@ -356,6 +371,10 @@ uv run pre-commit run --all-files
 
 # Type checking
 mypy src/
+
+# Web UI development (two terminals)
+make dev-api        # FastAPI at localhost:8000
+make dev-web        # Next.js dev server at localhost:3000
 ```
 
 See [Development Setup](DEVELOPMENT_SETUP.md) for complete development environment setup.
@@ -374,6 +393,7 @@ See [Development Setup](DEVELOPMENT_SETUP.md) for complete development environme
 ### Advanced Topics
 - **[Performance Profiling](docs/PERFORMANCE_PROFILING.md)** - Query performance analysis
 - **[GizmoSQL Deployment](docs/GIZMOSQL_DEPLOYMENT_GUIDE.md)** - Profiling backend setup
+- **[Web UI Development](DEVELOPMENT_SETUP.md#web-ui-development)** - Building and running the browser interface
 
 ### Development
 - **[Development Setup](DEVELOPMENT_SETUP.md)** - Dev environment and workflows
@@ -382,21 +402,23 @@ See [Development Setup](DEVELOPMENT_SETUP.md) for complete development environme
 
 ## What's New
 
-### v0.5.3 (Latest)
-- 🏗️ **CLI Architecture Refactored** - Modular command structure with auto-loading
-  - Split monolithic CLI into focused command modules (80% code reduction per module)
-  - Dynamic command discovery - new commands auto-register by convention
-  - Significantly improved maintainability and extensibility
-- 🔧 **Service Layer Improvements** - Enhanced abstractions and reduced coupling
-  - **DeltaLogFileSystem** - Unified filesystem interface eliminating ~250 lines of duplication
-  - **SnapshotPerformanceAnalyzer** - Explicit interface validation with fail-fast error handling
-  - Reduced complexity by 40-50% across refactored methods
-- 📊 **Code Quality: A (96/100)** - Upgraded from A (94/100)
-  - Eliminated 11 developer-days of technical debt
-  - All 165+ tests passing
-  - Production-ready architecture
+### v0.6.0 (Latest)
+- 🌐 **Browser-Based Web UI** - New `tablesleuth web` command launches a FastAPI + Next.js interface
+  - Full Parquet, Iceberg, Delta Lake, and GizmoSQL analysis in the browser
+  - Optional install: `pip install tablesleuth[web]`
+  - Hot-reload development mode (`make dev-api` / `make dev-web`)
+  - Pre-built static export bundled in the wheel (no Node.js needed for end users)
+- 📊 **GizmoSQL Snapshot Comparison API** - `/gizmosql/compare` endpoint for head-to-head snapshot analysis
+  - MOR breakdown: per-type file counts, row counts, and bytes (data vs. delete files)
+  - Metadata-based scan stats sourced directly from Iceberg snapshot summary fields
+  - `rows_scanned` definition: total-records + position-deletes + equality-deletes (physical reads)
+- 🔧 **Iceberg Metadata Patching** - New `patched_iceberg_metadata()` context manager
+  - Fixes DuckDB `current-snapshot-id` delete-file bleed when querying older snapshots
+  - Fixes DuckDB rejection of uppercase `PARQUET` format strings in delete manifests
+- 📦 **Dependency Upgrades** - All core libraries updated to latest versions
+  - pyiceberg 0.11.0+, deltalake 1.4.2+, textual 0.86.2+, pyarrow 23.0.0+
 
-### v0.5.2
+### v0.5.3
 - 🚀 **AWS CDK Infrastructure** - Production-ready CDK implementation for EC2 deployment
   - Replaces legacy boto3 scripts with infrastructure-as-code approach
   - Follows AWS CDK best practices (least-privilege IAM, EBS encryption, VPC Flow Logs)
@@ -432,7 +454,7 @@ See [Development Setup](DEVELOPMENT_SETUP.md) for complete development environme
 - 🔒 **Enhanced Security** - Improved IAM permissions and encryption
 - 📚 **Consolidated Documentation** - Streamlined deployment guides and removed legacy content
 
-### v0.5.0 (Current)
+### v0.5.0
 - 🎉 **Delta Lake Support** - Full Delta table inspection and forensics
   - Version history navigation and time travel
   - File size analysis and small file detection
@@ -480,7 +502,7 @@ Contributions welcome! See [Developer Guide](docs/DEVELOPER_GUIDE.md) and [Devel
 
 ## License
 
-MIT License - See [LICENSE](LICENSE) for details.
+Apache 2.0 License - See [LICENSE](LICENSE) for details.
 
 ## Support
 

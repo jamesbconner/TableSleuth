@@ -1,13 +1,13 @@
-# Table Sleuth Development Setup
+# TableSleuth Development Setup
 
-This guide covers setting up Table Sleuth for development, testing, and contributing.
+This guide covers setting up TableSleuth for development, testing, and contributing.
 
 ## Prerequisites
 
 - Python 3.13+
 - `uv` package manager
 - Git
-- Docker (for integration tests)
+- Node.js 20+ and npm (required to rebuild the web UI frontend)
 - AWS CLI (for AWS-related development)
 
 ## Quick Start
@@ -17,7 +17,7 @@ This guide covers setting up Table Sleuth for development, testing, and contribu
 git clone https://github.com/jamesbconner/TableSleuth.git
 cd TableSleuth
 
-# Install dependencies with dev tools
+# Install dependencies with dev tools (includes web extras)
 make install-dev
 
 # Install pre-commit hooks
@@ -54,8 +54,18 @@ make check            # Run all quality checks
 
 ### Build & Run
 ```bash
-make build            # Build distribution packages
+make build            # Build wheel + sdist (for releases)
 make run              # Run tablesleuth CLI
+```
+
+### Web UI Development (v0.6.0+)
+```bash
+make dev-web-install-npm  # Install Node.js dependencies (run once after checkout)
+make dev-api              # Start FastAPI server at localhost:8000 (hot-reload)
+make dev-web              # Start Next.js dev server at localhost:3000 (hot-reload)
+make build-web            # Build Next.js static export only
+make build-release        # Build frontend and copy into src/tablesleuth/web/
+make start-web            # build-release then launch tablesleuth web
 ```
 
 ### Cleanup
@@ -149,15 +159,57 @@ gizmosql_server -U test_user -P test_password -Q \
 ### Running from Source
 
 ```bash
-# Run from source (development mode)
-python -m tablesleuth.cli inspect data/sample.parquet
-
-# Or use the installed command
-tablesleuth inspect data/sample.parquet
+# Run TUI from source
+uv run tablesleuth parquet data/sample.parquet
+uv run tablesleuth iceberg --catalog local --table db.table
+uv run tablesleuth delta path/to/table
 
 # Run with verbose logging for debugging
-tablesleuth inspect data/sample.parquet -v
+uv run tablesleuth parquet data/sample.parquet -v
 ```
+
+## Web UI Development
+
+The web UI consists of a FastAPI backend and a Next.js frontend. During development you run them separately for hot-reload.
+
+### First-Time Setup
+
+```bash
+# Install Node.js dependencies (once after checkout)
+make dev-web-install-npm
+
+# Install Python web extras
+uv sync --extra web
+```
+
+### Hot-Reload Development (two terminals)
+
+**Terminal 1 — FastAPI backend:**
+```bash
+make dev-api          # http://localhost:8000/api/...
+```
+
+**Terminal 2 — Next.js frontend:**
+```bash
+make dev-web          # http://localhost:3000
+```
+
+The Next.js dev server proxies API calls to `localhost:8000`. Edit files in `web-ui/src/` and Python source normally; both servers reload automatically.
+
+### Building the Frontend for Inclusion in the Wheel
+
+```bash
+make build-release    # npm run build → copies web-ui/out/ to src/tablesleuth/web/
+```
+
+This is required before `uv build` so the compiled static export is bundled in the wheel. The GitHub Actions publish workflow runs this step automatically; you only need it locally when verifying the built package or committing an updated `src/tablesleuth/web/index.html`.
+
+### Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `TABLESLEUTH_WEB_UI_DIR` | package `web/` dir | Override path to static Next.js export |
+| `TABLESLEUTH_CORS_ORIGINS` | `http://localhost:3000` | Comma-separated allowed CORS origins |
 
 ## Testing
 
@@ -174,6 +226,16 @@ pytest tests/test_parquet_service.py::test_inspect_file -v
 pytest --cov=src/tablesleuth --cov-report=html --cov-report=term-missing
 ```
 
+### API Tests (v0.6.0+)
+
+```bash
+# Requires web extras installed
+uv sync --extra web --extra dev
+
+# Run API smoke tests
+pytest tests/api/ -v
+```
+
 ### Integration Tests
 
 ```bash
@@ -183,7 +245,7 @@ export TEST_GIZMOSQL_USERNAME="test_user"
 export TEST_GIZMOSQL_PASSWORD="test_password"
 
 # Run integration tests
-pytest tests/integration/ -v
+pytest -m integration -v
 
 # Run end-to-end tests
 pytest tests/test_end_to_end.py -v
@@ -333,3 +395,4 @@ After development setup:
 2. Check [ARCHITECTURE.md](docs/ARCHITECTURE.md) for system design
 3. Read [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines
 4. See [QUICKSTART.md](QUICKSTART.md) for usage examples
+5. See [DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) for API reference and component interfaces
