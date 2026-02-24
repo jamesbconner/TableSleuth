@@ -126,16 +126,21 @@ def get_sample(req: SampleRequest) -> dict[str, Any]:
 
         # Read only the first batch to avoid loading entire file into memory
         batch_reader = pf.iter_batches(batch_size=req.num_rows, use_threads=False)
-        table = next(batch_reader)
-        columns = table.schema.names
-        rows = table.to_pydict()
-        rows_as_lists = [[rows[c][i] for c in columns] for i in range(len(table))]
+        try:
+            table = next(batch_reader)
+            columns = table.schema.names
+            rows = table.to_pydict()
+            rows_as_lists = [[rows[c][i] for c in columns] for i in range(len(table))]
+        except StopIteration:
+            # Empty file or no readable rows
+            columns = pf.schema.names
+            rows_as_lists = []
 
         return {
             "columns": columns,
             "rows": rows_as_lists,
             "total_rows_in_file": pf.metadata.num_rows,
-            "sampled_rows": len(table),
+            "sampled_rows": len(rows_as_lists),
         }
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

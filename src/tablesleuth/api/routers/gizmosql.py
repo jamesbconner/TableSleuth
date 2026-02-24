@@ -339,8 +339,12 @@ def compare_performance(req: CompareRequest) -> dict[str, Any]:
         elif req.format == "delta":
             if not req.path:
                 raise ValueError("path is required for delta format")
-            profiler.register_delta_table_with_version("ver_a", req.path, int(req.id_a))
-            profiler.register_delta_table_with_version("ver_b", req.path, int(req.id_b))
+            profiler.register_delta_table_with_version(
+                "ver_a", req.path, int(req.id_a), storage_options=req.storage_options
+            )
+            profiler.register_delta_table_with_version(
+                "ver_b", req.path, int(req.id_b), storage_options=req.storage_options
+            )
             label_a, label_b = "ver_a", "ver_b"
 
         else:

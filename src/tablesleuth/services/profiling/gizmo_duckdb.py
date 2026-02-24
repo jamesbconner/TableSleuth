@@ -529,7 +529,11 @@ class GizmoDuckDbProfiler(ProfilingBackend):
             raise RuntimeError(f"Query execution failed: {e}") from e
 
     def register_delta_table_with_version(
-        self, table_identifier: str, path: str, version: int | None = None
+        self,
+        table_identifier: str,
+        path: str,
+        version: int | None = None,
+        storage_options: dict[str, str] | None = None,
     ) -> None:
         """Register a Delta table at a specific version for query rewriting.
 
@@ -541,16 +545,20 @@ class GizmoDuckDbProfiler(ProfilingBackend):
             table_identifier: Alias to use in SQL queries (e.g. "ver_a")
             path: Local or cloud path to the Delta table root
             version: Optional version number to pin to; None means latest
+            storage_options: Optional storage configuration for cloud backends
         """
         if not table_identifier or not path:
             raise ValueError("table_identifier and path are required")
 
         from deltalake import DeltaTable
 
+        kwargs: dict[str, Any] = {}
         if version is not None:
-            dt = DeltaTable(path, version=version)
-        else:
-            dt = DeltaTable(path)
+            kwargs["version"] = version
+        if storage_options:
+            kwargs["storage_options"] = storage_options
+
+        dt = DeltaTable(path, **kwargs)
         file_uris = dt.file_uris()  # absolute URIs for all active files at this version
 
         # Collect stats for metrics fallback (best-effort; ignore errors).
@@ -794,7 +802,12 @@ class GizmoDuckDbProfiler(ProfilingBackend):
             if len(results) == 1 and len(results[0]) == 1:
                 # Single scalar result — almost certainly a COUNT(*) or similar aggregate.
                 val = results[0][0]
-                rows_returned = int(val) if isinstance(val, int | float) else 1
+                # Try to convert to int, handling various numeric types (int, float, Decimal, str)
+                try:
+                    rows_returned = int(val)
+                except (ValueError, TypeError):
+                    # If conversion fails, default to 1 (single result row)
+                    rows_returned = 1
             else:
                 rows_returned = len(results)
 
