@@ -575,41 +575,6 @@ class GizmoDuckDbProfiler(ProfilingBackend):
             + (f" at version {version}" if version is not None else " at latest version")
         )
 
-    def register_file_table(
-        self,
-        table_identifier: str,
-        file_paths: list[str],
-        total_bytes: int = 0,
-        total_rows: int = 0,
-    ) -> None:
-        """Register an explicit list of Parquet files as a virtual table.
-
-        At query time, references to table_identifier are rewritten to
-        read_parquet([path1, path2, ...]).  Use this when a scan function
-        (iceberg_scan, delta_scan) cannot be used — e.g. local Iceberg tables
-        where GizmoSQL would need to resolve relative manifest paths.
-
-        Args:
-            table_identifier: Alias to use in SQL queries (e.g. "snap_a")
-            file_paths: Absolute file paths or URIs of Parquet data files
-            total_bytes: Total size of all files in bytes (for metrics fallback)
-            total_rows: Total row count across all files (for metrics fallback)
-        """
-        if not table_identifier:
-            raise ValueError("table_identifier is required")
-
-        if not hasattr(self, "_file_tables"):
-            self._file_tables: dict[str, list[str]] = {}
-        if not hasattr(self, "_file_table_stats"):
-            self._file_table_stats: dict[str, tuple[int, int, int]] = {}
-
-        self._file_tables[table_identifier] = file_paths
-        self._file_table_stats[table_identifier] = (len(file_paths), total_bytes, total_rows)
-        logger.debug(
-            f"Registered file table {table_identifier} -> {len(file_paths)} files, "
-            f"{total_bytes} bytes, {total_rows} rows"
-        )
-
     def register_iceberg_scan_stats(
         self,
         table_identifier: str,
@@ -660,6 +625,32 @@ class GizmoDuckDbProfiler(ProfilingBackend):
             bytes_scanned,
         )
 
+    @staticmethod
+    def _replace_table_ref(query: str, table_identifier: str, scan_call: str) -> str:
+        """Replace all references to a table identifier with a scan function call.
+
+        Handles bare identifiers, double-quoted, and single-quoted references.
+
+        Args:
+            query: SQL query to modify.
+            table_identifier: Table name/alias to replace.
+            scan_call: Scan function call to substitute (e.g., "iceberg_scan(...)").
+
+        Returns:
+            Modified query with table references replaced.
+        """
+        patterns = [
+            rf"\b{re.escape(table_identifier)}\b",  # Bare identifier
+            rf'"{re.escape(table_identifier)}"',  # Double-quoted
+            rf"'{re.escape(table_identifier)}'",  # Single-quoted
+        ]
+
+        modified = query
+        for pattern in patterns:
+            modified = re.sub(pattern, lambda m: scan_call, modified, flags=re.IGNORECASE)
+
+        return modified
+
     def _replace_iceberg_tables(self, query: str) -> str:
         """Replace table references with iceberg_scan() or read_parquet() calls.
 
@@ -684,22 +675,7 @@ class GizmoDuckDbProfiler(ProfilingBackend):
                 else:
                     scan_call = f"iceberg_scan('{escaped_metadata_loc}')"
 
-                patterns = [
-                    rf"\b{re.escape(table_id)}\b",
-                    rf'"{re.escape(table_id)}"',
-                    rf"'{re.escape(table_id)}'",
-                ]
-
-                def make_replacer(replacement: str) -> Any:
-                    return lambda m: replacement
-
-                for pattern in patterns:
-                    modified_query = re.sub(
-                        pattern,
-                        make_replacer(scan_call),
-                        modified_query,
-                        flags=re.IGNORECASE,
-                    )
+                modified_query = self._replace_table_ref(modified_query, table_id, scan_call)
 
         # --- Delta tables ---
         # delta_scan() does not support version travel; instead we resolve the active
@@ -712,50 +688,7 @@ class GizmoDuckDbProfiler(ProfilingBackend):
                 escaped_uris = ", ".join(f"'{u.replace(chr(39), chr(39) * 2)}'" for u in file_uris)
                 scan_call = f"read_parquet([{escaped_uris}])"
 
-                patterns = [
-                    rf"\b{re.escape(table_id)}\b",
-                    rf'"{re.escape(table_id)}"',
-                    rf"'{re.escape(table_id)}'",
-                ]
-
-                def make_replacer(replacement: str) -> Any:
-                    return lambda m: replacement
-
-                for pattern in patterns:
-                    modified_query = re.sub(
-                        pattern,
-                        make_replacer(scan_call),
-                        modified_query,
-                        flags=re.IGNORECASE,
-                    )
-
-        # --- Explicit file-list tables (local Iceberg, or any format needing read_parquet) ---
-        if hasattr(self, "_file_tables") and self._file_tables:
-            for table_id, file_paths in self._file_tables.items():
-                if not file_paths:
-                    continue
-
-                escaped_paths = ", ".join(
-                    f"'{p.replace(chr(39), chr(39) * 2)}'" for p in file_paths
-                )
-                scan_call = f"read_parquet([{escaped_paths}])"
-
-                patterns = [
-                    rf"\b{re.escape(table_id)}\b",
-                    rf'"{re.escape(table_id)}"',
-                    rf"'{re.escape(table_id)}'",
-                ]
-
-                def make_replacer(replacement: str) -> Any:
-                    return lambda m: replacement
-
-                for pattern in patterns:
-                    modified_query = re.sub(
-                        pattern,
-                        make_replacer(scan_call),
-                        modified_query,
-                        flags=re.IGNORECASE,
-                    )
+                modified_query = self._replace_table_ref(modified_query, table_id, scan_call)
 
         if modified_query != query:
             logger.debug(
@@ -844,15 +777,9 @@ class GizmoDuckDbProfiler(ProfilingBackend):
                     if delete_rows_scanned == 0 and ic.get("delete_rows_scanned", 0) > 0:
                         delete_rows_scanned = ic["delete_rows_scanned"]
 
-        # 2. Collect stats for any registered file-list / Delta tables referenced.
-        all_stat_dicts: list[dict[str, tuple[int, int, int]]] = []
-        if hasattr(self, "_file_table_stats"):
-            all_stat_dicts.append(self._file_table_stats)
+        # 2. Collect stats for any registered Delta tables referenced.
         if hasattr(self, "_delta_table_stats"):
-            all_stat_dicts.append(self._delta_table_stats)
-
-        for stat_dict in all_stat_dicts:
-            for table_id, (fc, tb, tr) in stat_dict.items():
+            for table_id, (fc, tb, tr) in self._delta_table_stats.items():
                 if _re.search(rf"\b{_re.escape(table_id)}\b", original_query, _re.IGNORECASE):
                     if files_scanned == 0:
                         files_scanned = fc
