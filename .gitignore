@@ -62,6 +62,8 @@ dmypy.json
 Thumbs.db
 
 # Project specific
+.claude/
+CLAUDE.md
 resources/config.json
 *.pem
 input/
@@ -89,10 +91,10 @@ docker-compose.override.yml
 backups/
 ssl/
 
-# Web UI built artifacts (built by make build-release; placeholder index.html is committed)
-# Ignore everything in web/ EXCEPT the placeholder index.html
+# Web UI built artifacts (built by make build-release; not committed to git)
+# Ignore everything in web/ EXCEPT .gitkeep which preserves the empty directory
 src/tablesleuth/web/*
-!src/tablesleuth/web/index.html
+!src/tablesleuth/web/.gitkeep
 
 # Next.js dev artifacts (web-ui/ source is committed, build output is not)
 web-ui/.next/
