@@ -106,7 +106,7 @@ class TestScalarConversion:
         assert metrics.rows_returned == 1
 
     def test_supplement_metrics_with_unreasonably_large_count(self) -> None:
-        """Test that unreasonably large COUNT values are treated as 1."""
+        """Test that large COUNT values (>1B) are accepted for data warehouse tables."""
         profiler = GizmoDuckDbProfiler(
             uri="grpc://localhost:31337", username="test", password="test"
         )
@@ -120,13 +120,13 @@ class TestScalarConversion:
             memory_peak_mb=0,
         )
 
-        # Unreasonably large value (>1B rows) - probably not a real row count
+        # Large value (5B rows) - valid for data warehouse tables (Iceberg, Delta Lake)
         results = [[5_000_000_000]]
 
         metrics = profiler._supplement_metrics(mock_metrics, "SELECT COUNT(*) FROM table", results)
 
-        # Should be 1 (sanity check failed)
-        assert metrics.rows_returned == 1
+        # Should accept the large count value
+        assert metrics.rows_returned == 5_000_000_000
 
     def test_supplement_metrics_with_float_result(self) -> None:
         """Test that float COUNT results are converted to int."""
@@ -313,3 +313,126 @@ class TestScalarConversion:
 
         # Should preserve existing value
         assert metrics.rows_returned == 50
+
+    def test_supplement_metrics_count_over_one_billion(self) -> None:
+        """Test that COUNT results over 1 billion are accepted for data warehouse tables."""
+        profiler = GizmoDuckDbProfiler(
+            uri="grpc://localhost:31337", username="test", password="test"
+        )
+
+        mock_metrics = QueryPerformanceMetrics(
+            execution_time_ms=100,
+            files_scanned=0,
+            bytes_scanned=0,
+            rows_scanned=0,
+            rows_returned=0,
+            memory_peak_mb=0,
+        )
+
+        # COUNT result of 5 billion rows (common for large Iceberg/Delta tables)
+        results = [[5_000_000_000]]
+
+        metrics = profiler._supplement_metrics(
+            mock_metrics, "SELECT COUNT(*) FROM large_table", results
+        )
+
+        assert metrics.rows_returned == 5_000_000_000
+
+    def test_supplement_metrics_count_exactly_one_billion(self) -> None:
+        """Test that COUNT result of exactly 1 billion is accepted."""
+        profiler = GizmoDuckDbProfiler(
+            uri="grpc://localhost:31337", username="test", password="test"
+        )
+
+        mock_metrics = QueryPerformanceMetrics(
+            execution_time_ms=100,
+            files_scanned=0,
+            bytes_scanned=0,
+            rows_scanned=0,
+            rows_returned=0,
+            memory_peak_mb=0,
+        )
+
+        results = [[1_000_000_000]]
+
+        metrics = profiler._supplement_metrics(mock_metrics, "SELECT COUNT(*) FROM table", results)
+
+        assert metrics.rows_returned == 1_000_000_000
+
+    def test_supplement_metrics_count_ten_billion(self) -> None:
+        """Test that COUNT result of 10 billion is accepted."""
+        profiler = GizmoDuckDbProfiler(
+            uri="grpc://localhost:31337", username="test", password="test"
+        )
+
+        mock_metrics = QueryPerformanceMetrics(
+            execution_time_ms=100,
+            files_scanned=0,
+            bytes_scanned=0,
+            rows_scanned=0,
+            rows_returned=0,
+            memory_peak_mb=0,
+        )
+
+        results = [[10_000_000_000]]
+
+        metrics = profiler._supplement_metrics(
+            mock_metrics, "SELECT COUNT(*) FROM huge_table", results
+        )
+
+        assert metrics.rows_returned == 10_000_000_000
+
+    def test_supplement_metrics_count_negative_rejected(self) -> None:
+        """Test that negative COUNT results are rejected (invalid)."""
+        profiler = GizmoDuckDbProfiler(
+            uri="grpc://localhost:31337", username="test", password="test"
+        )
+
+        mock_metrics = QueryPerformanceMetrics(
+            execution_time_ms=100,
+            files_scanned=0,
+            bytes_scanned=0,
+            rows_scanned=0,
+            rows_returned=0,
+            memory_peak_mb=0,
+        )
+
+        # Negative count is invalid
+        results = [[-100]]
+
+        metrics = profiler._supplement_metrics(mock_metrics, "SELECT COUNT(*) FROM table", results)
+
+        # Should default to 1 (single result row) for invalid counts
+        assert metrics.rows_returned == 1
+
+    def test_supplement_metrics_scan_efficiency_with_large_count(self) -> None:
+        """Test that scan_efficiency is calculated correctly with large COUNT results."""
+        profiler = GizmoDuckDbProfiler(
+            uri="grpc://localhost:31337", username="test", password="test"
+        )
+
+        # Simulate a full table scan with 5B rows
+        mock_metrics = QueryPerformanceMetrics(
+            execution_time_ms=100,
+            files_scanned=1000,
+            bytes_scanned=500_000_000_000,  # 500 GB
+            rows_scanned=5_000_000_000,  # 5B rows scanned
+            rows_returned=0,  # Will be filled from results
+            memory_peak_mb=1024,
+        )
+
+        results = [[5_000_000_000]]  # COUNT(*) returns 5B
+
+        metrics = profiler._supplement_metrics(
+            mock_metrics, "SELECT COUNT(*) FROM large_table", results
+        )
+
+        assert metrics.rows_returned == 5_000_000_000
+        assert metrics.rows_scanned == 5_000_000_000
+
+        # Scan efficiency should be 100% (all scanned rows returned)
+        # scan_efficiency = rows_returned / rows_scanned = 5B / 5B = 1.0 = 100%
+        # This is calculated elsewhere, but the metrics should support it
+        if metrics.rows_scanned > 0:
+            scan_efficiency = metrics.rows_returned / metrics.rows_scanned
+            assert scan_efficiency == 1.0

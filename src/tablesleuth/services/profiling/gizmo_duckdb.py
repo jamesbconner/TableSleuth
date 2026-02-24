@@ -812,17 +812,17 @@ class GizmoDuckDbProfiler(ProfilingBackend):
             if len(results) == 1 and len(results[0]) == 1:
                 # Single scalar result — could be COUNT(*) or another aggregate (SUM, AVG, etc.)
                 val = results[0][0]
-                # Only treat as row count if query contains COUNT and value is reasonable
-                # (not too large to be a SUM/AVG result). This heuristic prevents
-                # misinterpreting SUM(price)=5000000 as 5M rows.
+                # Only treat as row count if query contains COUNT.
+                # This heuristic prevents misinterpreting SUM(price)=5000000 as 5M rows.
                 if _re.search(r"\bCOUNT\s*\(", original_query, _re.IGNORECASE):
                     try:
                         count_val = int(val)
-                        # Sanity check: if value is unreasonably large (>1B rows),
-                        # it's probably not a row count
-                        if 0 <= count_val <= 1_000_000_000:
+                        # Accept any non-negative count value, including >1B for large
+                        # data warehouse tables (Iceberg, Delta Lake routinely exceed 1B rows)
+                        if count_val >= 0:
                             rows_returned = count_val
                         else:
+                            # Negative counts are invalid
                             rows_returned = 1
                     except (ValueError, TypeError):
                         # If conversion fails, default to 1 (single result row)
