@@ -309,8 +309,11 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         LIMIT 1
         """  # nosec B608
 
+        use_iceberg = "iceberg_scan" in from_clause
         is_numeric = False
         with self._connect() as conn, conn.cursor() as cur:
+            if use_iceberg:
+                self._ensure_iceberg_loaded(cur)
             cur.execute(type_check_sql)
             type_row = cur.fetchone()
             if type_row:
@@ -361,6 +364,8 @@ class GizmoDuckDbProfiler(ProfilingBackend):
             """  # nosec B608
 
         with self._connect() as conn, conn.cursor() as cur:
+            if use_iceberg:
+                self._ensure_iceberg_loaded(cur)
             cur.execute(sql)
             row = cur.fetchone()
 
@@ -379,6 +384,8 @@ class GizmoDuckDbProfiler(ProfilingBackend):
             """  # nosec B608
 
             with self._connect() as conn, conn.cursor() as cur:
+                if use_iceberg:
+                    self._ensure_iceberg_loaded(cur)
                 cur.execute(mode_sql)
                 mode_row = cur.fetchone()
                 if mode_row:
@@ -510,13 +517,7 @@ class GizmoDuckDbProfiler(ProfilingBackend):
             modified_query = self._replace_iceberg_tables(query)
 
             with self._connect() as conn, conn.cursor() as cur:
-                # Install and load Iceberg extension
-                try:
-                    cur.execute("INSTALL iceberg")
-                    cur.execute("LOAD iceberg")
-                except Exception as e:
-                    logger.warning(f"Failed to install/load Iceberg extension: {e}")
-
+                self._ensure_iceberg_loaded(cur)
                 # Execute query and measure time
                 start_time = time.time()
                 cur.execute(modified_query)
@@ -647,6 +648,14 @@ class GizmoDuckDbProfiler(ProfilingBackend):
             rows_scanned,
             bytes_scanned,
         )
+
+    def _ensure_iceberg_loaded(self, cur: Any) -> None:
+        """Ensure the Iceberg extension is installed and loaded on the given cursor."""
+        try:
+            cur.execute("INSTALL iceberg")
+            cur.execute("LOAD iceberg")
+        except Exception as e:
+            logger.warning("Failed to install/load Iceberg extension: %s", e)
 
     @staticmethod
     def _replace_table_ref(query: str, table_identifier: str, scan_call: str) -> str:

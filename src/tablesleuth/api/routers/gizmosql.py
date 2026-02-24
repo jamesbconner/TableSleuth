@@ -140,10 +140,15 @@ def profile_table(req: ProfileRequest) -> dict[str, Any]:
         profiler = _get_profiler()
 
         if req.metadata_location:
+            # Use a fixed internal name so profiling always uses the registered
+            # Iceberg table. profile_columns/profile_single_column resolve this
+            # via _replace_iceberg_tables; the client's table_ref may be an
+            # invalid identifier (e.g. "catalog.db.table") for the profiler.
+            _PROFILE_ICEBERG_VIEW = "profile_iceberg_view"
             profiler.register_iceberg_table_with_snapshot(
-                req.table_ref, req.metadata_location, req.snapshot_id
+                _PROFILE_ICEBERG_VIEW, req.metadata_location, req.snapshot_id
             )
-            view_name = req.table_ref
+            view_name = _PROFILE_ICEBERG_VIEW
         else:
             view_name = req.table_ref
 
