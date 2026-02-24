@@ -148,6 +148,17 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         self._password = password
         self._tls_skip_verify = tls_skip_verify
         self._registered_catalogs: dict[str, str] = {}  # catalog_name -> catalog_path
+        self._view_paths: dict[str, list[str]] = {}  # view_name -> cleaned file paths
+        self._iceberg_tables: dict[
+            str, tuple[str, int | None]
+        ] = {}  # table_id -> (metadata_path, snapshot_id)
+        self._delta_tables: dict[str, list[str]] = {}  # table_id -> file URIs
+        self._delta_table_stats: dict[
+            str, tuple[int, int, int]
+        ] = {}  # table_id -> (files, bytes, rows)
+        self._iceberg_scan_stats: dict[
+            str, dict[str, int]
+        ] = {}  # table_id -> scan stat keys/values
 
     def _connect(self) -> Any:
         """Create a FlightSQL connection.
@@ -246,8 +257,6 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         cleaned_paths = [_clean_file_path(path) for path in file_paths]
 
         # Store the cleaned file paths mapping for this view name
-        if not hasattr(self, "_view_paths"):
-            self._view_paths = {}
         self._view_paths[safe_view_name] = cleaned_paths
 
         return safe_view_name
@@ -272,7 +281,7 @@ class GizmoDuckDbProfiler(ProfilingBackend):
             where_clause = ""
 
         # Get the file paths for this view name
-        if hasattr(self, "_view_paths") and safe_view_name in self._view_paths:
+        if safe_view_name in self._view_paths:
             file_paths = self._view_paths[safe_view_name]
             # Build read_parquet() expression
             if len(file_paths) == 1:
@@ -443,8 +452,7 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         This removes all stored file path mappings, forcing views to be
         re-registered on next use. Useful when refreshing or invalidating caches.
         """
-        if hasattr(self, "_view_paths"):
-            self._view_paths.clear()
+        self._view_paths.clear()
 
     def register_iceberg_table(self, table_identifier: str, metadata_location: str) -> None:
         """Register an Iceberg table for querying.
@@ -484,9 +492,6 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         clean_metadata_location = _clean_file_path(metadata_location)
 
         # Store the mapping with snapshot info
-        if not hasattr(self, "_iceberg_tables"):
-            self._iceberg_tables: dict[str, tuple[str, int | None]] = {}
-
         self._iceberg_tables[table_identifier] = (clean_metadata_location, snapshot_id)
         logger.debug(
             f"Registered Iceberg table {table_identifier} -> {clean_metadata_location}"
@@ -587,11 +592,6 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         except Exception as exc:
             logger.debug(f"Could not read Delta add-actions stats: {exc}")
 
-        if not hasattr(self, "_delta_tables"):
-            self._delta_tables: dict[str, list[str]] = {}
-        if not hasattr(self, "_delta_table_stats"):
-            self._delta_table_stats: dict[str, tuple[int, int, int]] = {}
-
         self._delta_tables[table_identifier] = file_uris
         self._delta_table_stats[table_identifier] = (len(file_uris), total_bytes, total_rows)
         logger.debug(
@@ -627,8 +627,6 @@ class GizmoDuckDbProfiler(ProfilingBackend):
             data_rows_scanned: Records in data files only.
             delete_rows_scanned: Records in delete files only.
         """
-        if not hasattr(self, "_iceberg_scan_stats"):
-            self._iceberg_scan_stats: dict[str, dict[str, int]] = {}
         self._iceberg_scan_stats[table_identifier] = {
             "files_scanned": files_scanned,
             "bytes_scanned": bytes_scanned,
@@ -690,7 +688,7 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         modified_query = query
 
         # --- Iceberg tables ---
-        if hasattr(self, "_iceberg_tables") and self._iceberg_tables:
+        if self._iceberg_tables:
             for table_id, table_info in self._iceberg_tables.items():
                 metadata_loc, snapshot_id = table_info
                 escaped_metadata_loc = metadata_loc.replace("'", "''")
@@ -707,7 +705,7 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         # --- Delta tables ---
         # delta_scan() does not support version travel; instead we resolve the active
         # Parquet file URIs at registration time and use read_parquet([...]) here.
-        if hasattr(self, "_delta_tables") and self._delta_tables:
+        if self._delta_tables:
             for table_id, file_uris in self._delta_tables.items():
                 if not file_uris:
                     continue
@@ -786,34 +784,32 @@ class GizmoDuckDbProfiler(ProfilingBackend):
 
         # 1. Iceberg snapshot stats (files = data+delete; rows_scanned = data records
         #    + delete records, i.e. physical rows read before applying deletes).
-        if hasattr(self, "_iceberg_scan_stats"):
-            for table_id, ic in self._iceberg_scan_stats.items():
-                if _re.search(rf"\b{_re.escape(table_id)}\b", original_query, _re.IGNORECASE):
-                    if files_scanned == 0 and ic.get("files_scanned", 0) > 0:
-                        files_scanned = ic["files_scanned"]
-                    if bytes_scanned == 0 and ic.get("bytes_scanned", 0) > 0:
-                        bytes_scanned = ic["bytes_scanned"]
-                    if rows_scanned == 0 and ic.get("rows_scanned", 0) > 0:
-                        rows_scanned = ic["rows_scanned"]
-                    if data_files_scanned == 0 and ic.get("data_files_scanned", 0) > 0:
-                        data_files_scanned = ic["data_files_scanned"]
-                    if delete_files_scanned == 0 and ic.get("delete_files_scanned", 0) > 0:
-                        delete_files_scanned = ic["delete_files_scanned"]
-                    if data_rows_scanned == 0 and ic.get("data_rows_scanned", 0) > 0:
-                        data_rows_scanned = ic["data_rows_scanned"]
-                    if delete_rows_scanned == 0 and ic.get("delete_rows_scanned", 0) > 0:
-                        delete_rows_scanned = ic["delete_rows_scanned"]
+        for table_id, ic in self._iceberg_scan_stats.items():
+            if _re.search(rf"\b{_re.escape(table_id)}\b", original_query, _re.IGNORECASE):
+                if files_scanned == 0 and ic.get("files_scanned", 0) > 0:
+                    files_scanned = ic["files_scanned"]
+                if bytes_scanned == 0 and ic.get("bytes_scanned", 0) > 0:
+                    bytes_scanned = ic["bytes_scanned"]
+                if rows_scanned == 0 and ic.get("rows_scanned", 0) > 0:
+                    rows_scanned = ic["rows_scanned"]
+                if data_files_scanned == 0 and ic.get("data_files_scanned", 0) > 0:
+                    data_files_scanned = ic["data_files_scanned"]
+                if delete_files_scanned == 0 and ic.get("delete_files_scanned", 0) > 0:
+                    delete_files_scanned = ic["delete_files_scanned"]
+                if data_rows_scanned == 0 and ic.get("data_rows_scanned", 0) > 0:
+                    data_rows_scanned = ic["data_rows_scanned"]
+                if delete_rows_scanned == 0 and ic.get("delete_rows_scanned", 0) > 0:
+                    delete_rows_scanned = ic["delete_rows_scanned"]
 
         # 2. Collect stats for any registered Delta tables referenced.
-        if hasattr(self, "_delta_table_stats"):
-            for table_id, (fc, tb, tr) in self._delta_table_stats.items():
-                if _re.search(rf"\b{_re.escape(table_id)}\b", original_query, _re.IGNORECASE):
-                    if files_scanned == 0:
-                        files_scanned = fc
-                    if bytes_scanned == 0:
-                        bytes_scanned = tb
-                    if rows_scanned == 0:
-                        rows_scanned = tr
+        for table_id, (fc, tb, tr) in self._delta_table_stats.items():
+            if _re.search(rf"\b{_re.escape(table_id)}\b", original_query, _re.IGNORECASE):
+                if files_scanned == 0:
+                    files_scanned = fc
+                if bytes_scanned == 0:
+                    bytes_scanned = tb
+                if rows_scanned == 0:
+                    rows_scanned = tr
 
         # 3. Derive rows_returned from actual query results (most accurate for COUNT
         #    queries, where the result already reflects any applied delete records).
