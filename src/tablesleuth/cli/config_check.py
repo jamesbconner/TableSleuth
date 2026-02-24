@@ -122,7 +122,7 @@ def config_check(verbose: bool, with_gizmosql: bool) -> None:
         "TABLESLEUTH_CATALOG_NAME": "Default catalog override",
         "TABLESLEUTH_GIZMO_URI": "GizmoSQL URI override",
         "TABLESLEUTH_GIZMO_USERNAME": "GizmoSQL username override",
-        "TABLESLEUTH_GIZMO_PASSWORD": "GizmoSQL password override",
+        "TABLESLEUTH_GIZMO_PASSWORD": "GizmoSQL password override",  # nosec B105
         "PYICEBERG_HOME": "PyIceberg config directory",
     }
 
