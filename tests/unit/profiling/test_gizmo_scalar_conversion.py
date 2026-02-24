@@ -27,12 +27,106 @@ class TestScalarConversion:
             memory_peak_mb=0,
         )
 
-        # Single-cell result with int
+        # Single-cell result with int from COUNT query
         results = [[42]]
 
         metrics = profiler._supplement_metrics(mock_metrics, "SELECT COUNT(*) FROM table", results)
 
         assert metrics.rows_returned == 42
+
+    def test_supplement_metrics_with_sum_aggregate(self) -> None:
+        """Test that SUM aggregates are not misinterpreted as row counts."""
+        profiler = GizmoDuckDbProfiler(
+            uri="grpc://localhost:31337", username="test", password="test"
+        )
+
+        mock_metrics = QueryPerformanceMetrics(
+            execution_time_ms=100,
+            files_scanned=0,
+            bytes_scanned=0,
+            rows_scanned=0,
+            rows_returned=0,
+            memory_peak_mb=0,
+        )
+
+        # Single-cell result with large value from SUM query
+        results = [[5000000]]
+
+        metrics = profiler._supplement_metrics(
+            mock_metrics, "SELECT SUM(price) FROM table", results
+        )
+
+        # Should be 1 (one result row), not 5000000
+        assert metrics.rows_returned == 1
+
+    def test_supplement_metrics_with_avg_aggregate(self) -> None:
+        """Test that AVG aggregates are not misinterpreted as row counts."""
+        profiler = GizmoDuckDbProfiler(
+            uri="grpc://localhost:31337", username="test", password="test"
+        )
+
+        mock_metrics = QueryPerformanceMetrics(
+            execution_time_ms=100,
+            files_scanned=0,
+            bytes_scanned=0,
+            rows_scanned=0,
+            rows_returned=0,
+            memory_peak_mb=0,
+        )
+
+        # Single-cell result from AVG query
+        results = [[42.5]]
+
+        metrics = profiler._supplement_metrics(mock_metrics, "SELECT AVG(age) FROM table", results)
+
+        # Should be 1 (one result row)
+        assert metrics.rows_returned == 1
+
+    def test_supplement_metrics_with_max_aggregate(self) -> None:
+        """Test that MAX aggregates are not misinterpreted as row counts."""
+        profiler = GizmoDuckDbProfiler(
+            uri="grpc://localhost:31337", username="test", password="test"
+        )
+
+        mock_metrics = QueryPerformanceMetrics(
+            execution_time_ms=100,
+            files_scanned=0,
+            bytes_scanned=0,
+            rows_scanned=0,
+            rows_returned=0,
+            memory_peak_mb=0,
+        )
+
+        # Single-cell result from MAX query
+        results = [[999999]]
+
+        metrics = profiler._supplement_metrics(mock_metrics, "SELECT MAX(id) FROM table", results)
+
+        # Should be 1 (one result row)
+        assert metrics.rows_returned == 1
+
+    def test_supplement_metrics_with_unreasonably_large_count(self) -> None:
+        """Test that unreasonably large COUNT values are treated as 1."""
+        profiler = GizmoDuckDbProfiler(
+            uri="grpc://localhost:31337", username="test", password="test"
+        )
+
+        mock_metrics = QueryPerformanceMetrics(
+            execution_time_ms=100,
+            files_scanned=0,
+            bytes_scanned=0,
+            rows_scanned=0,
+            rows_returned=0,
+            memory_peak_mb=0,
+        )
+
+        # Unreasonably large value (>1B rows) - probably not a real row count
+        results = [[5_000_000_000]]
+
+        metrics = profiler._supplement_metrics(mock_metrics, "SELECT COUNT(*) FROM table", results)
+
+        # Should be 1 (sanity check failed)
+        assert metrics.rows_returned == 1
 
     def test_supplement_metrics_with_float_result(self) -> None:
         """Test that float COUNT results are converted to int."""

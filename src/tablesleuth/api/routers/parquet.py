@@ -130,7 +130,17 @@ def get_sample(req: SampleRequest) -> dict[str, Any]:
             table = next(batch_reader)
             columns = table.schema.names
             rows = table.to_pydict()
-            rows_as_lists = [[rows[c][i] for c in columns] for i in range(len(table))]
+            # Serialize rows to handle non-JSON-safe types (bytes, Decimal, etc.)
+            rows_as_lists = [
+                [
+                    str(rows[c][i])
+                    if rows[c][i] is not None
+                    and not isinstance(rows[c][i], int | float | bool | str)
+                    else rows[c][i]
+                    for c in columns
+                ]
+                for i in range(len(table))
+            ]
         except StopIteration:
             # Empty file or no readable rows
             columns = pf.schema.names
