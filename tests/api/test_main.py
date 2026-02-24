@@ -19,7 +19,7 @@ def test_health() -> None:
     data = response.json()
     assert data["status"] == "ok"
     assert "version" in data
-    assert data["version"] == "0.6.0"
+    assert data["version"] == "0.6.1"
 
 
 def test_openapi_schema() -> None:
