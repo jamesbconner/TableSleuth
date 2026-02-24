@@ -283,8 +283,23 @@ class GizmoDuckDbProfiler(ProfilingBackend):
                 paths_list = ", ".join(f"'{p}'" for p in escaped_paths)
                 from_clause = f"read_parquet([{paths_list}])"
         else:
-            # Fallback: assume view_name is a table/view name
-            from_clause = safe_view_name
+            # Check if this is a registered Iceberg or Delta table
+            # Use a dummy query to trigger table replacement logic
+            # safe_view_name is sanitized via _sanitize_identifier()
+            dummy_query = f"SELECT * FROM {safe_view_name}"  # nosec B608
+            replaced_query = self._replace_iceberg_tables(dummy_query)
+
+            if replaced_query != dummy_query:
+                # Extract the scan call from the replaced query
+                # Pattern: SELECT * FROM <scan_call>
+                match = re.search(r"FROM\s+(.+)$", replaced_query, re.IGNORECASE)
+                if match:
+                    from_clause = match.group(1).strip()
+                else:
+                    from_clause = safe_view_name
+            else:
+                # Fallback: assume view_name is a table/view name
+                from_clause = safe_view_name
 
         # First, detect if column is numeric by checking its type
         type_check_sql = f"""
@@ -637,7 +652,9 @@ class GizmoDuckDbProfiler(ProfilingBackend):
     def _replace_table_ref(query: str, table_identifier: str, scan_call: str) -> str:
         """Replace all references to a table identifier with a scan function call.
 
-        Handles bare identifiers, double-quoted, and single-quoted references.
+        Uses word-boundary matching which handles bare identifiers and quoted
+        identifiers uniformly (quotes are non-word characters, so \\b matches
+        at the quote boundary).
 
         Args:
             query: SQL query to modify.
@@ -647,17 +664,10 @@ class GizmoDuckDbProfiler(ProfilingBackend):
         Returns:
             Modified query with table references replaced.
         """
-        patterns = [
-            rf"\b{re.escape(table_identifier)}\b",  # Bare identifier
-            rf'"{re.escape(table_identifier)}"',  # Double-quoted
-            rf"'{re.escape(table_identifier)}'",  # Single-quoted
-        ]
-
-        modified = query
-        for pattern in patterns:
-            modified = re.sub(pattern, lambda m: scan_call, modified, flags=re.IGNORECASE)
-
-        return modified
+        # Word boundary pattern handles both bare and quoted identifiers
+        # because quotes (", ') are non-word characters
+        pattern = rf"\b{re.escape(table_identifier)}\b"
+        return re.sub(pattern, lambda m: scan_call, query, flags=re.IGNORECASE)
 
     def _replace_iceberg_tables(self, query: str) -> str:
         """Replace table references with iceberg_scan() or read_parquet() calls.
